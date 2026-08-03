@@ -12,7 +12,7 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[vestra] route error", error);
+    console.error("[atlas] route error", error);
   }, [error]);
 
   return (

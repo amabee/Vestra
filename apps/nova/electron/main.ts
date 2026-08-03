@@ -11,7 +11,7 @@ import {
   shell,
 } from "electron";
 
-import { startAppServer, stopAppServer } from "./app-server";
+import { startAtlasServer, stopAtlasServer } from "./atlas-server";
 import {
   callExtension,
   listLoadedExtensions,
@@ -33,9 +33,9 @@ import {
 const isDev = process.env.NODE_ENV === "development";
 
 /**
- * Resolved once the app server is listening.
+ * Resolved once Atlas is listening.
  *
- * In development that is the Next dev server; in production it is the
+ * In development that is the Atlas dev server; in production it is the
  * standalone build Nova starts itself on a free loopback port.
  */
 let appUrl = "http://localhost:3000";
@@ -44,7 +44,7 @@ let appUrl = "http://localhost:3000";
  * Where Vestra persists watchlist, progress, settings and the library index.
  *
  * The OS app-data directory rather than the working directory, so a packaged
- * Nova writes somewhere durable and writable. Passed to the app server as
+ * Nova writes somewhere durable and writable. Passed to the Atlas server as
  * `VESTRA_DATA_DIR` and exposed to the renderer over IPC.
  */
 function resolveDataDir(): string {
@@ -61,7 +61,7 @@ function createWindow(): BrowserWindow {
     minWidth: 960,
     minHeight: 640,
     show: false,
-    // Frameless with a custom draggable bar rendered by the app (.drag-region).
+    // Frameless with a custom draggable bar rendered by Atlas (.drag-region).
     titleBarStyle: "hidden",
     ...(process.platform === "linux" ? { frame: false } : {}),
     titleBarOverlay: {
@@ -194,14 +194,14 @@ if (!gotLock) {
     registerIpc();
 
     try {
-      // The app server owns the routes, provider registry, scanner and matcher,
-      // so it must be listening before the window loads anything.
-      const server = await startAppServer({ isDev, dataDir: resolveDataDir() });
+      // Atlas owns the routes, provider registry, scanner and matcher, so it
+      // must be listening before the window loads anything.
+      const server = await startAtlasServer({ isDev, dataDir: resolveDataDir() });
       appUrl = server.url;
     } catch (error) {
       dialog.showErrorBox(
         "Vestra could not start",
-        error instanceof Error ? error.message : "The app server failed to start.",
+        error instanceof Error ? error.message : "The Atlas server failed to start.",
       );
       app.quit();
       return;
@@ -238,7 +238,7 @@ if (!gotLock) {
   app.on("will-quit", () => {
     // Killing the worker disposes every isolate with it.
     stopExtensionWorker();
-    stopAppServer();
+    stopAtlasServer();
   });
 
   app.on("window-all-closed", () => {

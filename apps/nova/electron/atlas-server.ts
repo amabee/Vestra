@@ -6,14 +6,14 @@ import { dirname, join } from "node:path";
 import { app } from "electron";
 
 /**
- * Runs Nova's app server.
+ * Runs the Atlas server inside Nova.
  *
- * The Next.js app in `apps/nova-app` is not just the UI — it owns every route
- * handler, the provider registry, the library scanner and the matcher. Nova
- * ships its `standalone` build and runs it on loopback, which is what makes
- * the desktop app self-contained rather than dependent on a hosted deployment.
+ * Atlas is not just the UI — it owns every route handler, the provider
+ * registry, the library scanner and the matcher. Nova therefore ships the
+ * Next.js `standalone` build and runs it locally, which is what makes the
+ * desktop app self-contained instead of depending on a hosted deployment.
  *
- * In development the dev server is already running, so this is skipped.
+ * In development the Atlas dev server is already running, so this is skipped.
  */
 
 let serverProcess: ChildProcess | null = null;
@@ -57,13 +57,13 @@ function findFreePort(): Promise<number> {
   });
 }
 
-/** Where electron-builder places the bundled standalone output. */
+/** Where electron-builder places the bundled Atlas standalone output. */
 function resolveServerEntry(): string | null {
   const candidates = [
     // Packaged: copied in via `extraResources`.
-    join(process.resourcesPath, "app", "server.js"),
+    join(process.resourcesPath, "atlas", "server.js"),
     // Unpackaged production run from the repo.
-    join(app.getAppPath(), "resources", "app", "server.js"),
+    join(app.getAppPath(), "resources", "atlas", "server.js"),
   ];
 
   return candidates.find((candidate) => existsSync(candidate)) ?? null;
@@ -99,7 +99,7 @@ async function waitForServer(port: number, timeoutMs = 30_000): Promise<void> {
     // The child dying is terminal; polling on would just burn the full budget
     // and report a timeout instead of the real failure.
     if (serverProcess === null) {
-      throw new Error(lastServerError().trim() || "The app server exited during startup.");
+      throw new Error(lastServerError().trim() || "The Atlas server exited during startup.");
     }
 
     if (await canConnect(port)) return;
@@ -107,21 +107,21 @@ async function waitForServer(port: number, timeoutMs = 30_000): Promise<void> {
   }
 
   throw new Error(
-    `The app server did not start within ${timeoutMs}ms.` +
+    `Atlas server did not start within ${timeoutMs}ms.` +
       (lastServerError().trim() ? `\n\n${lastServerError().trim()}` : ""),
   );
 }
 
-export interface AppServer {
+export interface AtlasServer {
   url: string;
   stop: () => void;
 }
 
-export async function startAppServer(options: {
+export async function startAtlasServer(options: {
   isDev: boolean;
-  /** Directory the app should persist watchlist/progress/library JSON into. */
+  /** Directory Atlas should persist watchlist/progress/library JSON into. */
   dataDir: string;
-}): Promise<AppServer> {
+}): Promise<AtlasServer> {
   if (options.isDev) {
     return { url: "http://localhost:3000", stop: () => undefined };
   }
@@ -129,10 +129,10 @@ export async function startAppServer(options: {
   const entry = resolveServerEntry();
   if (!entry) {
     throw new Error(
-      "Bundled app server not found.\n\n" +
+      "Bundled Atlas server not found.\n\n" +
         "The bundle is generated, not committed. Build it with:\n" +
-        "  pnpm --filter @vestra/nova-app build\n" +
-        "  pnpm --filter @vestra/nova bundle:app",
+        "  pnpm --filter @vestra/atlas build\n" +
+        "  pnpm --filter @vestra/nova bundle:atlas",
     );
   }
 
@@ -152,7 +152,7 @@ export async function startAppServer(options: {
       ELECTRON_RUN_AS_NODE: "1",
       NODE_ENV: "production",
       PORT: String(port),
-      // Nova is the only host that may load extensions; the server checks this
+      // Nova is the only host that may load extensions; Atlas checks this
       // rather than trusting anything from the renderer.
       VESTRA_HOST: "desktop",
       // Bind to loopback only. The desktop app must never expose the user's
@@ -173,17 +173,17 @@ export async function startAppServer(options: {
 
   serverProcess.once("exit", (code) => {
     if (code !== 0 && code !== null) {
-      recordOutput(`\nApp server exited with code ${code}.`);
+      recordOutput(`\nAtlas server exited with code ${code}.`);
     }
     serverProcess = null;
   });
 
   await waitForServer(port);
 
-  return { url, stop: stopAppServer };
+  return { url, stop: stopAtlasServer };
 }
 
-export function stopAppServer(): void {
+export function stopAtlasServer(): void {
   if (!serverProcess) return;
   serverProcess.kill();
   serverProcess = null;

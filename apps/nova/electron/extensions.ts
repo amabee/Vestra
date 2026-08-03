@@ -39,7 +39,7 @@ const loaded = new Map<string, Loaded>();
 /**
  * The real network call, made from the privileged process.
  *
- * Nova has no equivalent of the app server's SSRF guard yet, so this is
+ * Nova has no equivalent of Atlas's SSRF guard yet, so this is deliberately
  * narrow: https only, and the host must already have passed the allowlist in
  * `createBrokeredFetch`. Private-range blocking is still missing and is the
  * next thing this needs.
