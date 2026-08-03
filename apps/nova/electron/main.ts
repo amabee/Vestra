@@ -5,10 +5,13 @@ import {
   Menu,
   Tray,
   app,
+  dialog,
   ipcMain,
   nativeImage,
   shell,
 } from "electron";
+
+import { startAtlasServer, stopAtlasServer } from "./atlas-server";
 
 /**
  * Vestra Nova — Electron main process.
@@ -23,10 +26,24 @@ import {
 
 const isDev = process.env.NODE_ENV === "development";
 
-/** In dev, Nova points at the Atlas dev server; in production, the built app. */
-const APP_URL = isDev
-  ? "http://localhost:3000"
-  : (process.env.VESTRA_APP_URL ?? "http://localhost:3000");
+/**
+ * Resolved once Atlas is listening.
+ *
+ * In development that is the Atlas dev server; in production it is the
+ * standalone build Nova starts itself on a free loopback port.
+ */
+let appUrl = "http://localhost:3000";
+
+/**
+ * Where Vestra persists watchlist, progress, settings and the library index.
+ *
+ * The OS app-data directory rather than the working directory, so a packaged
+ * Nova writes somewhere durable and writable. Passed to the Atlas server as
+ * `VESTRA_DATA_DIR` and exposed to the renderer over IPC.
+ */
+function resolveDataDir(): string {
+  return join(app.getPath("userData"), "data");
+}
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -69,13 +86,13 @@ function createWindow(): BrowserWindow {
 
   // Block in-app navigation to any other origin.
   window.webContents.on("will-navigate", (event, url) => {
-    if (new URL(url).origin !== new URL(APP_URL).origin) {
+    if (new URL(url).origin !== new URL(appUrl).origin) {
       event.preventDefault();
       void shell.openExternal(url);
     }
   });
 
-  void window.loadURL(APP_URL);
+  void window.loadURL(appUrl);
 
   window.on("closed", () => {
     mainWindow = null;
@@ -126,8 +143,7 @@ function registerIpc(): void {
 
   ipcMain.handle("app:version", () => app.getVersion());
 
-  /** Where Nova stores Vestra's JSON documents (OS app-data directory). */
-  ipcMain.handle("app:data-dir", () => join(app.getPath("userData"), "data"));
+  ipcMain.handle("app:data-dir", () => resolveDataDir());
 }
 
 /* -----------------------------------------------------------------------------
@@ -154,8 +170,23 @@ if (!gotLock) {
     }
   });
 
-  void app.whenReady().then(() => {
+  void app.whenReady().then(async () => {
     registerIpc();
+
+    try {
+      // Atlas owns the routes, provider registry, scanner and matcher, so it
+      // must be listening before the window loads anything.
+      const server = await startAtlasServer({ isDev, dataDir: resolveDataDir() });
+      appUrl = server.url;
+    } catch (error) {
+      dialog.showErrorBox(
+        "Vestra could not start",
+        error instanceof Error ? error.message : "The Atlas server failed to start.",
+      );
+      app.quit();
+      return;
+    }
+
     mainWindow = createWindow();
     createTray();
     initAutoUpdate();
@@ -166,6 +197,9 @@ if (!gotLock) {
       }
     });
   });
+
+  // Never leave an orphaned server process behind.
+  app.on("will-quit", stopAtlasServer);
 
   app.on("window-all-closed", () => {
     // macOS apps conventionally stay running with no windows open.

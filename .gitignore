@@ -24,6 +24,8 @@ build/
 # Electron
 apps/nova/release/
 apps/nova/dist-electron/
+# Bundled Atlas standalone build, produced by `pnpm --filter @vestra/nova bundle:atlas`
+apps/nova/resources/
 
 # Expo
 apps/pulse/.expo/

@@ -6,12 +6,13 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "build:electron": "tsc -p tsconfig.electron.json",
+    "bundle:atlas": "node scripts/bundle-atlas.mjs",
     "dev": "wait-on -t 120000 tcp:127.0.0.1:3000 && pnpm run dev:electron",
     "dev:electron": "pnpm run build:electron && cross-env NODE_ENV=development electron .",
     "build": "pnpm run build:electron",
-    "package": "pnpm run build:electron && electron-builder",
+    "package": "pnpm run build:electron && pnpm run bundle:atlas && electron-builder",
     "typecheck": "tsc --noEmit -p tsconfig.electron.json",
-    "clean": "rimraf dist-electron release .turbo"
+    "clean": "rimraf dist-electron release resources .turbo"
   },
   "dependencies": {
     "@vestra/config": "workspace:*",
@@ -37,6 +38,12 @@
     },
     "files": [
       "dist-electron/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/atlas",
+        "to": "atlas"
+      }
     ]
   }
 }
