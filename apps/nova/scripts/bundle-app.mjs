@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * Copies the Atlas `standalone` build into Nova's resources so the packaged
+ * Copies the app's `standalone` build into Nova's resources so the packaged
  * desktop app can serve it locally.
  *
  * Next does NOT copy `.next/static` or `public` into `standalone` — that is a
@@ -84,10 +84,10 @@ async function relinkModules(sourceDir, targetDir, sourceRoot, targetRoot) {
 
 const novaRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(novaRoot, "../..");
-const atlasRoot = path.join(repoRoot, "apps/atlas");
+const appRoot = path.join(repoRoot, "apps/nova-app");
 
-const standaloneRoot = path.join(atlasRoot, ".next/standalone");
-const target = path.join(novaRoot, "resources/atlas");
+const standaloneRoot = path.join(appRoot, ".next/standalone");
+const target = path.join(novaRoot, "resources/app");
 
 /** Recursively locate `server.js`; its folder is the standalone app root. */
 async function findServerDir(dir, depth = 0) {
@@ -127,15 +127,15 @@ async function exists(candidate) {
 async function main() {
   if (!(await exists(standaloneRoot))) {
     console.error(
-      "[bundle-atlas] .next/standalone not found.\n" +
-        "Build Atlas first:  pnpm --filter @vestra/atlas build",
+      "[bundle-app] .next/standalone not found.\n" +
+        "Build the app first:  pnpm --filter @vestra/nova-app build",
     );
     process.exit(1);
   }
 
   const serverDir = await findServerDir(standaloneRoot);
   if (!serverDir) {
-    console.error("[bundle-atlas] Could not locate server.js inside .next/standalone.");
+    console.error("[bundle-app] Could not locate server.js inside .next/standalone.");
     process.exit(1);
   }
 
@@ -166,17 +166,17 @@ async function main() {
   );
 
   // The two directories Next leaves behind.
-  const staticDir = path.join(atlasRoot, ".next/static");
+  const staticDir = path.join(appRoot, ".next/static");
   if (await exists(staticDir)) {
     await cp(staticDir, path.join(target, ".next/static"), COPY_OPTIONS);
   }
 
-  const publicDir = path.join(atlasRoot, "public");
+  const publicDir = path.join(appRoot, "public");
   if (await exists(publicDir)) {
     await cp(publicDir, path.join(target, "public"), COPY_OPTIONS);
   }
 
-  console.info(`[bundle-atlas] Bundled Atlas into ${path.relative(repoRoot, target)}`);
+  console.info(`[bundle-app] Bundled the app into ${path.relative(repoRoot, target)}`);
 }
 
 await main();

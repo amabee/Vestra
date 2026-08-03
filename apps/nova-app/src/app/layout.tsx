@@ -24,7 +24,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Vestra Atlas",
+    default: "Vestra",
     template: "%s · Vestra",
   },
   description:

@@ -1,8 +1,8 @@
 {
-  "name": "@vestra/atlas",
+  "name": "@vestra/nova-app",
   "version": "0.1.0",
   "private": true,
-  "description": "Vestra Atlas — the Vestra web application.",
+  "description": "The Vestra application served by Nova — UI, route handlers and provider registry.",
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "next build",
