@@ -1,0 +1,99 @@
+// @ts-check
+import { build } from "esbuild";
+import { copyFile, mkdir, rm } from "node:fs/promises";
+import { createRequire } from "node:module";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+/**
+ * Bundles Nova's Electron sources.
+ *
+ * `tsc` alone was enough while `electron/` imported nothing but Node and
+ * Electron. It stops being enough the moment Nova uses a workspace package:
+ * those ship raw TypeScript with extensionless imports, so `tsc` would emit a
+ * `require("@vestra/extension-host/quickjs")` pointing at a `.ts` file that
+ * Node cannot execute. Bundling resolves and compiles those dependencies into
+ * the output instead.
+ *
+ * Type checking is unaffected — esbuild does not typecheck, so
+ * `pnpm --filter @vestra/nova typecheck` still runs `tsc --noEmit` and remains
+ * the gate.
+ */
+
+const novaRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = path.resolve(novaRoot, "../..");
+const outDir = path.join(novaRoot, "dist-electron");
+
+/**
+ * Entry points, each flattened to `dist-electron/<name>.js`.
+ *
+ * `preload` must stay a separate bundle rather than a chunk: Electron loads it
+ * into a different context with its own privileges, and it is referenced by
+ * path from `webPreferences`.
+ */
+const ENTRIES = [
+  "electron/main.ts",
+  "electron/preload.ts",
+  "electron/extension-worker.ts",
+];
+
+// Start clean. The previous `tsc` build emitted one file per source, and
+// esbuild now inlines several of those — leaving them behind would ship dead
+// code that electron-builder happily packages.
+await rm(outDir, { recursive: true, force: true });
+
+await build({
+  absWorkingDir: novaRoot,
+  entryPoints: ENTRIES,
+  outdir: "dist-electron",
+  bundle: true,
+  platform: "node",
+  // Electron's main process is CommonJS; nova/package.json sets no "type".
+  format: "cjs",
+  // Electron 43 ships Node 22.
+  target: "node22",
+  sourcemap: true,
+  // Keep it readable — this is a local app bundle, not a payload to ship over
+  // the wire, and a legible stack trace is worth more than the bytes.
+  minify: false,
+  // Provided by the runtime, never bundled.
+  external: ["electron"],
+  /**
+   * quickjs-emscripten locates its WASM with `import.meta.url`, which becomes
+   * `undefined` once esbuild rewrites ESM to CJS — the module then fails with
+   * "filename must be a file URL". Point it at the bundle's own location so the
+   * lookup lands in `dist-electron`, where the `.wasm` is copied below.
+   */
+  define: { "import.meta.url": "__vestraModuleUrl" },
+  banner: {
+    js: "const __vestraModuleUrl = require('node:url').pathToFileURL(__filename).href;",
+  },
+  logLevel: "info",
+});
+
+/**
+ * Copy the QuickJS WASM next to the bundle.
+ *
+ * Emscripten resolves it relative to the module that loads it, so it has to sit
+ * beside `extension-worker.js`. Keeping it inside `dist-electron` means
+ * electron-builder already ships it — no node_modules in the packaged app, and
+ * no pnpm symlink farm to untangle.
+ */
+const requireFromHost = createRequire(
+  path.join(repoRoot, "packages/extension-host/package.json"),
+);
+
+const quickjsDir = path.dirname(requireFromHost.resolve("quickjs-emscripten/package.json"));
+const variantDir = path.dirname(
+  createRequire(path.join(quickjsDir, "package.json")).resolve(
+    "@jitl/quickjs-wasmfile-release-sync/package.json",
+  ),
+);
+
+await mkdir(outDir, { recursive: true });
+await copyFile(
+  path.join(variantDir, "dist/emscripten-module.wasm"),
+  path.join(outDir, "emscripten-module.wasm"),
+);
+
+console.info("[build-electron] copied emscripten-module.wasm into dist-electron");

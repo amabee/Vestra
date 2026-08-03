@@ -12,6 +12,12 @@ import {
 } from "electron";
 
 import { startAtlasServer, stopAtlasServer } from "./atlas-server";
+import {
+  callExtension,
+  listLoadedExtensions,
+  loadInstalledExtensions,
+  stopExtensionWorker,
+} from "./extensions";
 
 /**
  * Vestra Nova — Electron main process.
@@ -144,6 +150,20 @@ function registerIpc(): void {
   ipcMain.handle("app:version", () => app.getVersion());
 
   ipcMain.handle("app:data-dir", () => resolveDataDir());
+
+  ipcMain.handle("extensions:list", () => listLoadedExtensions());
+
+  // Arguments are validated as plain data before crossing into the worker; the
+  // isolate rejects anything it cannot JSON round-trip anyway.
+  ipcMain.handle(
+    "extensions:call",
+    (_event, extensionId: unknown, method: unknown, args: unknown) => {
+      if (typeof extensionId !== "string" || typeof method !== "string") {
+        throw new Error("An extension id and method name are required.");
+      }
+      return callExtension(extensionId, method, Array.isArray(args) ? args : []);
+    },
+  );
 }
 
 /* -----------------------------------------------------------------------------
@@ -191,6 +211,22 @@ if (!gotLock) {
     createTray();
     initAutoUpdate();
 
+    // Extensions are not required for the app to work, so a failure here is
+    // reported and moved past rather than blocking startup.
+    void loadInstalledExtensions(resolveDataDir()).then(
+      (report) => {
+        for (const skipped of report.skipped) {
+          console.warn(`[nova] skipped extension ${skipped.id}: ${skipped.reason}`);
+        }
+        if (report.loaded.length > 0) {
+          console.info(`[nova] loaded ${report.loaded.length} extension(s)`);
+        }
+      },
+      (error: unknown) => {
+        console.error("[nova] could not start the extension worker", error);
+      },
+    );
+
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
         mainWindow = createWindow();
@@ -199,7 +235,11 @@ if (!gotLock) {
   });
 
   // Never leave an orphaned server process behind.
-  app.on("will-quit", stopAtlasServer);
+  app.on("will-quit", () => {
+    // Killing the worker disposes every isolate with it.
+    stopExtensionWorker();
+    stopAtlasServer();
+  });
 
   app.on("window-all-closed", () => {
     // macOS apps conventionally stay running with no windows open.

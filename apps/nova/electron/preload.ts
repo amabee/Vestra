@@ -18,6 +18,11 @@ const api = {
     getVersion: (): Promise<string> => ipcRenderer.invoke("app:version"),
     getDataDir: (): Promise<string> => ipcRenderer.invoke("app:data-dir"),
   },
+  extensions: {
+    list: (): Promise<string[]> => ipcRenderer.invoke("extensions:list"),
+    call: (extensionId: string, method: string, args: unknown[]): Promise<unknown> =>
+      ipcRenderer.invoke("extensions:call", extensionId, method, args),
+  },
   platform: process.platform,
 } as const;
 
