@@ -7,6 +7,8 @@
   "scripts": {
     "build:electron": "tsc -p tsconfig.electron.json",
     "bundle:atlas": "node scripts/bundle-atlas.mjs",
+    "build:all": "pnpm --filter @vestra/atlas build && pnpm run bundle:atlas && pnpm run build:electron",
+    "start": "electron .",
     "dev": "wait-on -t 120000 tcp:127.0.0.1:3000 && pnpm run dev:electron",
     "dev:electron": "pnpm run build:electron && cross-env NODE_ENV=development electron .",
     "build": "pnpm run build:electron",

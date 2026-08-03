@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
-import { createServer } from "node:net";
-import { join } from "node:path";
+import { connect, createServer } from "node:net";
+import { dirname, join } from "node:path";
 
 import { app } from "electron";
 
@@ -17,6 +17,25 @@ import { app } from "electron";
  */
 
 let serverProcess: ChildProcess | null = null;
+
+/**
+ * Tail of the server's own output.
+ *
+ * Captured rather than inherited: a GUI-launched Electron has no console for
+ * the child to write to, which is how a real startup crash turns into a bare
+ * "did not start" timeout with no explanation.
+ */
+let serverOutput: string[] = [];
+
+function recordOutput(chunk: unknown): void {
+  serverOutput.push(String(chunk));
+  // Keep only the tail; a failing server can be very chatty.
+  if (serverOutput.length > 40) serverOutput = serverOutput.slice(-40);
+}
+
+function lastServerError(): string {
+  return serverOutput.join("");
+}
 
 /** Ask the OS for an unused port rather than guessing a fixed one. */
 function findFreePort(): Promise<number> {
@@ -50,21 +69,47 @@ function resolveServerEntry(): string | null {
   return candidates.find((candidate) => existsSync(candidate)) ?? null;
 }
 
-/** Poll the server until it answers, so the window never loads a dead URL. */
-async function waitForServer(url: string, timeoutMs = 30_000): Promise<void> {
+/**
+ * Wait until something is listening on the port.
+ *
+ * A raw TCP connect rather than an HTTP request: we only need to know the
+ * listener is up, and probing `/` would render a full page (hitting live
+ * provider APIs) on every poll.
+ */
+function canConnect(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = connect({ port, host: "127.0.0.1" });
+
+    const finish = (ok: boolean) => {
+      socket.destroy();
+      resolve(ok);
+    };
+
+    socket.setTimeout(1_000);
+    socket.once("connect", () => finish(true));
+    socket.once("timeout", () => finish(false));
+    socket.once("error", () => finish(false));
+  });
+}
+
+async function waitForServer(port: number, timeoutMs = 30_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    try {
-      // Any HTTP response means the listener is up; status does not matter.
-      await fetch(url, { signal: AbortSignal.timeout(1_000) });
-      return;
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 250));
+    // The child dying is terminal; polling on would just burn the full budget
+    // and report a timeout instead of the real failure.
+    if (serverProcess === null) {
+      throw new Error(lastServerError().trim() || "The Atlas server exited during startup.");
     }
+
+    if (await canConnect(port)) return;
+    await new Promise((resolve) => setTimeout(resolve, 200));
   }
 
-  throw new Error(`Atlas server did not start within ${timeoutMs}ms.`);
+  throw new Error(
+    `Atlas server did not start within ${timeoutMs}ms.` +
+      (lastServerError().trim() ? `\n\n${lastServerError().trim()}` : ""),
+  );
 }
 
 export interface AtlasServer {
@@ -84,14 +129,22 @@ export async function startAtlasServer(options: {
   const entry = resolveServerEntry();
   if (!entry) {
     throw new Error(
-      "Bundled Atlas server not found. Run `pnpm --filter @vestra/nova bundle:atlas` before packaging.",
+      "Bundled Atlas server not found.\n\n" +
+        "The bundle is generated, not committed. Build it with:\n" +
+        "  pnpm --filter @vestra/atlas build\n" +
+        "  pnpm --filter @vestra/nova bundle:atlas",
     );
   }
 
   const port = await findFreePort();
   const url = `http://127.0.0.1:${port}`;
 
+  serverOutput = [];
+
   serverProcess = spawn(process.execPath, [entry], {
+    // Run from the bundle so any relative resolution inside Next resolves
+    // against the app rather than wherever Electron happened to launch.
+    cwd: dirname(entry),
     env: {
       ...process.env,
       // Electron's main process is Node; this makes the child behave as plain
@@ -99,22 +152,33 @@ export async function startAtlasServer(options: {
       ELECTRON_RUN_AS_NODE: "1",
       NODE_ENV: "production",
       PORT: String(port),
+      // Nova is the only host that may load extensions; Atlas checks this
+      // rather than trusting anything from the renderer.
+      VESTRA_HOST: "desktop",
       // Bind to loopback only. The desktop app must never expose the user's
       // library to the local network.
       HOSTNAME: "127.0.0.1",
       VESTRA_DATA_DIR: options.dataDir,
     },
-    stdio: "inherit",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  serverProcess.stdout?.on("data", recordOutput);
+  serverProcess.stderr?.on("data", recordOutput);
+
+  serverProcess.once("error", (error) => {
+    recordOutput(`Failed to launch server process: ${error.message}`);
+    serverProcess = null;
   });
 
   serverProcess.once("exit", (code) => {
     if (code !== 0 && code !== null) {
-      console.error(`[nova] Atlas server exited with code ${code}`);
+      recordOutput(`\nAtlas server exited with code ${code}.`);
     }
     serverProcess = null;
   });
 
-  await waitForServer(url);
+  await waitForServer(port);
 
   return { url, stop: stopAtlasServer };
 }
