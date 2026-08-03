@@ -7,10 +7,21 @@ import { Badge, Button, EmptyState, GlassCard, ProgressBar } from "@vestra/ui";
 import { Download, Pause, Play, Plus, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 
+import { toast } from "@/components/ui/toaster";
+
+interface AutoImportInfo {
+  enabled: boolean;
+  checked: number;
+  addedFolders: string[];
+  scannedFiles: number | null;
+  errors: string[];
+}
+
 interface DownloadsResponse {
   configured: boolean;
   status?: QbittorrentStatus | null;
   torrents: Torrent[];
+  autoImport?: AutoImportInfo;
   error?: string;
 }
 
@@ -45,6 +56,18 @@ export function DownloadsClient() {
     // Transfers change constantly; poll rather than relying on cache.
     refetchInterval: 3000,
   });
+
+  // Announce imports once, when the library actually gains a folder.
+  const importedCount = data?.autoImport?.addedFolders.length ?? 0;
+  const [lastAnnounced, setLastAnnounced] = useState(0);
+
+  if (importedCount > 0 && importedCount !== lastAnnounced) {
+    setLastAnnounced(importedCount);
+    toast(
+      `Imported ${importedCount} completed download${importedCount === 1 ? "" : "s"} into your library`,
+    );
+    void queryClient.invalidateQueries({ queryKey: ["library"] });
+  }
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["downloads"] });
 

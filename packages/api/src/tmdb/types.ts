@@ -1,5 +1,27 @@
 /** Raw TMDb API shapes — only the fields Vestra actually consumes. */
 
+/** `watch/providers` payload, powered by JustWatch. */
+export interface TmdbWatchProviderEntry {
+  provider_id: number;
+  provider_name: string;
+  logo_path?: string | null;
+}
+
+export interface TmdbWatchProviders {
+  results?: Record<
+    string,
+    {
+      /** TMDb's aggregated "where to watch" page for the region. */
+      link?: string;
+      flatrate?: TmdbWatchProviderEntry[];
+      free?: TmdbWatchProviderEntry[];
+      ads?: TmdbWatchProviderEntry[];
+      rent?: TmdbWatchProviderEntry[];
+      buy?: TmdbWatchProviderEntry[];
+    }
+  >;
+}
+
 export interface TmdbPaged<T> {
   page: number;
   results: T[];
@@ -37,6 +59,8 @@ export interface TmdbMovie {
       release_dates?: { certification?: string; type?: number }[];
     }[];
   };
+  /** Requires `append_to_response=watch/providers`. */
+  "watch/providers"?: TmdbWatchProviders;
   media_type?: "movie";
 }
 
@@ -69,6 +93,8 @@ export interface TmdbTv {
   content_ratings?: {
     results?: { iso_3166_1: string; rating?: string }[];
   };
+  /** Requires `append_to_response=watch/providers`. */
+  "watch/providers"?: TmdbWatchProviders;
   media_type?: "tv";
 }
 

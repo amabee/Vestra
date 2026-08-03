@@ -5,7 +5,7 @@ import { Search, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 
 import { MediaGrid } from "@/components/media/media-grid";
-import { getDriver } from "@/lib/storage";
+import { getProviderRegistry } from "@/lib/registry";
 
 export const metadata: Metadata = { title: "Search" };
 export const dynamic = "force-dynamic";
@@ -30,7 +30,9 @@ export default async function SearchPage({ searchParams }: PageProps) {
     );
   }
 
-  const results = await universalSearch(parsed.data, { driver: getDriver() });
+  const results = await universalSearch(parsed.data, {
+    providers: getProviderRegistry(),
+  });
 
   return (
     <div className="space-y-8 pb-10">

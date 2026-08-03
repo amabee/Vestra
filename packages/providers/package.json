@@ -1,0 +1,37 @@
+{
+  "name": "@vestra/providers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tmdb": "./src/tmdb.ts",
+    "./anilist": "./src/anilist.ts",
+    "./youtube": "./src/youtube.ts",
+    "./local": "./src/local.ts",
+    "./local-library": "./src/local-library.ts",
+    "./filename": "./src/filename.ts",
+    "./scanner": "./src/scanner.ts",
+    "./matcher": "./src/matcher.ts",
+    "./mediaserver": "./src/mediaserver.ts",
+    "./adapters": "./src/adapters.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vestra/api": "workspace:*",
+    "@vestra/config": "workspace:*",
+    "@vestra/provider-sdk": "workspace:*",
+    "@vestra/storage": "workspace:*",
+    "@vestra/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vestra/eslint-config": "workspace:*",
+    "@vestra/tsconfig": "workspace:*",
+    "eslint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

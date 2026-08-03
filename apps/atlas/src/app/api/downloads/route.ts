@@ -1,8 +1,11 @@
 import { qbittorrent, toProviderMessage } from "@vestra/api";
 import { isQbittorrentConfigured } from "@vestra/config";
+import { importCompletedDownloads } from "@vestra/providers";
 import { addTorrentInputSchema } from "@vestra/types";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+
+import { getDriver } from "@/lib/storage";
 
 /**
  * qBittorrent transfer control.
@@ -33,7 +36,20 @@ export async function GET() {
       qbittorrent.listTorrents(),
     ]);
 
-    return NextResponse.json({ configured: true, status, torrents });
+    // Reuses the list above rather than calling qBittorrent again. Returns
+    // immediately when disabled, and only triggers a scan when a genuinely new
+    // folder appears, so the 3s poll stays cheap.
+    const autoImport = await importCompletedDownloads(getDriver(), torrents).catch(
+      (error: unknown) => ({
+        enabled: true,
+        checked: 0,
+        addedFolders: [],
+        scannedFiles: null,
+        errors: [toProviderMessage(error)],
+      }),
+    );
+
+    return NextResponse.json({ configured: true, status, torrents, autoImport });
   } catch (error) {
     return NextResponse.json(
       { configured: true, error: toProviderMessage(error), torrents: [] },

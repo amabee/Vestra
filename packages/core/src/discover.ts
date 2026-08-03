@@ -1,94 +1,96 @@
-import { anilist, tmdb } from "@vestra/api";
-import { isTmdbConfigured } from "@vestra/config";
+import { trendingAcrossProviders, type ProviderRegistry } from "@vestra/provider-sdk";
+import { recentlyAddedLocal } from "@vestra/providers/local-library";
 import { getLocalFiles, type StorageDriver } from "@vestra/storage";
-import type { DiscoverRow, MediaItem } from "@vestra/types";
+import type { DiscoverRow, DiscoverRowId, MediaItem, MediaKind } from "@vestra/types";
 
 import { getContinueWatching, toContinueWatchingRow } from "./continue-watching";
-import { recentlyAddedLocal } from "./local-library";
 
 /**
  * Home page composition.
  *
- * Rows are fetched concurrently and independently: a provider that fails yields
- * an empty row, which is then dropped, rather than breaking the page.
+ * Trending rows come from the provider registry rather than a fixed list of API
+ * calls, so a newly registered provider contributes automatically. Every row is
+ * failure-isolated by the SDK: a dead provider yields an empty row, not an error
+ * page.
  */
 
-async function safeRow(
-  id: DiscoverRow["id"],
-  title: string,
-  href: string | null,
-  loader: () => Promise<MediaItem[]>,
-): Promise<DiscoverRow> {
-  try {
-    const items = await loader();
-    return { id, title, subtitle: null, items, href };
-  } catch {
-    return { id, title, subtitle: null, items: [], href };
-  }
+interface TrendingRowSpec {
+  id: DiscoverRowId;
+  kind: MediaKind;
+  title: string;
+  href: string;
 }
 
+const TRENDING_ROWS: readonly TrendingRowSpec[] = [
+  { id: "trending-anime", kind: "anime", title: "Trending Anime", href: "/anime" },
+  { id: "trending-movies", kind: "movie", title: "Trending Movies", href: "/movies" },
+  { id: "trending-kdrama", kind: "kdrama", title: "Trending K-Dramas", href: "/kdrama" },
+  { id: "trending-tv", kind: "tv", title: "Trending TV Shows", href: "/tv" },
+];
+
 export interface HomeRowsOptions {
+  providers: ProviderRegistry;
   driver?: StorageDriver;
   limit?: number;
 }
 
-export async function getHomeRows(options: HomeRowsOptions = {}): Promise<DiscoverRow[]> {
-  const { driver, limit = 20 } = options;
-  const tmdbReady = isTmdbConfigured();
+export async function getHomeRows(options: HomeRowsOptions): Promise<DiscoverRow[]> {
+  const { providers, driver, limit = 20 } = options;
 
-  const [continueWatching, trendingAnime, trendingMovies, trendingKdrama, trendingTv, recentLocal] =
-    await Promise.all([
-      driver
-        ? getContinueWatching(driver, limit).then(toContinueWatchingRow)
-        : Promise.resolve<DiscoverRow>({
-            id: "continue-watching",
-            title: "Continue Watching",
-            subtitle: null,
-            items: [],
-            href: null,
-          }),
+  const [continueWatching, trendingRows, recentLocal] = await Promise.all([
+    // Continue Watching needs stored progress, so it is skipped without a driver.
+    driver
+      ? getContinueWatching(driver, limit)
+          .then(toContinueWatchingRow)
+          .catch(() => null)
+      : Promise.resolve(null),
 
-      safeRow("trending-anime", "Trending Anime", "/anime", () =>
-        anilist.getTrendingAnime(1, limit),
-      ),
+    Promise.all(
+      TRENDING_ROWS.map(async (spec): Promise<DiscoverRow> => {
+        const results = await trendingAcrossProviders(providers, spec.kind);
 
-      safeRow("trending-movies", "Trending Movies", "/movies", () =>
-        tmdbReady ? tmdb.getTrendingMovies("week") : Promise.resolve([]),
-      ),
+        // Several providers may serve one kind; merge them into a single row.
+        const items = results.flatMap((result) => result.items).slice(0, limit);
 
-      safeRow("trending-kdrama", "Trending K-Dramas", "/kdrama", () =>
-        tmdbReady ? tmdb.getTrendingKdramas() : Promise.resolve([]),
-      ),
-
-      safeRow("trending-tv", "Trending TV Shows", "/tv", () =>
-        tmdbReady ? tmdb.getTrendingTv("week") : Promise.resolve([]),
-      ),
-
-      safeRow("recently-added-local", "Recently Added", "/local", async () => {
-        if (!driver) return [];
-        const files = await getLocalFiles(driver);
-        return recentlyAddedLocal(files, limit);
+        return { id: spec.id, title: spec.title, subtitle: null, items, href: spec.href };
       }),
-    ]);
+    ),
+
+    driver
+      ? getLocalFiles(driver)
+          .then((files) => recentlyAddedLocal(files, limit))
+          .catch((): MediaItem[] => [])
+      : Promise.resolve<MediaItem[]>([]),
+  ]);
 
   const rows: DiscoverRow[] = [
-    continueWatching,
-    trendingAnime,
-    trendingMovies,
-    trendingKdrama,
-    trendingTv,
-    recentLocal,
+    ...(continueWatching ? [continueWatching] : []),
+    ...trendingRows,
+    {
+      id: "recently-added-local",
+      title: "Recently Added",
+      subtitle: null,
+      items: recentLocal,
+      href: "/local",
+    },
   ];
 
   return rows.filter((row) => row.items.length > 0);
 }
 
 /**
- * "Recommended For You" — derived from the genres of watchlisted anime.
- * A local heuristic for now; a real recommender can slot in behind this signature.
+ * Trending for one kind, merged across every provider that serves it.
+ * Backs the category pages.
  */
-export async function getRecommendations(limit = 20): Promise<DiscoverRow> {
-  return safeRow("recommended", "Recommended For You", null, () =>
-    anilist.getPopularAnime(1, limit),
-  );
+export async function getTrendingByKind(
+  providers: ProviderRegistry,
+  kind: MediaKind,
+  limit = 30,
+): Promise<{ items: MediaItem[]; errors: string[] }> {
+  const results = await trendingAcrossProviders(providers, kind);
+
+  return {
+    items: results.flatMap((result) => result.items).slice(0, limit),
+    errors: results.flatMap((result) => (result.error ? [result.error] : [])),
+  };
 }

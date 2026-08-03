@@ -2,7 +2,7 @@ import { universalSearch } from "@vestra/core/search";
 import { searchQuerySchema } from "@vestra/types";
 import { NextResponse } from "next/server";
 
-import { getDriver } from "@/lib/storage";
+import { getProviderRegistry } from "@/lib/registry";
 
 /**
  * GET /api/search?q=...
@@ -32,7 +32,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    const results = await universalSearch(parsed.data, { driver: getDriver() });
+    const results = await universalSearch(parsed.data, {
+      providers: getProviderRegistry(),
+    });
     return NextResponse.json(results);
   } catch (error) {
     // Per-provider failures are already handled inside universalSearch, so

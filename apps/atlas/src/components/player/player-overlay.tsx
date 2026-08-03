@@ -3,7 +3,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery } from "@tanstack/react-query";
 import type { PlaybackSource, WatchProgress } from "@vestra/types";
-import { Button, cn } from "@vestra/ui";
+import { cn } from "@vestra/ui";
 import { ExternalLink, LoaderCircle, TriangleAlert, X } from "lucide-react";
 
 import { YoutubePlayer } from "@/components/media/youtube-player";
@@ -47,7 +47,9 @@ export function PlayerOverlay() {
   if (!item) return null;
 
   const best = data?.sources[0] ?? null;
-  const external = data?.sources.find((source) => source.kind === "external") ?? null;
+  // Every licensed destination, best first — official services then the
+  // provider's own page.
+  const externals = data?.sources.filter((source) => source.kind === "external") ?? [];
 
   const progressKey = `${item.source}:${item.kind}:${item.sourceId}`;
   const stored = progressData?.entries[progressKey];
@@ -96,26 +98,52 @@ export function PlayerOverlay() {
               startAt={startAt}
             />
           ) : (
-            <div className="flex aspect-video w-full flex-col items-center justify-center gap-4 rounded-xl bg-black px-8 text-center">
-              <TriangleAlert className="size-7 text-amber-400" />
-              <div className="space-y-1.5">
-                <p className="text-[15px] font-medium text-white">
-                  No playable source for this title
-                </p>
-                <p className="max-w-md text-[13px] leading-relaxed text-white/60">
-                  Vestra has metadata for “{item.title}” but no stream. Add it to your media
-                  server or local library to play it here.
-                </p>
-              </div>
+            <div className="flex aspect-video w-full flex-col items-center justify-center gap-5 rounded-xl bg-black px-8 text-center">
+              {externals.length > 0 ? (
+                <>
+                  <div className="space-y-1.5">
+                    <p className="text-[15px] font-medium text-white">
+                      Watch “{item.title}” on
+                    </p>
+                    <p className="max-w-md text-[13px] leading-relaxed text-white/60">
+                      Vestra has no copy of this you own, but it is available on these
+                      services.
+                    </p>
+                  </div>
 
-              {external ? (
-                <Button asChild variant="glass" size="sm">
-                  <a href={external.locator} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="size-4" />
-                    Open in source
-                  </a>
-                </Button>
-              ) : null}
+                  <div className="flex max-w-lg flex-wrap items-center justify-center gap-2">
+                    {externals.slice(0, 5).map((source) => (
+                      <a
+                        key={source.locator}
+                        href={source.locator}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex h-10 items-center gap-2 rounded-lg bg-white/10 px-4 text-[13px] font-medium text-white transition-colors hover:bg-white/20"
+                      >
+                        <ExternalLink className="size-3.5" />
+                        {source.label ?? "Open"}
+                      </a>
+                    ))}
+                  </div>
+
+                  <p className="text-[11px] text-white/40">
+                    Vestra links out to licensed services — it never re-hosts video.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <TriangleAlert className="size-7 text-amber-400" />
+                  <div className="space-y-1.5">
+                    <p className="text-[15px] font-medium text-white">
+                      No playable source for this title
+                    </p>
+                    <p className="max-w-md text-[13px] leading-relaxed text-white/60">
+                      Vestra has metadata for “{item.title}” but no stream. Add it to your
+                      local library or media server to play it here.
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </Dialog.Content>

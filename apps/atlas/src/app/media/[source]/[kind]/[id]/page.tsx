@@ -1,12 +1,13 @@
 import { formatDuration, formatRating } from "@vestra/core/format";
 import { mediaKindSchema, mediaSourceSchema } from "@vestra/types";
 import { Badge, Button, GlassCard, MediaCard } from "@vestra/ui";
-import { ExternalLink, Play, Star } from "lucide-react";
+import { ExternalLink, Star } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { WatchlistButton } from "@/components/media/watchlist-button";
+import { PlayButton } from "@/components/media/play-button";
 import { YoutubePlayer } from "@/components/media/youtube-player";
 import { getMediaDetails } from "@/lib/media";
 import { mediaHref } from "@/lib/routes";
@@ -140,12 +141,7 @@ export default async function MediaDetailsPage({ params }: PageProps) {
           ) : null}
 
           <div className="flex flex-wrap gap-2 pt-1">
-            {isYoutube ? null : (
-              <Button variant="default">
-                <Play className="size-4 fill-current" />
-                Play
-              </Button>
-            )}
+            {isYoutube ? null : <PlayButton item={details} />}
             <WatchlistButton item={details} />
             {details.sourceUrl ? (
               <Button asChild variant="outline">

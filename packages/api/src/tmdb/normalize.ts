@@ -7,6 +7,8 @@ import type {
   MediaKind,
   ReleaseStatus,
   Season,
+  StreamingAccess,
+  StreamingLink,
 } from "@vestra/types";
 
 import type {
@@ -16,6 +18,7 @@ import type {
   TmdbMovie,
   TmdbSeason,
   TmdbTv,
+  TmdbWatchProviders,
 } from "./types";
 
 /* -----------------------------------------------------------------------------
@@ -117,6 +120,57 @@ export function normaliseMovie(movie: TmdbMovie): MediaItem {
 }
 
 /**
+ * Map TMDb's JustWatch-backed availability into streaming links.
+ *
+ * TMDb only exposes one aggregated "where to watch" URL per region rather than
+ * a deep link per service, so every entry shares that link. Attribution to
+ * JustWatch is required by TMDb's terms and is rendered in the UI.
+ */
+export function mapWatchProviders(
+  providers: TmdbWatchProviders | undefined,
+  region = "US",
+): StreamingLink[] {
+  const forRegion = providers?.results?.[region];
+  if (!forRegion?.link) return [];
+
+  const buckets: [keyof typeof forRegion, StreamingAccess][] = [
+    ["flatrate", "subscription"],
+    ["free", "free"],
+    ["ads", "ads"],
+    ["rent", "rent"],
+    ["buy", "buy"],
+  ];
+
+  const seen = new Set<string>();
+  const links: StreamingLink[] = [];
+
+  for (const [bucket, access] of buckets) {
+    const entries = forRegion[bucket];
+    if (!Array.isArray(entries)) continue;
+
+    for (const entry of entries) {
+      // A service can appear in several buckets; keep the cheapest access tier,
+      // which is whichever bucket we reach first.
+      if (seen.has(entry.provider_name)) continue;
+      seen.add(entry.provider_name);
+
+      links.push({
+        service: entry.provider_name,
+        url: forRegion.link,
+        access,
+        logo: entry.logo_path
+          ? `${TMDB_IMAGE_BASE}/${TMDB_IMAGE_SIZES.profile.small}${entry.logo_path}`
+          : null,
+        episodeTitle: null,
+        region,
+      });
+    }
+  }
+
+  return links;
+}
+
+/**
  * Pull the US certification out of a movie's release-date block.
  * TMDb nests one entry per country, each with several release types.
  */
@@ -145,6 +199,7 @@ export function normaliseMovieDetails(movie: TmdbMovie): MediaDetails {
     studios: (movie.production_companies ?? []).map((c) => c.name),
     countries: (movie.production_countries ?? []).map((c) => c.iso_3166_1),
     languages: (movie.spoken_languages ?? []).map((l) => l.english_name),
+    streaming: mapWatchProviders(movie["watch/providers"]),
     external: { tmdbId: String(movie.id) },
   };
 }
@@ -218,6 +273,7 @@ export function normaliseTvDetails(show: TmdbTv): MediaDetails {
     studios: (show.production_companies ?? []).map((c) => c.name),
     countries: (show.production_countries ?? []).map((c) => c.iso_3166_1),
     languages: (show.spoken_languages ?? []).map((l) => l.english_name),
+    streaming: mapWatchProviders(show["watch/providers"]),
     external: { tmdbId: String(show.id) },
   };
 }

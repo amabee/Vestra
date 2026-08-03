@@ -19,6 +19,8 @@
   "dependencies": {
     "@vestra/api": "workspace:*",
     "@vestra/config": "workspace:*",
+    "@vestra/provider-sdk": "workspace:*",
+    "@vestra/providers": "workspace:*",
     "@vestra/storage": "workspace:*",
     "@vestra/types": "workspace:*"
   },
