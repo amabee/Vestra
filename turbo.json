@@ -15,7 +15,8 @@
     "MEDIA_SERVER_KIND",
     "MEDIA_SERVER_URL",
     "MEDIA_SERVER_API_KEY",
-    "VESTRA_DATA_DIR"
+    "VESTRA_DATA_DIR",
+    "VESTRA_HOST"
   ],
   "tasks": {
     "build": {

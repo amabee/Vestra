@@ -11,6 +11,16 @@ import { z } from "zod";
 const serverEnvSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 
+  /**
+   * Which host is running this server.
+   *
+   * Atlas is the same codebase either way; Nova spawns it with this set to
+   * `desktop`. Capabilities that only make sense on the desktop — extensions,
+   * above all — key off this rather than sniffing the user agent, so a browser
+   * pointed at a Nova instance cannot talk its way into them.
+   */
+  VESTRA_HOST: z.enum(["web", "desktop"]).default("web"),
+
   // TMDb — v4 bearer token preferred, v3 key as fallback.
   TMDB_ACCESS_TOKEN: z.string().optional(),
   TMDB_API_KEY: z.string().optional(),
@@ -55,6 +65,27 @@ export function getServerEnv(): ServerEnv {
 
   cachedEnv = parsed.data;
   return cachedEnv;
+}
+
+/* -----------------------------------------------------------------------------
+ * Host
+ * -------------------------------------------------------------------------- */
+
+export type VestraHost = ServerEnv["VESTRA_HOST"];
+
+export function getVestraHost(): VestraHost {
+  return getServerEnv().VESTRA_HOST;
+}
+
+/**
+ * Whether this host may load third-party extension code.
+ *
+ * Desktop only. Extensions run with access to the local library and the
+ * network, which is a reasonable thing to grant a program the user installed
+ * themselves and a completely unreasonable thing to grant a web page.
+ */
+export function hostSupportsExtensions(): boolean {
+  return getVestraHost() === "desktop";
 }
 
 /* -----------------------------------------------------------------------------

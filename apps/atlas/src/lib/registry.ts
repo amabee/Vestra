@@ -2,6 +2,7 @@ import "server-only";
 
 import { createRegistries, type Registries } from "@vestra/providers";
 
+import { getHostCapabilities } from "./host";
 import { getDriver } from "./storage";
 
 /**
@@ -16,6 +17,7 @@ let cached: Registries | null = null;
 export function getRegistries(): Registries {
   cached ??= createRegistries({
     driver: getDriver(),
+    host: getHostCapabilities(),
     localStream: {
       // Atlas serves local files through a range-capable route handler; the
       // browser cannot open file:// URLs. Nova will override this.

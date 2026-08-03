@@ -5,6 +5,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { AppShell } from "@/components/layout/app-shell";
 import { Providers } from "@/components/providers";
 import { ThemeController } from "@/components/theme/theme-controller";
+import { extensionsEnabled } from "@/lib/host";
 import { getDriver } from "@/lib/storage";
 
 import "./globals.css";
@@ -57,7 +58,7 @@ export default async function RootLayout({
             accent={settings.appearance.accent}
             glassEffects={settings.appearance.glassEffects}
           />
-          <AppShell>{children}</AppShell>
+          <AppShell extensionsEnabled={extensionsEnabled()}>{children}</AppShell>
         </Providers>
       </body>
     </html>

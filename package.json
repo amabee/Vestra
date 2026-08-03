@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "turbo run dev",
     "dev:atlas": "turbo run dev --filter=@vestra/atlas",
-    "dev:nova": "turbo run dev --filter=@vestra/atlas --filter=@vestra/nova",
+    "dev:nova": "cross-env VESTRA_HOST=desktop turbo run dev --filter=@vestra/atlas --filter=@vestra/nova",
     "build": "turbo run build",
     "start": "turbo run start",
     "lint": "turbo run lint",
@@ -20,6 +20,7 @@
     "clean": "turbo run clean && rimraf node_modules"
   },
   "devDependencies": {
+    "cross-env": "^10.1.0",
     "prettier": "catalog:",
     "rimraf": "^6.1.3",
     "turbo": "^2.10.8",

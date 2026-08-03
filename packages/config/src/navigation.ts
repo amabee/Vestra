@@ -12,6 +12,8 @@ export interface NavItem {
   icon: string;
   /** Rendered in a separate group below the main list. */
   section: "primary" | "library" | "system";
+  /** Host capability this entry needs; omitted means "always shown". */
+  requires?: "extensions";
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
@@ -28,8 +30,25 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { id: "watchlist", label: "Watchlist", href: "/watchlist", icon: "Bookmark", section: "library" },
   { id: "history", label: "History", href: "/history", icon: "History", section: "library" },
 
+  {
+    id: "extensions",
+    label: "Extensions",
+    href: "/extensions",
+    icon: "Blocks",
+    section: "system",
+    requires: "extensions",
+  },
   { id: "settings", label: "Settings", href: "/settings", icon: "Settings", section: "system" },
 ] as const;
+
+/** Drop entries the running host cannot support. */
+export function visibleNavItems(capabilities: {
+  extensions: boolean;
+}): readonly NavItem[] {
+  return NAV_ITEMS.filter(
+    (item) => item.requires !== "extensions" || capabilities.extensions,
+  );
+}
 
 export const NAV_SECTIONS = [
   { id: "primary", label: null },

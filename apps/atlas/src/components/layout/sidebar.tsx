@@ -1,8 +1,9 @@
 "use client";
 
-import { NAV_ITEMS, type NavItem } from "@vestra/config/navigation";
+import { visibleNavItems, type NavItem } from "@vestra/config/navigation";
 import { cn } from "@vestra/ui/cn";
 import {
+  Blocks,
   Bookmark,
   ChevronDown,
   Clapperboard,
@@ -40,6 +41,7 @@ const ICONS: Record<string, LucideIcon> = {
   Download,
   Bookmark,
   History,
+  Blocks,
   Settings,
 };
 
@@ -82,13 +84,14 @@ function SidebarLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ extensionsEnabled }: { extensionsEnabled: boolean }) {
   const collapsed = useUiStore((state) => state.sidebarCollapsed);
   const toggleSidebar = useUiStore((state) => state.toggleSidebar);
 
-  const primary = NAV_ITEMS.filter((item) => item.section === "primary");
-  const library = NAV_ITEMS.filter((item) => item.section === "library");
-  const system = NAV_ITEMS.filter((item) => item.section === "system");
+  const items = visibleNavItems({ extensions: extensionsEnabled });
+  const primary = items.filter((item) => item.section === "primary");
+  const library = items.filter((item) => item.section === "library");
+  const system = items.filter((item) => item.section === "system");
 
   return (
     <aside
