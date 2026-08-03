@@ -9,8 +9,7 @@
   },
   "scripts": {
     "dev": "turbo run dev",
-    "dev:atlas": "turbo run dev --filter=@vestra/atlas",
-    "dev:nova": "cross-env VESTRA_HOST=desktop turbo run dev --filter=@vestra/atlas --filter=@vestra/nova",
+    "dev:nova": "turbo run dev --filter=@vestra/nova",
     "build": "turbo run build",
     "start": "turbo run start",
     "lint": "turbo run lint",

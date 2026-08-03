@@ -11,7 +11,6 @@ import {
   shell,
 } from "electron";
 
-import { startAtlasServer, stopAtlasServer } from "./atlas-server";
 import {
   callExtension,
   listLoadedExtensions,
@@ -27,25 +26,21 @@ import {
  *  - the renderer talks to the main process only through the allow-listed
  *    preload bridge
  *  - external links open in the system browser, never in an app window
- *  - navigation away from the app origin is blocked
+ *  - navigation away from the bundled shell is blocked
+ *
+ * There is no renderer application yet. The previous UI was a Next.js app that
+ * Nova spawned on loopback; it has been removed, and `shell.html` stands in
+ * until a replacement exists. Everything below it — IPC, the extension worker,
+ * the data directory — is unaffected and already running.
  */
 
 const isDev = process.env.NODE_ENV === "development";
 
 /**
- * Resolved once Atlas is listening.
- *
- * In development that is the Atlas dev server; in production it is the
- * standalone build Nova starts itself on a free loopback port.
- */
-let appUrl = "http://localhost:3000";
-
-/**
  * Where Vestra persists watchlist, progress, settings and the library index.
  *
  * The OS app-data directory rather than the working directory, so a packaged
- * Nova writes somewhere durable and writable. Passed to the Atlas server as
- * `VESTRA_DATA_DIR` and exposed to the renderer over IPC.
+ * Nova writes somewhere durable and writable. Exposed to the renderer over IPC.
  */
 function resolveDataDir(): string {
   return join(app.getPath("userData"), "data");
@@ -61,7 +56,7 @@ function createWindow(): BrowserWindow {
     minWidth: 960,
     minHeight: 640,
     show: false,
-    // Frameless with a custom draggable bar rendered by Atlas (.drag-region).
+    // Frameless; the renderer supplies its own draggable region (.drag-region).
     titleBarStyle: "hidden",
     ...(process.platform === "linux" ? { frame: false } : {}),
     titleBarOverlay: {
@@ -90,15 +85,16 @@ function createWindow(): BrowserWindow {
     return { action: "deny" };
   });
 
-  // Block in-app navigation to any other origin.
+  // Block in-app navigation. The shell is a local file and has nowhere
+  // legitimate to navigate to, so every attempt goes to the system browser.
   window.webContents.on("will-navigate", (event, url) => {
-    if (new URL(url).origin !== new URL(appUrl).origin) {
-      event.preventDefault();
+    event.preventDefault();
+    if (url.startsWith("https://") || url.startsWith("http://")) {
       void shell.openExternal(url);
     }
   });
 
-  void window.loadURL(appUrl);
+  void window.loadFile(join(__dirname, "shell.html"));
 
   window.on("closed", () => {
     mainWindow = null;
@@ -190,22 +186,8 @@ if (!gotLock) {
     }
   });
 
-  void app.whenReady().then(async () => {
+  void app.whenReady().then(() => {
     registerIpc();
-
-    try {
-      // Atlas owns the routes, provider registry, scanner and matcher, so it
-      // must be listening before the window loads anything.
-      const server = await startAtlasServer({ isDev, dataDir: resolveDataDir() });
-      appUrl = server.url;
-    } catch (error) {
-      dialog.showErrorBox(
-        "Vestra could not start",
-        error instanceof Error ? error.message : "The Atlas server failed to start.",
-      );
-      app.quit();
-      return;
-    }
 
     mainWindow = createWindow();
     createTray();
@@ -234,12 +216,8 @@ if (!gotLock) {
     });
   });
 
-  // Never leave an orphaned server process behind.
-  app.on("will-quit", () => {
-    // Killing the worker disposes every isolate with it.
-    stopExtensionWorker();
-    stopAtlasServer();
-  });
+  // Killing the worker disposes every isolate with it.
+  app.on("will-quit", stopExtensionWorker);
 
   app.on("window-all-closed", () => {
     // macOS apps conventionally stay running with no windows open.

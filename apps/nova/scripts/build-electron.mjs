@@ -96,4 +96,11 @@ await copyFile(
   path.join(outDir, "emscripten-module.wasm"),
 );
 
-console.info("[build-electron] copied emscripten-module.wasm into dist-electron");
+// The placeholder renderer. `loadFile` resolves it relative to the bundle, so
+// it has to sit in the output rather than in source.
+await copyFile(
+  path.join(novaRoot, "electron/shell.html"),
+  path.join(outDir, "shell.html"),
+);
+
+console.info("[build-electron] copied emscripten-module.wasm and shell.html");

@@ -41,3 +41,6 @@ pnpm-debug.log*
 # Test / coverage
 coverage/
 .vitest/
+
+# Preserved dev runtime data (watchlist, progress, settings) - never commit.
+.vestra-preserved/

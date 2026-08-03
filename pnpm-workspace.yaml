@@ -3,18 +3,17 @@ packages:
   - "packages/*"
   - "tooling/*"
 
-# Dependencies allowed to run install scripts. sharp powers Next.js image
-# optimisation; the electron packages unpack their prebuilt binaries.
+# Dependencies allowed to run install scripts. The electron packages unpack
+# prebuilt binaries; esbuild fetches its platform binary.
 onlyBuiltDependencies:
-  - sharp
   - electron
   - electron-winstaller
   - esbuild
 
 allowBuilds:
+  electron: true
   electron-winstaller: true
   esbuild: true
-  sharp: set this to true or false
 
 # Single source of truth for dependency versions across every workspace package.
 # Reference with the `catalog:` protocol, e.g. `"next": "catalog:"`.
