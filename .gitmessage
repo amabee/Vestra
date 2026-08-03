@@ -1,0 +1,33 @@
+# <type>(<scope>): <subject>          -- 50 chars, imperative, no trailing period
+#
+# <body>                              -- what changed and WHY, wrap at 72
+#
+# <footer>                            -- Refs: #123 / BREAKING CHANGE: ...
+#
+# ---------------------------------------------------------------------------
+# TYPE
+#   feat      new capability
+#   fix       bug fix
+#   refactor  behaviour-preserving restructure
+#   perf      performance
+#   style     formatting / design tokens only
+#   docs      documentation
+#   test      tests
+#   build     deps, bundler, tsconfig, turbo
+#   chore     tooling, housekeeping
+#
+# SCOPE  -- the workspace package, so `git log --grep` finds it fast
+#   apps:      atlas | nova | pulse
+#   packages:  types | config | api | storage | core | ui
+#   tooling:   eslint | tsconfig | tailwind
+#   repo:      deps | ci | release
+#
+# EXAMPLES
+#   feat(atlas): add hero banner to home
+#   fix(ui): keep switch knob inside its track
+#   feat(api): resolve US content ratings from TMDb
+#   build(deps): pin typescript to 6.x for eslint compatibility
+#
+# BRANCHES     atlas/<topic>   nova/<topic>   pulse/<topic>   core/<topic>
+# TAGS         v<x.y.z>  (repo)      <app>-v<x.y.z>  (per app)
+# ---------------------------------------------------------------------------

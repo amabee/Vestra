@@ -98,6 +98,64 @@ JSON. Atlas writes to `<cwd>/.vestra`; override with `VESTRA_DATA_DIR`. Nova wil
 use the OS app-data directory. The repository layer is deliberately thin so a
 SQLite or cloud-sync backend can replace it without touching callers.
 
+## Working in this repo
+
+### Branches
+
+`main` is the trunk and is always releasable. Work happens on short-lived
+branches prefixed with the app or package they target:
+
+```
+atlas/<topic>     nova/<topic>     pulse/<topic>     core/<topic>
+```
+
+Long-lived `atlas` / `nova` / `pulse` branches exist as integration lanes, but
+they are **not** meant to diverge from `main`.
+
+> **Why not a permanent branch per app?** `packages/*` is shared by all three
+> apps, so divergent app branches would need every core change merged three
+> ways. pnpm also resolves `workspace:*` against the whole tree, so a branch
+> missing sibling apps will not install. Keep the work on `main` and use the
+> prefixes for tracking.
+
+### Commits
+
+Conventional Commits, scoped to the workspace package so `git log --grep` stays
+useful:
+
+```
+feat(atlas): add hero banner to home
+fix(ui): keep switch knob inside its track
+build(deps): pin typescript to 6.x for eslint compatibility
+```
+
+Scopes: `atlas` `nova` `pulse` · `types` `config` `api` `storage` `core` `ui` ·
+`eslint` `tsconfig` `tailwind` · `deps` `ci` `release`.
+
+A template is wired up through `commit.template` — run `git commit` with no
+`-m` to get the full list inline.
+
+### Tags
+
+| Pattern          | Meaning                   |
+| ---------------- | ------------------------- |
+| `v<x.y.z>`       | Repository-wide milestone |
+| `atlas-v<x.y.z>` | Vestra Atlas release      |
+| `nova-v<x.y.z>`  | Vestra Nova release       |
+| `pulse-v<x.y.z>` | Vestra Pulse release      |
+
+Tags are annotated and record what actually shipped, including what did not:
+`git tag -n20 nova-v0.1.0`.
+
+### Useful queries
+
+```bash
+git log --oneline --grep '(atlas)'   # everything that touched Atlas
+git log --oneline -- packages/core   # history of the shared engine
+git tag -l 'atlas-*'                 # Atlas release history
+git shortlog -sn                     # commits by author
+```
+
 ## Toolchain
 
 Node 22+, pnpm 11, Turborepo 2, TypeScript 6, Tailwind CSS v4, React 19.
