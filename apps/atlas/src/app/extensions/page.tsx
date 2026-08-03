@@ -1,3 +1,4 @@
+import { listInstalled } from "@vestra/extension-host";
 import { getSettings } from "@vestra/storage";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -14,12 +15,16 @@ export default async function ExtensionsPage() {
   // rendering a disabled version of itself.
   if (!extensionsEnabled()) notFound();
 
-  const settings = await getSettings(getDriver());
+  const driver = getDriver();
+  const [settings, installed] = await Promise.all([
+    getSettings(driver),
+    listInstalled(driver),
+  ]);
 
   return (
     <ExtensionsClient
       initialRegistries={settings.extensions.registries}
-      initialInstalled={settings.extensions.enabled}
+      initialInstalled={installed}
     />
   );
 }

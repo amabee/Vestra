@@ -33,6 +33,17 @@ import { toast } from "@/components/ui/toaster";
 
 import { ExtensionCard } from "./extension-card";
 import { ExtensionDetails } from "./extension-details";
+import { PermissionDialog, type InstallPlanView } from "./permission-dialog";
+
+/** Mirrors the install record, kept local so the client never imports the installer. */
+export interface InstalledRecord {
+  id: string;
+  name: string;
+  version: string;
+  integrity: string;
+  pinned: boolean;
+  driftDetectedAt: string | null;
+}
 
 interface RegistryResponse {
   url: string;
@@ -42,7 +53,7 @@ interface RegistryResponse {
 
 interface ExtensionsClientProps {
   initialRegistries: string[];
-  initialInstalled: string[];
+  initialInstalled: InstalledRecord[];
 }
 
 type Tab = "installed" | "marketplace";
@@ -71,6 +82,8 @@ export function ExtensionsClient({
   const [repoDraft, setRepoDraft] = useState("");
   const [editingRepo, setEditingRepo] = useState(false);
   const [inspecting, setInspecting] = useState<MarketplaceEntry | null>(null);
+  const [pendingEntry, setPendingEntry] = useState<MarketplaceEntry | null>(null);
+  const [pendingPlan, setPendingPlan] = useState<InstallPlanView | null>(null);
 
   const [query, setQuery] = useState("");
   const [type, setType] = useState<ExtensionType | "all">("all");
@@ -86,7 +99,7 @@ export function ExtensionsClient({
     queryFn: async () => {
       const response = await fetch("/api/extensions/installed");
       if (!response.ok) throw new Error("Could not load installed extensions");
-      return ((await response.json()) as { installed: string[] }).installed;
+      return ((await response.json()) as { installed: InstalledRecord[] }).installed;
     },
     initialData: initialInstalled,
   });
@@ -126,17 +139,47 @@ export function ExtensionsClient({
     onError: (error: Error) => toast(error.message, "error"),
   });
 
-  const install = useMutation({
+  /** Phase one: read the manifest so the user can see what is being asked for. */
+  const prepare = useMutation({
     mutationFn: async (entry: MarketplaceEntry) => {
-      const response = await fetch("/api/extensions/installed", {
+      const response = await fetch("/api/extensions/install", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: entry.id }),
+        body: JSON.stringify({
+          phase: "prepare",
+          candidate: candidateOf(entry, activeRegistry ?? ""),
+        }),
       });
-      if (!response.ok) throw new Error("Could not add that extension.");
+      const payload = (await response.json()) as { plan?: InstallPlanView; error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Could not read that extension.");
+      return payload.plan ?? null;
+    },
+    onSuccess: (plan) => setPendingPlan(plan),
+    onError: (error: Error) => {
+      setPendingEntry(null);
+      toast(error.message, "error");
+    },
+  });
+
+  /** Phase two: fetch and store the code under the permissions actually granted. */
+  const install = useMutation({
+    mutationFn: async (input: { entry: MarketplaceEntry; granted: string[] }) => {
+      const response = await fetch("/api/extensions/install", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phase: "commit",
+          candidate: candidateOf(input.entry, activeRegistry ?? ""),
+          granted: input.granted,
+        }),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Could not install that extension.");
     },
     onSuccess: () => {
-      toast("Added — it will activate once the extension runtime ships");
+      setPendingEntry(null);
+      setPendingPlan(null);
+      toast("Installed — it will activate once the extension runtime ships");
       void queryClient.invalidateQueries({ queryKey: ["extensions-installed"] });
     },
     onError: (error: Error) => toast(error.message, "error"),
@@ -157,8 +200,14 @@ export function ExtensionsClient({
     onError: (error: Error) => toast(error.message, "error"),
   });
 
+  const beginInstall = (entry: MarketplaceEntry) => {
+    setPendingEntry(entry);
+    prepare.mutate(entry);
+  };
+
   const allEntries = useMemo(() => marketplace.data?.entries ?? [], [marketplace.data]);
-  const installed = useMemo(() => installedQuery.data ?? [], [installedQuery.data]);
+  const records = useMemo(() => installedQuery.data ?? [], [installedQuery.data]);
+  const installed = useMemo(() => records.map((record) => record.id), [records]);
 
   const scope = useMemo(
     () =>
@@ -220,7 +269,7 @@ export function ExtensionsClient({
     return { unscanned, mutable };
   }, [filtered]);
 
-  const busy = install.isPending || uninstall.isPending;
+  const busy = prepare.isPending || install.isPending || uninstall.isPending;
 
   return (
     <div className="space-y-6 pb-10">
@@ -323,7 +372,7 @@ export function ExtensionsClient({
                         entry={entry}
                         installed={installed.includes(entry.id)}
                         busy={busy}
-                        onInstall={(value) => install.mutate(value)}
+                        onInstall={beginInstall}
                         onUninstall={(value) => uninstall.mutate(value)}
                         onInspect={setInspecting}
                       />
@@ -340,11 +389,40 @@ export function ExtensionsClient({
         entry={inspecting}
         installed={inspecting ? installed.includes(inspecting.id) : false}
         onClose={() => setInspecting(null)}
-        onInstall={(entry) => install.mutate(entry)}
+        onInstall={(entry) => {
+          setInspecting(null);
+          beginInstall(entry);
+        }}
         onUninstall={(entry) => uninstall.mutate(entry)}
+      />
+
+      <PermissionDialog
+        plan={pendingPlan}
+        extensionId={pendingEntry?.id ?? ""}
+        pending={install.isPending}
+        onCancel={() => {
+          setPendingPlan(null);
+          setPendingEntry(null);
+        }}
+        onConfirm={(granted) => {
+          if (pendingEntry) install.mutate({ entry: pendingEntry, granted });
+        }}
       />
     </div>
   );
+}
+
+/** Registry entry to install candidate. */
+function candidateOf(entry: MarketplaceEntry, registryUrl: string) {
+  return {
+    id: entry.id,
+    name: entry.name,
+    version: entry.version,
+    type: entry.type,
+    manifestURI: entry.manifestURI,
+    payloadURI: entry.payloadURI,
+    registryUrl,
+  };
 }
 
 /* =============================================================================

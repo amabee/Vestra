@@ -103,16 +103,38 @@ export interface SafeFetchOptions {
   accept?: string;
 }
 
+export interface SafeRequest {
+  url: string;
+  method?: "GET" | "POST";
+  headers?: Record<string, string>;
+  body?: string | null;
+  timeoutMs?: number;
+  maxBytes?: number;
+}
+
+export interface SafeResponse {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+}
+
 /**
  * Fetch a user-supplied URL, following redirects manually so each hop is
  * re-validated. `fetch`'s own redirect handling would let a public URL bounce
  * to an internal one.
+ *
+ * Returns the status rather than throwing on it, so callers that care about
+ * 404 vs 500 can tell them apart. Only transport and policy failures throw.
  */
-export async function safeFetchText(
-  rawUrl: string,
-  options: SafeFetchOptions = {},
-): Promise<string> {
-  const { timeoutMs = 15_000, maxBytes = 8 * 1024 * 1024, accept = "*/*" } = options;
+export async function safeFetch(request: SafeRequest): Promise<SafeResponse> {
+  const {
+    url: rawUrl,
+    method = "GET",
+    headers = {},
+    body = null,
+    timeoutMs = 15_000,
+    maxBytes = 8 * 1024 * 1024,
+  } = request;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -122,21 +144,24 @@ export async function safeFetchText(
 
     for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
       const response = await fetch(target, {
+        method,
         redirect: "manual",
         signal: controller.signal,
-        headers: { accept },
+        headers,
+        body,
         cache: "no-store",
+        // Never attach ambient credentials to a URL the user supplied.
+        credentials: "omit",
+        referrerPolicy: "no-referrer",
       });
 
-      if (response.status >= 300 && response.status < 400) {
+      // Only GET is followed. Replaying a POST body to a new destination is a
+      // way to deliver it somewhere the caller never authorised.
+      if (response.status >= 300 && response.status < 400 && method === "GET") {
         const location = response.headers.get("location");
         if (!location) throw new UnsafeUrlError("Redirect without a destination.");
         target = await assertPublicUrl(new URL(location, target).toString());
         continue;
-      }
-
-      if (!response.ok) {
-        throw new UnsafeUrlError(`Request failed with status ${response.status}.`);
       }
 
       const declared = Number.parseInt(response.headers.get("content-length") ?? "", 10);
@@ -144,13 +169,36 @@ export async function safeFetchText(
         throw new UnsafeUrlError("That response is too large.");
       }
 
-      return await readCapped(response, maxBytes);
+      return {
+        status: response.status,
+        headers: Object.fromEntries(response.headers.entries()),
+        body: await readCapped(response, maxBytes),
+      };
     }
 
     throw new UnsafeUrlError("Too many redirects.");
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Convenience wrapper that treats any non-2xx as a failure. */
+export async function safeFetchText(
+  rawUrl: string,
+  options: SafeFetchOptions = {},
+): Promise<string> {
+  const response = await safeFetch({
+    url: rawUrl,
+    headers: { accept: options.accept ?? "*/*" },
+    timeoutMs: options.timeoutMs,
+    maxBytes: options.maxBytes,
+  });
+
+  if (response.status < 200 || response.status >= 300) {
+    throw new UnsafeUrlError(`Request failed with status ${response.status}.`);
+  }
+
+  return response.body;
 }
 
 /** Read a body chunk by chunk, aborting as soon as the cap is exceeded. */

@@ -1,0 +1,40 @@
+{
+  "name": "@vestra/extension-host",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./trust": "./src/trust.ts",
+    "./manifest": "./src/manifest.ts",
+    "./permissions": "./src/permissions.ts",
+    "./contract": "./src/contract.ts",
+    "./net": "./src/net.ts",
+    "./bridge": "./src/bridge.ts",
+    "./install": "./src/install.ts",
+    "./store": "./src/store.ts",
+    "./engine": "./src/runtime/engine.ts",
+    "./quickjs": "./src/runtime/quickjs.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vestra/config": "workspace:*",
+    "@vestra/provider-sdk": "workspace:*",
+    "@vestra/storage": "workspace:*",
+    "@vestra/types": "workspace:*",
+    "quickjs-emscripten": "^0.32.0",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vestra/eslint-config": "workspace:*",
+    "@vestra/tsconfig": "workspace:*",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "^3.2.7"
+  }
+}

@@ -19,6 +19,7 @@ const nextConfig: NextConfig = {
     "@vestra/api",
     "@vestra/config",
     "@vestra/core",
+    "@vestra/extension-host",
     "@vestra/provider-sdk",
     "@vestra/providers",
     "@vestra/storage",

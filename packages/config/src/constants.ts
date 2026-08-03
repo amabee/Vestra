@@ -141,6 +141,8 @@ export const STORAGE_KEYS = {
   progress: "progress",
   localLibrary: "local-library",
   recentSearches: "recent-searches",
+  /** Installed community extensions. Code is stored separately, content-addressed. */
+  extensions: "extensions",
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
