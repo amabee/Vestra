@@ -1,0 +1,30 @@
+{
+  "name": "@vestra/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tmdb": "./src/tmdb/index.ts",
+    "./anilist": "./src/anilist/index.ts",
+    "./youtube": "./src/youtube/index.ts",
+    "./qbittorrent": "./src/qbittorrent/index.ts",
+    "./mediaserver": "./src/mediaserver/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vestra/config": "workspace:*",
+    "@vestra/types": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vestra/eslint-config": "workspace:*",
+    "@vestra/tsconfig": "workspace:*",
+    "eslint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

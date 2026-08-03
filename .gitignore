@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# Turborepo
+.turbo/
+
+# Environment — never commit real keys
+.env
+.env.local
+.env.*.local
+
+# Vestra runtime data (watchlist / history / progress JSON)
+.vestra/
+*.vestra-cache/
+
+# Electron
+apps/nova/release/
+apps/nova/dist-electron/
+
+# Expo
+apps/pulse/.expo/
+apps/pulse/.expo-shared/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test / coverage
+coverage/
+.vitest/

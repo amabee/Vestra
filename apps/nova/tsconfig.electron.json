@@ -1,0 +1,19 @@
+{
+  "extends": "@vestra/tsconfig/library.json",
+  "compilerOptions": {
+    // Electron's main process needs CommonJS output. With no `"type": "module"`
+    // in package.json, `node18` emits CJS. `node10` resolution is deprecated in TS 6.
+    "module": "node18",
+    "moduleResolution": "node16",
+    "verbatimModuleSyntax": false,
+    // TS 6 requires rootDir to be explicit when emitting. This flattens
+    // electron/main.ts -> dist-electron/main.js, matching package.json "main".
+    "rootDir": "./electron",
+    "outDir": "./dist-electron",
+    "noEmit": false,
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["electron/**/*.ts"],
+  "exclude": ["node_modules", "dist-electron", "release"]
+}

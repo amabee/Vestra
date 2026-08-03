@@ -1,0 +1,46 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "ui": "tui",
+  "globalDependencies": [".env"],
+  "globalEnv": [
+    "NODE_ENV",
+    "TMDB_API_KEY",
+    "TMDB_ACCESS_TOKEN",
+    "YOUTUBE_API_KEY",
+    "ANILIST_CLIENT_ID",
+    "ANILIST_CLIENT_SECRET",
+    "QBITTORRENT_URL",
+    "QBITTORRENT_USERNAME",
+    "QBITTORRENT_PASSWORD",
+    "MEDIA_SERVER_KIND",
+    "MEDIA_SERVER_URL",
+    "MEDIA_SERVER_API_KEY",
+    "VESTRA_DATA_DIR"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**", "out/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "start": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "clean": {
+      "cache": false
+    }
+  }
+}

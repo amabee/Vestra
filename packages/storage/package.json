@@ -1,0 +1,28 @@
+{
+  "name": "@vestra/storage",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./driver": "./src/driver.ts",
+    "./node": "./src/node-driver.ts",
+    "./repositories": "./src/repositories.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vestra/config": "workspace:*",
+    "@vestra/types": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vestra/eslint-config": "workspace:*",
+    "@vestra/tsconfig": "workspace:*",
+    "eslint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "@vestra/pulse",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vestra Pulse — the Vestra mobile application (Expo). Scaffold only.",
+  "scripts": {
+    "dev": "echo \"Vestra Pulse is not implemented yet. See README.md\" && exit 0",
+    "build": "echo \"Vestra Pulse is not implemented yet.\" && exit 0",
+    "typecheck": "echo \"no-op\" && exit 0"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "@vestra/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./search": "./src/search.ts",
+    "./discover": "./src/discover.ts",
+    "./format": "./src/format.ts",
+    "./filename": "./src/filename.ts",
+    "./local-library": "./src/local-library.ts",
+    "./continue-watching": "./src/continue-watching.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vestra/api": "workspace:*",
+    "@vestra/config": "workspace:*",
+    "@vestra/storage": "workspace:*",
+    "@vestra/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vestra/eslint-config": "workspace:*",
+    "@vestra/tsconfig": "workspace:*",
+    "eslint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

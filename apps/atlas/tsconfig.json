@@ -1,0 +1,17 @@
+{
+  "extends": "@vestra/tsconfig/nextjs.json",
+  "compilerOptions": {
+    // No `baseUrl`: deprecated in TS 6. Without it, `paths` resolve relative
+    // to this file, which is what we want.
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": ["node_modules", ".next"]
+}
