@@ -101,6 +101,11 @@ export function SettingsForm({ initialSettings }: { initialSettings: Settings })
     mutation.mutate({ playback: { ...settings.playback, ...patch } });
   };
 
+  const updateDownloads = (patch: Partial<Settings["downloads"]>) => {
+    setSettings((current) => ({ ...current, downloads: { ...current.downloads, ...patch } }));
+    mutation.mutate({ downloads: { ...settings.downloads, ...patch } });
+  };
+
   const updatePrivacy = (patch: Partial<Settings["privacy"]>) => {
     setSettings((current) => ({ ...current, privacy: { ...current.privacy, ...patch } }));
     mutation.mutate({ privacy: { ...settings.privacy, ...patch } });
@@ -227,6 +232,19 @@ export function SettingsForm({ initialSettings }: { initialSettings: Settings })
             description="Resume from where you left off instead of restarting."
             checked={settings.playback.rememberPosition}
             onChange={(rememberPosition) => updatePlayback({ rememberPosition })}
+          />
+        </GlassCard>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold tracking-tight">Downloads</h2>
+
+        <GlassCard className="divide-y divide-glass-border">
+          <Toggle
+            label="Auto-import completed downloads"
+            description="When a transfer finishes, register its folder with the library and re-scan, so it becomes playable without a manual scan."
+            checked={settings.downloads.autoImportCompleted}
+            onChange={(autoImportCompleted) => updateDownloads({ autoImportCompleted })}
           />
         </GlassCard>
       </section>

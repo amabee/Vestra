@@ -160,6 +160,41 @@ export type Season = z.infer<typeof seasonSchema>;
  * Full details page payload
  * ========================================================================== */
 
+/* =============================================================================
+ * Official streaming availability
+ * ========================================================================== */
+
+/** How a service grants access to a title. */
+export const streamingAccessSchema = z.enum([
+  "subscription",
+  "free",
+  "ads",
+  "rent",
+  "buy",
+  "unknown",
+]);
+export type StreamingAccess = z.infer<typeof streamingAccessSchema>;
+
+/**
+ * A licensed place to watch something.
+ *
+ * Sourced from AniList's `streamingEpisodes` (direct official episode URLs) and
+ * TMDb's JustWatch-backed `watch/providers`. These are deep links out to
+ * services the user subscribes to — Vestra never proxies or re-hosts the video.
+ */
+export const streamingLinkSchema = z.object({
+  /** Display name, e.g. "Crunchyroll". */
+  service: z.string(),
+  url: z.string().url(),
+  access: streamingAccessSchema.default("unknown"),
+  logo: z.string().url().nullable().default(null),
+  /** Set when the link points at a specific episode rather than the series. */
+  episodeTitle: z.string().nullable().default(null),
+  /** ISO 3166-1 region the availability applies to. */
+  region: z.string().nullable().default(null),
+});
+export type StreamingLink = z.infer<typeof streamingLinkSchema>;
+
 export const mediaDetailsSchema = mediaItemSchema.extend({
   tagline: z.string().nullable().default(null),
   /** Age/content rating for the user's region, e.g. "TV-MA", "PG-13". */
@@ -170,6 +205,8 @@ export const mediaDetailsSchema = mediaItemSchema.extend({
   studios: z.array(z.string()).default([]),
   countries: z.array(z.string()).default([]),
   languages: z.array(z.string()).default([]),
+  /** Licensed services carrying this title. */
+  streaming: z.array(streamingLinkSchema).default([]),
   /** Provider-specific extras kept intact for future features. */
   external: z.record(z.string(), z.string()).default({}),
 });

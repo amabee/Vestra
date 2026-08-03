@@ -23,6 +23,8 @@
     "@vestra/api": "workspace:*",
     "@vestra/config": "workspace:*",
     "@vestra/core": "workspace:*",
+    "@vestra/provider-sdk": "workspace:*",
+    "@vestra/providers": "workspace:*",
     "@vestra/storage": "workspace:*",
     "@vestra/types": "workspace:*",
     "@vestra/ui": "workspace:*",

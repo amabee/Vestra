@@ -177,7 +177,7 @@ export async function getPopularTv(page = 1): Promise<MediaItem[]> {
 export async function getMovieDetails(id: string): Promise<MediaDetails> {
   const movie = await tmdbGet<TmdbMovie>(
     `movie/${id}`,
-    { append_to_response: "credits,similar,release_dates" },
+    { append_to_response: "credits,similar,release_dates,watch/providers" },
     { revalidate: CACHE_TTL.details },
   );
   return normaliseMovieDetails(movie);
@@ -186,7 +186,7 @@ export async function getMovieDetails(id: string): Promise<MediaDetails> {
 export async function getTvDetails(id: string): Promise<MediaDetails> {
   const show = await tmdbGet<TmdbTv>(
     `tv/${id}`,
-    { append_to_response: "credits,similar,content_ratings" },
+    { append_to_response: "credits,similar,content_ratings,watch/providers" },
     { revalidate: CACHE_TTL.details },
   );
   return normaliseTvDetails(show);

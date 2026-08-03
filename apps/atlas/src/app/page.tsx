@@ -1,7 +1,6 @@
-import { anilist, tmdb } from "@vestra/api";
-import { isTmdbConfigured } from "@vestra/config";
 import { getContinueWatching } from "@vestra/core/continue-watching";
-import { recentlyAddedLocal } from "@vestra/core/local-library";
+import { getTrendingByKind } from "@vestra/core/discover";
+import { recentlyAddedLocal } from "@vestra/providers/local-library";
 import { getLocalFiles } from "@vestra/storage";
 import type { MediaItem } from "@vestra/types";
 import { Button, EmptyState } from "@vestra/ui";
@@ -9,6 +8,7 @@ import { Compass, Settings } from "lucide-react";
 import Link from "next/link";
 
 import { HomeView, type ContinueWatchingCard } from "@/components/home/home-view";
+import { getProviderRegistry } from "@/lib/registry";
 import { getDriver } from "@/lib/storage";
 
 /** Home. Rendered on the server so provider keys never reach the client. */
@@ -33,14 +33,14 @@ function interleave(groups: MediaItem[][]): MediaItem[] {
 
 export default async function HomePage() {
   const driver = getDriver();
-  const tmdbReady = isTmdbConfigured();
+  const providers = getProviderRegistry();
 
   const [progressEntries, anime, movies, kdrama, tv, localFiles] = await Promise.all([
     getContinueWatching(driver, 12).catch(() => []),
-    anilist.getTrendingAnime(1, 20).catch(() => []),
-    tmdbReady ? tmdb.getTrendingMovies("week").catch(() => []) : Promise.resolve([]),
-    tmdbReady ? tmdb.getTrendingKdramas().catch(() => []) : Promise.resolve([]),
-    tmdbReady ? tmdb.getTrendingTv("week").catch(() => []) : Promise.resolve([]),
+    getTrendingByKind(providers, "anime", 20),
+    getTrendingByKind(providers, "movie", 20),
+    getTrendingByKind(providers, "kdrama", 20),
+    getTrendingByKind(providers, "tv", 20),
     getLocalFiles(driver).catch(() => []),
   ]);
 
@@ -53,13 +53,13 @@ export default async function HomePage() {
     ),
   }));
 
-  const trending = interleave([anime, movies, kdrama, tv]);
+  const trending = interleave([anime.items, movies.items, kdrama.items, tv.items]);
 
-  // Fall back to popular anime when there's no local library to surface.
+  // Fall back to trending anime when there is no local library to surface.
   const recentlyAdded =
-    localFiles.length > 0
-      ? recentlyAddedLocal(localFiles, 20)
-      : await anilist.getPopularAnime(1, 20).catch(() => []);
+    localFiles.length > 0 ? recentlyAddedLocal(localFiles, 20) : anime.items.slice(0, 20);
+
+  const tmdbReady = providers.get("tmdb")?.isAvailable() ?? false;
 
   if (trending.length === 0 && continueWatching.length === 0) {
     return (

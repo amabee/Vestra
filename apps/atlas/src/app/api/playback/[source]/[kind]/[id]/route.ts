@@ -29,17 +29,17 @@ export async function GET(_request: Request, context: RouteContext) {
 
   const sourceId = decodeURIComponent(id);
 
-  // `sourceUrl` lives on the details payload and drives the external fallback.
+  // Adapters inspect the whole item (kind, sourceUrl, source) to decide whether
+  // they can help, so the full details payload is required here.
   const details = await getMediaDetails(parsedSource.data, parsedKind.data, sourceId).catch(
     () => null,
   );
 
-  const sources = await resolvePlaybackSources({
-    source: parsedSource.data,
-    kind: parsedKind.data,
-    sourceId,
-    sourceUrl: details?.sourceUrl ?? null,
-  });
+  if (!details) {
+    return NextResponse.json({ sources: [] });
+  }
+
+  const sources = await resolvePlaybackSources(details);
 
   return NextResponse.json({ sources });
 }

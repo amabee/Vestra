@@ -1,4 +1,10 @@
-import type { CastMember, MediaDetails, MediaItem, ReleaseStatus } from "@vestra/types";
+import type {
+  CastMember,
+  MediaDetails,
+  MediaItem,
+  ReleaseStatus,
+  StreamingLink,
+} from "@vestra/types";
 
 import type { AnilistMedia, AnilistStatus } from "./types";
 
@@ -109,6 +115,38 @@ function mapCharacters(media: AnilistMedia): CastMember[] {
     .slice(0, 20);
 }
 
+/**
+ * Official streaming links AniList already returns on the details query.
+ *
+ * These point at licensed services (Crunchyroll, HIDIVE, Netflix, Muse Asia on
+ * YouTube) and are usually episode-specific, so they are the best legal
+ * "watch this now" signal Vestra has for anime.
+ */
+function mapStreamingEpisodes(media: AnilistMedia): StreamingLink[] {
+  const seen = new Set<string>();
+
+  return (media.streamingEpisodes ?? []).flatMap((episode) => {
+    if (!episode?.url || !episode.site) return [];
+
+    // Collapse per-episode entries down to one link per service; the details
+    // panel wants "where can I watch this", not 1,000 episode rows.
+    if (seen.has(episode.site)) return [];
+    seen.add(episode.site);
+
+    return [
+      {
+        service: episode.site,
+        url: episode.url,
+        // AniList does not say whether the service is free or paid.
+        access: "unknown" as const,
+        logo: null,
+        episodeTitle: episode.title ?? null,
+        region: null,
+      },
+    ];
+  });
+}
+
 export function normaliseAnimeDetails(media: AnilistMedia): MediaDetails {
   const related = (media.relations?.edges ?? [])
     .flatMap((edge) => {
@@ -131,6 +169,7 @@ export function normaliseAnimeDetails(media: AnilistMedia): MediaDetails {
     studios: (media.studios?.nodes ?? []).map((s) => s.name),
     countries: media.countryOfOrigin ? [media.countryOfOrigin] : [],
     languages: [],
+    streaming: mapStreamingEpisodes(media),
     external: {
       anilistId: String(media.id),
       ...(media.format ? { format: media.format } : {}),
