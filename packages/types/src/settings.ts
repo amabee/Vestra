@@ -119,6 +119,23 @@ export const privacySettingsSchema = z.object({
 export type PrivacySettings = z.infer<typeof privacySettingsSchema>;
 
 /* =============================================================================
+ * Extensions
+ * ========================================================================== */
+
+export const extensionSettingsSchema = z.object({
+  /**
+   * Registry URLs the user has added.
+   *
+   * Deliberately empty by default. Vestra ships no bundled marketplace, so
+   * pointing at a third-party index is an explicit choice the user makes.
+   */
+  registries: z.array(z.string().url()).default([]),
+  /** Extension ids the user has enabled. */
+  enabled: z.array(z.string()).default([]),
+});
+export type ExtensionSettings = z.infer<typeof extensionSettingsSchema>;
+
+/* =============================================================================
  * Root settings document
  * ========================================================================== */
 
@@ -137,6 +154,7 @@ export const settingsSchema = z.object({
   library: librarySettingsSchema.prefault({}),
   downloads: downloadSettingsSchema.prefault({}),
   privacy: privacySettingsSchema.prefault({}),
+  extensions: extensionSettingsSchema.prefault({}),
   mediaServer: mediaServerConnectionSchema.prefault({}),
 });
 export type Settings = z.infer<typeof settingsSchema>;

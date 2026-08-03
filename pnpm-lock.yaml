@@ -104,6 +104,9 @@ importers:
 
   .:
     devDependencies:
+      cross-env:
+        specifier: ^10.1.0
+        version: 10.1.0
       prettier:
         specifier: 'catalog:'
         version: 3.9.6
@@ -375,6 +378,9 @@ importers:
       '@vestra/types':
         specifier: workspace:*
         version: link:../types
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

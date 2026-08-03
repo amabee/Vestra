@@ -9,3 +9,4 @@
 export * from "./types";
 export * from "./registry";
 export * from "./orchestrate";
+export * from "./marketplace";
