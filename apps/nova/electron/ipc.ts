@@ -22,6 +22,7 @@ import {
   searchQuerySchema,
   settingsSchema,
   watchlistStatusSchema,
+  type MediaItem,
 } from "@vestra/types";
 import { matchLibrary, scanLibrary } from "@vestra/providers";
 import { ipcMain, shell, dialog } from "electron";
@@ -168,22 +169,33 @@ export function registerDataIpc(): void {
     }));
   });
 
+  /**
+   * Lookups take a reference, not a whole item.
+   *
+   * Providers resolve by identity — AniList's `getDetails` reads nothing but
+   * `sourceId`, and adapters dispatch on `source` and `kind`. Demanding a full
+   * `MediaItem` here meant the detail page, which only has a ref from the URL,
+   * failed validation and silently rendered as empty.
+   *
+   * The cast is safe for that reason: nothing downstream touches the fields a
+   * ref lacks.
+   */
   handle("media:details", async (raw: unknown) => {
-    const item = parse(mediaItemSchema, raw, "media item");
-    const provider = getProviderRegistry().forRef(item);
+    const ref = parse(mediaRefSchema, raw, "media reference") as MediaItem;
+    const provider = getProviderRegistry().forRef(ref);
 
     if (!provider?.capabilities.details || !provider.getDetails) return null;
 
-    return provider.getDetails(item, {
+    return provider.getDetails(ref, {
       signal: AbortSignal.timeout(15_000),
       timeoutMs: 15_000,
     });
   });
 
   handle("playback:resolve", async (raw: unknown) => {
-    const item = parse(mediaItemSchema, raw, "media item");
+    const ref = parse(mediaRefSchema, raw, "media reference") as MediaItem;
 
-    return resolvePlayback(getAdapterRegistry(), item, {
+    return resolvePlayback(getAdapterRegistry(), ref, {
       signal: AbortSignal.timeout(15_000),
     });
   });

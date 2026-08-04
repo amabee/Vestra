@@ -104,9 +104,17 @@ export function DetailRoute() {
               <div className="h-12 w-2/3 animate-pulse rounded-selector bg-base-200" />
             ) : (
               <h1 className="font-serif text-display-lg text-balance">
-                {data?.title ?? "Unknown"}
+                {data?.title ?? "Untitled"}
               </h1>
             )}
+
+            {/* Surfaced rather than swallowed: a failed lookup used to render
+                as a page titled "Unknown" with no explanation. */}
+            {details.error ? (
+              <p className="mt-2 text-xs text-error">
+                {(details.error as Error).message}
+              </p>
+            ) : null}
 
             {data?.tagline ? (
               <p className="mt-2 font-serif text-display-sm italic text-base-content/50">
@@ -153,6 +161,11 @@ export function DetailRoute() {
             <div className="py-6">
               <Loader2 className="size-5 animate-spin text-base-content/40" />
             </div>
+          ) : sources.error ? (
+            <Notice
+              title="Could not resolve sources"
+              body={(sources.error as Error).message}
+            />
           ) : (sources.data ?? []).length === 0 ? (
             <Notice
               title="No source available"
