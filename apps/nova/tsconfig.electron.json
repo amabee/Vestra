@@ -12,5 +12,5 @@
     "noEmit": true
   },
   "include": ["electron/**/*.ts"],
-  "exclude": ["node_modules", "dist-electron", "release"]
+  "exclude": ["node_modules", "dist-electron", "release", "electron/shell.ts"]
 }

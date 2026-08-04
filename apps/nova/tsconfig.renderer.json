@@ -1,0 +1,16 @@
+{
+  "extends": "@vestra/tsconfig/library.json",
+  "compilerOptions": {
+    // The renderer runs in a sandboxed browser context: DOM exists, Node does
+    // not. Kept apart from tsconfig.electron.json so main-process code cannot
+    // reach for `document` and have it typecheck.
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "verbatimModuleSyntax": false,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": [],
+    "noEmit": true
+  },
+  "include": ["electron/shell.ts"],
+  "exclude": ["node_modules", "dist-electron", "release"]
+}

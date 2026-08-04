@@ -10,15 +10,18 @@
     "start": "electron .",
     "dev": "pnpm run build:electron && cross-env NODE_ENV=development electron .",
     "package": "pnpm run build:electron && electron-builder",
-    "typecheck": "tsc --noEmit -p tsconfig.electron.json",
+    "typecheck": "tsc --noEmit -p tsconfig.electron.json && tsc --noEmit -p tsconfig.renderer.json",
     "clean": "rimraf dist-electron release .turbo"
   },
   "dependencies": {
     "@vestra/config": "workspace:*",
     "@vestra/core": "workspace:*",
     "@vestra/extension-host": "workspace:*",
+    "@vestra/provider-sdk": "workspace:*",
+    "@vestra/providers": "workspace:*",
     "@vestra/storage": "workspace:*",
-    "@vestra/types": "workspace:*"
+    "@vestra/types": "workspace:*",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

@@ -17,6 +17,12 @@ import {
   loadInstalledExtensions,
   stopExtensionWorker,
 } from "./extensions";
+import { registerDataIpc } from "./ipc";
+import {
+  registerMediaProtocolHandler,
+  registerMediaProtocolScheme,
+} from "./media-protocol";
+import { resolveDataDir } from "./services";
 
 /**
  * Vestra Nova — Electron main process.
@@ -37,14 +43,17 @@ import {
 const isDev = process.env.NODE_ENV === "development";
 
 /**
- * Where Vestra persists watchlist, progress, settings and the library index.
+ * Pin the app name before anything reads a path from it.
  *
- * The OS app-data directory rather than the working directory, so a packaged
- * Nova writes somewhere durable and writable. Exposed to the renderer over IPC.
+ * Unset, Electron derives `userData` from package.json `name`, giving
+ * `AppData/Roaming/@vestra/nova`. A packaged build uses electron-builder's
+ * `productName` instead — so development and production would quietly keep
+ * their library, watchlist and settings in two different places.
  */
-function resolveDataDir(): string {
-  return join(app.getPath("userData"), "data");
-}
+app.setName("Vestra Nova");
+
+// Privileged schemes must be declared before the app is ready.
+registerMediaProtocolScheme();
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -76,6 +85,15 @@ function createWindow(): BrowserWindow {
 
   // Avoid a white flash before the first paint.
   window.once("ready-to-show", () => window.show());
+
+  // Surface renderer logs in the terminal. Without this the renderer's console
+  // is only visible in devtools, which makes a headless run impossible to
+  // diagnose — and a packaged Nova has no devtools at all.
+  window.webContents.on("console-message", (details) => {
+    const prefix = `[renderer:${details.level}]`;
+    if (details.level === "error") console.error(prefix, details.message);
+    else console.info(prefix, details.message);
+  });
 
   // Open target=_blank and external links in the user's browser instead.
   window.webContents.setWindowOpenHandler(({ url }) => {
@@ -145,21 +163,8 @@ function registerIpc(): void {
 
   ipcMain.handle("app:version", () => app.getVersion());
 
-  ipcMain.handle("app:data-dir", () => resolveDataDir());
-
-  ipcMain.handle("extensions:list", () => listLoadedExtensions());
-
-  // Arguments are validated as plain data before crossing into the worker; the
-  // isolate rejects anything it cannot JSON round-trip anyway.
-  ipcMain.handle(
-    "extensions:call",
-    (_event, extensionId: unknown, method: unknown, args: unknown) => {
-      if (typeof extensionId !== "string" || typeof method !== "string") {
-        throw new Error("An extension id and method name are required.");
-      }
-      return callExtension(extensionId, method, Array.isArray(args) ? args : []);
-    },
-  );
+  // Settings, discovery, watchlist, progress, library and extensions.
+  registerDataIpc();
 }
 
 /* -----------------------------------------------------------------------------
@@ -188,6 +193,7 @@ if (!gotLock) {
 
   void app.whenReady().then(() => {
     registerIpc();
+    registerMediaProtocolHandler();
 
     mainWindow = createWindow();
     createTray();

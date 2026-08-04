@@ -14,6 +14,7 @@ allowBuilds:
   electron: true
   electron-winstaller: true
   esbuild: true
+  sharp: set this to true or false
 
 # Single source of truth for dependency versions across every workspace package.
 # Reference with the `catalog:` protocol, e.g. `"next": "catalog:"`.

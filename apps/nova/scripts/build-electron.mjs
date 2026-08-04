@@ -11,64 +11,87 @@ import { fileURLToPath } from "node:url";
  * `tsc` alone was enough while `electron/` imported nothing but Node and
  * Electron. It stops being enough the moment Nova uses a workspace package:
  * those ship raw TypeScript with extensionless imports, so `tsc` would emit a
- * `require("@vestra/extension-host/quickjs")` pointing at a `.ts` file that
- * Node cannot execute. Bundling resolves and compiles those dependencies into
- * the output instead.
+ * `require("@vestra/extension-host/quickjs")` pointing at a `.ts` file Node
+ * cannot execute. Bundling resolves and compiles those in.
  *
- * Type checking is unaffected — esbuild does not typecheck, so
- * `pnpm --filter @vestra/nova typecheck` still runs `tsc --noEmit` and remains
- * the gate.
+ * esbuild does not typecheck, so `pnpm --filter @vestra/nova typecheck` still
+ * runs `tsc --noEmit` and remains the gate.
+ *
+ * Three targets, three environments. They are built separately on purpose:
+ * bundling them together meant the `__filename` shim below leaked into the
+ * preload, where it does not exist, and the bridge failed to load with the
+ * window still rendering — a silent break.
  */
 
 const novaRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(novaRoot, "../..");
 const outDir = path.join(novaRoot, "dist-electron");
 
-/**
- * Entry points, each flattened to `dist-electron/<name>.js`.
- *
- * `preload` must stay a separate bundle rather than a chunk: Electron loads it
- * into a different context with its own privileges, and it is referenced by
- * path from `webPreferences`.
- */
-const ENTRIES = [
-  "electron/main.ts",
-  "electron/preload.ts",
-  "electron/extension-worker.ts",
-];
-
-// Start clean. The previous `tsc` build emitted one file per source, and
-// esbuild now inlines several of those — leaving them behind would ship dead
-// code that electron-builder happily packages.
-await rm(outDir, { recursive: true, force: true });
-
-await build({
+const shared = {
   absWorkingDir: novaRoot,
-  entryPoints: ENTRIES,
   outdir: "dist-electron",
   bundle: true,
+  sourcemap: true,
+  // Readable on purpose: this is a local app bundle, and a legible stack trace
+  // is worth more than the saved bytes.
+  minify: false,
+  logLevel: "info",
+};
+
+// Start clean. Stale per-file output from the old `tsc` build would otherwise
+// be packaged alongside the bundles.
+await rm(outDir, { recursive: true, force: true });
+
+/**
+ * Main process and extension worker — full Node.
+ *
+ * quickjs-emscripten locates its WASM with `import.meta.url`, which becomes
+ * `undefined` once esbuild rewrites ESM to CJS; the module then fails with
+ * "filename must be a file URL". Pointing it at the bundle's own location makes
+ * the lookup land in `dist-electron`, where the `.wasm` is copied below.
+ */
+await build({
+  ...shared,
+  entryPoints: ["electron/main.ts", "electron/extension-worker.ts"],
   platform: "node",
   // Electron's main process is CommonJS; nova/package.json sets no "type".
   format: "cjs",
   // Electron 43 ships Node 22.
   target: "node22",
-  sourcemap: true,
-  // Keep it readable — this is a local app bundle, not a payload to ship over
-  // the wire, and a legible stack trace is worth more than the bytes.
-  minify: false,
-  // Provided by the runtime, never bundled.
   external: ["electron"],
-  /**
-   * quickjs-emscripten locates its WASM with `import.meta.url`, which becomes
-   * `undefined` once esbuild rewrites ESM to CJS — the module then fails with
-   * "filename must be a file URL". Point it at the bundle's own location so the
-   * lookup lands in `dist-electron`, where the `.wasm` is copied below.
-   */
   define: { "import.meta.url": "__vestraModuleUrl" },
   banner: {
     js: "const __vestraModuleUrl = require('node:url').pathToFileURL(__filename).href;",
   },
-  logLevel: "info",
+});
+
+/**
+ * Preload — sandboxed.
+ *
+ * Runs before the sandbox lifts and has no `__filename`, no `import.meta`, and
+ * only a small allow-listed slice of Node. It gets none of the shims above.
+ */
+await build({
+  ...shared,
+  entryPoints: ["electron/preload.ts"],
+  platform: "node",
+  format: "cjs",
+  target: "node22",
+  external: ["electron"],
+});
+
+/**
+ * Renderer — browser.
+ *
+ * Runs inside the sandboxed renderer where `require` and Node globals do not
+ * exist. Built for the browser so a Node builtin cannot slip in unnoticed.
+ */
+await build({
+  ...shared,
+  entryPoints: ["electron/shell.ts"],
+  platform: "browser",
+  format: "iife",
+  target: "chrome130",
 });
 
 /**
@@ -96,11 +119,7 @@ await copyFile(
   path.join(outDir, "emscripten-module.wasm"),
 );
 
-// The placeholder renderer. `loadFile` resolves it relative to the bundle, so
-// it has to sit in the output rather than in source.
-await copyFile(
-  path.join(novaRoot, "electron/shell.html"),
-  path.join(outDir, "shell.html"),
-);
+// `loadFile` resolves the shell relative to the bundle, so it lives in output.
+await copyFile(path.join(novaRoot, "electron/shell.html"), path.join(outDir, "shell.html"));
 
 console.info("[build-electron] copied emscripten-module.wasm and shell.html");

@@ -101,12 +101,21 @@ importers:
       '@vestra/extension-host':
         specifier: workspace:*
         version: link:../../packages/extension-host
+      '@vestra/provider-sdk':
+        specifier: workspace:*
+        version: link:../../packages/provider-sdk
+      '@vestra/providers':
+        specifier: workspace:*
+        version: link:../../packages/providers
       '@vestra/storage':
         specifier: workspace:*
         version: link:../../packages/storage
       '@vestra/types':
         specifier: workspace:*
         version: link:../../packages/types
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
