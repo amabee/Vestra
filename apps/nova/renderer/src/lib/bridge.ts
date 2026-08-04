@@ -68,6 +68,7 @@ interface RawBridge {
   };
   library: {
     files: () => Promise<unknown>;
+    entries: () => Promise<unknown>;
     folders: () => Promise<unknown>;
     pickFolder: () => Promise<unknown>;
     removeFolder: (id: string) => Promise<unknown>;
@@ -127,6 +128,14 @@ export interface ScanSummary {
   errors: string[];
   matched: number;
   unmatched: number;
+}
+
+/** A work in the local library, with the files that make it up. */
+export interface LibraryEntry {
+  item: MediaItem;
+  matched: boolean;
+  files: LocalMediaFile[];
+  totalBytes: number;
 }
 
 export const bridge = {
@@ -216,6 +225,9 @@ export const bridge = {
   library: {
     files: async (): Promise<LocalMediaFile[]> =>
       (await raw().library.files()) as LocalMediaFile[],
+
+    entries: async (): Promise<LibraryEntry[]> =>
+      (await raw().library.entries()) as LibraryEntry[],
 
     folders: async (): Promise<LocalFolder[]> =>
       (await raw().library.folders()) as LocalFolder[],

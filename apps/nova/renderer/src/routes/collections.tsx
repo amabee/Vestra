@@ -1,11 +1,19 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { formatDuration } from "@vestra/core/format";
 import { mediaKey } from "@vestra/types";
-import { useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 
 import { EntryList, Notice, Page, PageHeader, SectionRule } from "@/components/layout/page";
-import { bridge } from "@/lib/bridge";
-import { keys, useHistory, useLibrary, useSearch, useWatchlist } from "@/lib/queries";
+import { MediaCard, MediaGrid } from "@/components/media/media-card";
+import { bridge, type LibraryEntry } from "@/lib/bridge";
+import { usePlayer } from "@/lib/player-store";
+import {
+  keys,
+  useHistory,
+  useLibrary,
+  useLibraryEntries,
+  useSearch,
+  useWatchlist,
+} from "@/lib/queries";
 
 /* =============================================================================
  * Watchlist
@@ -120,89 +128,127 @@ export function HistoryRoute() {
  * ========================================================================== */
 
 export function LibraryRoute() {
-  const { data: files = [], isPending, error } = useLibrary();
+  const navigate = useNavigate();
+  const openPlayer = usePlayer((state) => state.open);
 
-  const matched = files.filter((file) => file.matchedRef !== null);
-  const unmatched = files.filter((file) => file.matchedRef === null);
+  const { data: entries = [], isPending, error } = useLibraryEntries();
+
+  const matched = entries.filter((entry) => entry.matched);
+  const unmatched = entries.filter((entry) => !entry.matched);
+
+  const play = useMutation({
+    mutationFn: async (entry: LibraryEntry) => {
+      const sources = await bridge.media.resolvePlayback(entry.item);
+      const local = sources.find((source) => !source.locator.startsWith("http"));
+      if (!local) throw new Error("No local source resolved for this entry.");
+      openPlayer(entry.item, local);
+    },
+  });
+
+  const open = (entry: LibraryEntry) => {
+    // Unmatched entries have no provider page to show, so they play directly.
+    if (!entry.matched) {
+      play.mutate(entry);
+      return;
+    }
+    void navigate(
+      `/media/${entry.item.source}/${entry.item.kind}/${encodeURIComponent(entry.item.sourceId)}`,
+    );
+  };
 
   return (
     <Page>
       <PageHeader
         eyebrow="Yours"
         title="Library"
-        lead="Files on this machine, matched against catalogue metadata where possible."
+        lead="Files on this machine, grouped into the works they belong to and matched against catalogue metadata."
       />
 
       {isPending ? (
         <section className="mt-10">
-          <EntryList items={[]} pending />
+          <CardSkeletons />
         </section>
       ) : error ? (
         <section className="mt-10">
           <Notice title="Could not read the library" body={(error as Error).message} />
         </section>
-      ) : files.length === 0 ? (
+      ) : entries.length === 0 ? (
         <section className="mt-10">
           <Notice
-            title="No folders indexed"
+            title="Nothing indexed"
             body="Add a media folder in Settings, then run a scan."
           />
         </section>
       ) : (
         <>
-          <section className="mt-10">
-            <SectionRule label="Matched" count={matched.length} />
-            <FileTable files={matched} />
-          </section>
+          {matched.length > 0 ? (
+            <section className="mt-10">
+              <SectionRule label="Matched" count={matched.length} />
+              <div className="mt-5">
+                <MediaGrid>
+                  {matched.map((entry) => (
+                    <MediaCard
+                      key={mediaKey(entry.item)}
+                      item={entry.item}
+                      detail={describe(entry)}
+                      onSelect={() => open(entry)}
+                      onPlay={() => play.mutate(entry)}
+                    />
+                  ))}
+                </MediaGrid>
+              </div>
+            </section>
+          ) : null}
 
           {unmatched.length > 0 ? (
-            <section className="mt-10">
-              <SectionRule label="Unmatched" count={unmatched.length} />
-              <FileTable files={unmatched} />
+            <section className="mt-12">
+              <SectionRule
+                label="Unmatched"
+                count={unmatched.length}
+                trailing={<span className="meta">no metadata found</span>}
+              />
+              <div className="mt-5">
+                <MediaGrid>
+                  {unmatched.map((entry) => (
+                    <MediaCard
+                      key={entry.files[0]?.id ?? entry.item.title}
+                      item={entry.item}
+                      detail={describe(entry)}
+                      muted
+                      onSelect={() => open(entry)}
+                      onPlay={() => play.mutate(entry)}
+                    />
+                  ))}
+                </MediaGrid>
+              </div>
             </section>
           ) : null}
         </>
       )}
+
+      {play.error ? (
+        <p className="mt-6 text-xs text-error">{(play.error as Error).message}</p>
+      ) : null}
     </Page>
   );
 }
 
-/**
- * Files as a table, not entries.
- *
- * A file is a different object from a work: what matters is path, size,
- * duration and whether it matched. Rendering it with the same poster-led row as
- * a catalogue entry would flatter it into something it is not.
- */
-function FileTable({
-  files,
-}: {
-  files: { id: string; path: string; sizeBytes: number; durationSeconds: number | null }[];
-}) {
+function describe(entry: LibraryEntry): string {
+  const count = entry.files.length;
+  const files = count === 1 ? "1 file" : `${count} files`;
+  return `${files} · ${formatBytes(entry.totalBytes)}`;
+}
+
+function CardSkeletons() {
   return (
-    <div>
-      {files.map((file, index) => (
-        <div
-          key={file.id}
-          className="grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 border-b rule px-2 py-2.5"
-        >
-          <span className="index-mark text-right tabular-nums">
-            {String(index + 1).padStart(2, "0")}
-          </span>
-          <span
-            data-selectable
-            className="truncate font-mono text-[12px] text-base-content/75"
-            title={file.path}
-          >
-            {file.path}
-          </span>
-          <span className="meta whitespace-nowrap">
-            {formatBytes(file.sizeBytes)}
-            {file.durationSeconds ? ` · ${formatDuration(file.durationSeconds)}` : ""}
-          </span>
+    <MediaGrid>
+      {Array.from({ length: 12 }, (_, index) => (
+        <div key={index}>
+          <div className="aspect-[2/3] animate-pulse rounded-box bg-base-200" />
+          <div className="mt-2 h-4 w-3/4 animate-pulse rounded-selector bg-base-200" />
         </div>
       ))}
-    </div>
+    </MediaGrid>
   );
 }
 

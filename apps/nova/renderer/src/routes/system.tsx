@@ -102,6 +102,7 @@ function MediaFolders() {
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["library-folders"] });
     void queryClient.invalidateQueries({ queryKey: keys.library });
+    void queryClient.invalidateQueries({ queryKey: keys.libraryEntries });
     void queryClient.invalidateQueries({ queryKey: keys.diagnostics });
   };
 

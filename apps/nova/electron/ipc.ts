@@ -31,6 +31,7 @@ import {
   callExtension,
   listLoadedExtensions,
 } from "./extensions";
+import { buildLibraryEntries } from "./library-entries";
 import { getAdapterRegistry, getDriver, getProviderRegistry, resolveDataDir } from "./services";
 
 /**
@@ -237,6 +238,20 @@ export function registerDataIpc(): void {
    * --------------------------------------------------------------------- */
 
   handle("library:files", () => getLocalFiles(getDriver()));
+
+  /**
+   * The library as works, not files.
+   *
+   * A scanned file stores only a `matchedRef` — no title, no artwork — so a
+   * list of files has nothing to show. This resolves those refs to real
+   * metadata and groups the files under them, which is also why it is cheap:
+   * two hundred episodes of one series is one lookup, not two hundred.
+   *
+   * Results are cached for the life of the process. Provider metadata does not
+   * change between launches often enough to justify refetching every time the
+   * user opens the screen.
+   */
+  handle("library:entries", () => buildLibraryEntries());
 
   handle("library:folders", async () => {
     const settings = await getSettings(getDriver());

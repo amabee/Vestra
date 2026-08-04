@@ -18,6 +18,7 @@ export const keys = {
   history: ["history"] as const,
   progress: ["progress"] as const,
   library: ["library"] as const,
+  libraryEntries: ["library", "entries"] as const,
   trending: (kind: MediaKind) => ["trending", kind] as const,
   search: (query: string) => ["search", query] as const,
 };
@@ -41,6 +42,20 @@ export function useLibrary() {
   return useQuery({
     queryKey: keys.library,
     queryFn: () => bridge.library.files(),
+  });
+}
+
+/**
+ * The library as works rather than files.
+ *
+ * Resolving matched refs hits providers, so this is given a long stale time —
+ * the answer only changes when a scan runs, and the scan invalidates it.
+ */
+export function useLibraryEntries() {
+  return useQuery({
+    queryKey: keys.libraryEntries,
+    queryFn: () => bridge.library.entries(),
+    staleTime: 10 * 60_000,
   });
 }
 
