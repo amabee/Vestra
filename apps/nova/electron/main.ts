@@ -84,14 +84,11 @@ function createWindow(): BrowserWindow {
     minWidth: 960,
     minHeight: 640,
     show: false,
-    // Frameless; the renderer supplies its own draggable region (.drag-region).
+    // Fully frameless. The renderer draws its own traffic lights, so the native
+    // overlay is off — leaving it on would put a second set of controls in the
+    // top right.
     titleBarStyle: "hidden",
     ...(process.platform === "linux" ? { frame: false } : {}),
-    titleBarOverlay: {
-      color: "#131316",
-      symbolColor: "#f4f4f5",
-      height: 64,
-    },
     backgroundColor: "#0d0d10",
     webPreferences: {
       preload: join(__dirname, "preload.js"),

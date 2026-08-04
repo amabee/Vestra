@@ -64,31 +64,40 @@ export function DetailRoute() {
 
   return (
     <div>
-      {/* Backdrop, faded into the page rather than sitting on it. */}
-      <div className="relative h-64 w-full overflow-hidden bg-base-200">
-        {backdrop ? (
-          <img
-            src={backdrop}
-            alt=""
-            referrerPolicy="no-referrer"
-            className="size-full object-cover opacity-40"
-          />
-        ) : null}
-        <div className="absolute inset-0 bg-gradient-to-t from-base-100 via-base-100/60 to-transparent" />
+      {/*
+        One positioned block rather than a backdrop with the content dragged up
+        over it by a negative margin. That arrangement had the poster and title
+        clipping into the image with nothing sharing a baseline, so no amount of
+        padding could line them up.
+      */}
+      <div className="relative">
+        <div className="h-[22rem] w-full overflow-hidden bg-base-200">
+          {backdrop ? (
+            <img
+              src={backdrop}
+              alt=""
+              referrerPolicy="no-referrer"
+              className="size-full object-cover object-top opacity-50"
+            />
+          ) : null}
+          {/* Vertical fade to the page colour, plus a lift from the left so
+              bright artwork cannot swallow the title. */}
+          <div className="absolute inset-0 bg-gradient-to-t from-base-100 via-base-100/85 to-base-100/20" />
+          <div className="absolute inset-0 bg-gradient-to-r from-base-100/80 to-transparent" />
+        </div>
 
         <button
           type="button"
           onClick={() => void navigate(-1)}
-          className="absolute left-6 top-5 flex items-center gap-2 rounded-field border rule bg-base-100/80 px-3 py-1.5 text-xs backdrop-blur transition-colors hover:bg-base-200"
+          className="absolute left-6 top-5 flex items-center gap-2 rounded-field border rule bg-base-100/70 px-3 py-1.5 text-xs backdrop-blur transition-colors hover:bg-base-200"
         >
           <ArrowLeft className="size-3.5" />
           Back
         </button>
-      </div>
 
-      <div className="-mt-28 px-8 pb-12">
-        <div className="flex gap-6">
-          <div className="aspect-[2/3] w-40 shrink-0 overflow-hidden rounded-box border rule bg-base-200 shadow-2xl">
+        {/* Bottom-aligned, so poster and title share a baseline at any size. */}
+        <div className="absolute inset-x-0 bottom-0 flex items-end gap-6 px-8 pb-8">
+          <div className="aspect-[2/3] w-36 shrink-0 overflow-hidden rounded-box border rule bg-base-200 shadow-2xl">
             {poster ? (
               <img
                 src={poster}
@@ -99,9 +108,9 @@ export function DetailRoute() {
             ) : null}
           </div>
 
-          <div className="min-w-0 flex-1 pt-24">
+          <div className="min-w-0 flex-1 pb-1">
             {details.isPending ? (
-              <div className="h-12 w-2/3 animate-pulse rounded-selector bg-base-200" />
+              <div className="h-14 w-2/3 animate-pulse rounded-selector bg-base-200" />
             ) : (
               <h1 className="font-serif text-display-lg text-balance">
                 {data?.title ?? "Untitled"}
@@ -117,7 +126,7 @@ export function DetailRoute() {
             ) : null}
 
             {data?.tagline ? (
-              <p className="mt-2 font-serif text-display-sm italic text-base-content/50">
+              <p className="mt-1 font-serif text-display-sm italic text-base-content/50">
                 {data.tagline}
               </p>
             ) : null}
@@ -125,6 +134,9 @@ export function DetailRoute() {
             <MetaRow data={data} />
           </div>
         </div>
+      </div>
+
+      <div className="px-8 pb-12 pt-8">
 
         {data?.overview ? (
           <p

@@ -91,18 +91,19 @@
   --font-serif: "Instrument Serif", Georgia, serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
 
-  /* Display sizes for the serif. Deliberately larger and tighter than the
-     Tailwind defaults — this face is meant to be set big. */
+  /* Display sizes for the serif. Tighter tracking than the Tailwind defaults,
+     but NOT tighter leading: Instrument Serif has tall ascenders, and a
+     line-height below about 1.05 clips them against the line box. */
   --text-display-sm: 1.75rem;
-  --text-display-sm--line-height: 1.1;
+  --text-display-sm--line-height: 1.2;
   --text-display-sm--letter-spacing: -0.02em;
 
   --text-display: 2.75rem;
-  --text-display--line-height: 1.03;
+  --text-display--line-height: 1.12;
   --text-display--letter-spacing: -0.025em;
 
   --text-display-lg: 4rem;
-  --text-display-lg--line-height: 0.98;
+  --text-display-lg--line-height: 1.08;
   --text-display-lg--letter-spacing: -0.03em;
 
   /* Metadata scale — small, wide-tracked mono. */
