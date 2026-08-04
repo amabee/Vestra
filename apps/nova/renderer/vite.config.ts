@@ -28,6 +28,20 @@ export default defineConfig({
     // Electron 43 ships Chromium 13x; no need to transpile for older engines.
     target: "chrome130",
     sourcemap: true,
+    rollupOptions: {
+      /**
+       * Two documents, two windows.
+       *
+       * The player's controls live in a separate transparent window stacked
+       * over mpv's video surface — a native window the page cannot draw on
+       * top of. Giving that window its own document keeps it free of the
+       * catalogue's routing and data fetching; it needs neither.
+       */
+      input: {
+        main: path.join(rendererRoot, "index.html"),
+        overlay: path.join(rendererRoot, "overlay.html"),
+      },
+    },
   },
   server: {
     port: 5273,

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" data-theme="vestra">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      Same lockdown as the main window. This one renders no remote content at
+      all — only playback state arriving over the bridge — so img-src is
+      narrower than the catalogue's.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'none'"
+    />
+    <title>Vestra Player</title>
+    <style>
+      /* The window is transparent; anything opaque here would defeat it and
+         paint over the video. */
+      html,
+      body,
+      #overlay-root {
+        margin: 0;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="overlay-root"></div>
+    <script type="module" src="/src/overlay.tsx"></script>
+  </body>
+</html>

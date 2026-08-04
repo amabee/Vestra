@@ -1,76 +1,244 @@
-import { formatDuration } from "@vestra/core/format";
 import type { MediaItem } from "@vestra/types";
-import {
-  Loader2,
-  Maximize,
-  Pause,
-  Play,
-  Volume2,
-  VolumeX,
-  X,
-} from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { bridge } from "@/lib/bridge";
 import { usePlayer } from "@/lib/player-store";
+import { useSettings } from "@/lib/queries";
+
+import { useEngineDecision, useFileId, useMpvState, useSurfaceRect } from "./use-engine";
 
 /**
- * Player overlay.
+ * The player, as far as the catalogue window is concerned.
  *
- * A plain `<video>` fed by `vestra-media://`, which the main process serves
- * with range support — that is what makes seeking work. There is no HTTP
- * server involved and the renderer never learns a filesystem path.
+ * Almost nothing is drawn here. mpv paints the video into a native window
+ * stacked over this one, and the controls live in a transparent window stacked
+ * over that — which is what lets them float above the picture instead of
+ * pushing it around. This component's job is to hold the queue, decide which
+ * engine plays a file, tell the main process where the video belongs, and keep
+ * progress written down.
  *
- * Progress is written on an interval rather than on `timeupdate`: the latter
- * fires several times a second, and persisting that often would hammer the
- * JSON store for no benefit.
+ * The built-in `<video>` path is still here for anything Chromium can decode,
+ * and keeps its own controls-free surface for the same overlay to sit on.
  */
 export function PlayerOverlay() {
-  const { item, source, close } = usePlayer();
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const { item, queue, index, next, previous, close } = usePlayer();
+  const source = queue[index] ?? null;
 
-  const [playing, setPlaying] = useState(false);
-  const [muted, setMuted] = useState(false);
-  const [position, setPosition] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [waiting, setWaiting] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const surfaceRef = useRef<HTMLDivElement>(null);
+
+  const fileId = useFileId(source?.locator);
+  const decision = useEngineDecision(fileId);
+
+  const [override, setOverride] = useState<"builtin" | "mpv" | null>(null);
+  const engine = override ?? decision.engine;
+  const usingMpv = engine === "mpv" && Boolean(item) && Boolean(source);
+
+  const mpv = useMpvState(usingMpv);
+  useSurfaceRect(surfaceRef, usingMpv);
+
   const [failed, setFailed] = useState<string | null>(null);
+
+  const settings = useSettings();
+  const queryClient = useQueryClient();
+  const autoplayNext = settings.data?.playback.autoplayNext ?? true;
+  const skipSegments = settings.data?.playback.skipSegments ?? true;
+  const autoSkipSegments = settings.data?.playback.autoSkipSegments ?? false;
+
+  const hasNext = index + 1 < queue.length;
+
+  /**
+   * A short episode designation.
+   *
+   * The source label is the release filename — "[Judas] Isekai Nonbiri -
+   * S02E01.mkv" — which is noise next to the title. Only the season/episode
+   * marker is worth showing.
+   */
+  const episodeLabel = useMemo(() => {
+    const match = source?.label?.match(/S\d{1,2}\s*E\d{1,3}/i);
+    if (match) return match[0].replace(/\s+/g, "").toUpperCase();
+    return queue.length > 1 ? `Episode ${index + 1}` : null;
+  }, [source?.label, queue.length, index]);
+
+  /**
+   * Which episode this is, for looking up skip times.
+   *
+   * Read from the filename's episode marker rather than the queue position:
+   * a library folder can start at any episode, and a queue index would be
+   * wrong for anything but a complete season starting at one.
+   */
+  const episodeNumber = useMemo(() => {
+    const match = source?.label?.match(/S\d{1,2}\s*E(\d{1,3})/i);
+    if (match?.[1]) return Number.parseInt(match[1], 10);
+    return queue.length > 1 ? index + 1 : 1;
+  }, [source?.label, queue.length, index]);
+
+  /**
+   * Opening and ending timings.
+   *
+   * Community-sourced, because the files carry no chapter markers to read them
+   * from. Nothing known means no skip control, which is the common case for
+   * obscure or very new series.
+   */
+  const skipTimes = useQuery({
+    queryKey: ["skip-times", item?.source, item?.sourceId, episodeNumber],
+    queryFn: () =>
+      bridge.media.skipTimes({
+        source: item?.source ?? "",
+        sourceId: item?.sourceId ?? "",
+        episodeNumber,
+        episodeLengthSeconds: Math.round(mpv.duration),
+      }),
+    enabled: Boolean(item) && skipSegments,
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+
+  /* ---------------------------------------------------------------------- *
+   * Feeding the controls window
+   * ---------------------------------------------------------------------- */
+
+  useEffect(() => {
+    if (!item) return;
+
+    void bridge.player
+      .setNowPlaying({
+        title: item.title,
+        episodeLabel,
+        index,
+        total: queue.length,
+        engine: usingMpv ? "mpv" : "builtin",
+        skips: skipSegments ? (skipTimes.data ?? []) : [],
+        autoSkip: autoSkipSegments,
+      })
+      .catch(() => undefined);
+  }, [
+    item,
+    episodeLabel,
+    index,
+    queue.length,
+    usingMpv,
+    skipTimes.data,
+    skipSegments,
+    autoSkipSegments,
+  ]);
+
+  /**
+   * Act on what the controls window asks for.
+   *
+   * Stepping between episodes needs the queue, which lives here rather than
+   * being duplicated into the other window.
+   */
+  useEffect(() => {
+    return bridge.player.onCommand((command) => {
+      switch (command) {
+        case "next":
+          next();
+          break;
+        case "previous":
+          previous();
+          break;
+        case "close":
+          close();
+          break;
+        case "toggle-fullscreen":
+          void bridge.window
+            .isFullscreen()
+            .then((value) => bridge.window.setFullscreen(!value))
+            .catch(() => undefined);
+          break;
+      }
+    });
+  }, [next, previous, close]);
+
+  /* ---------------------------------------------------------------------- *
+   * Playback
+   * ---------------------------------------------------------------------- */
+
+  useEffect(() => {
+    if (!usingMpv || !fileId || !decision.ready || decision.needsMpv) return;
+
+    let cancelled = false;
+    const box = surfaceRef.current?.getBoundingClientRect();
+
+    void bridge.mpv
+      .open({
+        fileId,
+        startSeconds: 0,
+        rect: {
+          x: Math.round(box?.left ?? 0),
+          y: Math.round(box?.top ?? 0),
+          width: Math.round(box?.width ?? 0),
+          height: Math.round(box?.height ?? 0),
+        },
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setFailed(error instanceof Error ? error.message : "mpv could not start.");
+        setOverride("builtin");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [usingMpv, fileId, decision.ready, decision.needsMpv]);
+
+  // Leaving the player packs both extra windows away; mpv itself keeps running
+  // so the next episode does not pay for another process launch.
+  useEffect(() => {
+    if (item) return;
+    setOverride(null);
+    setFailed(null);
+    void bridge.mpv.close().catch(() => undefined);
+    void bridge.window.setFullscreen(false).catch(() => undefined);
+  }, [item]);
+
+  /* ---------------------------------------------------------------------- *
+   * Progress
+   * ---------------------------------------------------------------------- */
 
   /**
    * Everything the save needs, in one ref.
    *
-   * This used to read a `useMutation` object inside a `useCallback`. That object
-   * gets a new identity every render, so the callback did too, so the effect
-   * below re-ran every render — and its cleanup called the save, which set
-   * state, which rendered again. React caught it as error #185.
-   *
-   * A ref has stable identity, so the callback can have empty deps and the
-   * effect runs once per item.
+   * This used to read a `useMutation` object inside a `useCallback`. That
+   * object gets a new identity every render, so the callback did too, so the
+   * effect below re-ran every render — and its cleanup called the save, which
+   * set state, which rendered again. React caught it as error #185.
    */
   const stateRef = useRef<{
     item: MediaItem | null;
     position: number;
     duration: number;
-  }>({ item: null, position: 0, duration: 0 });
+    episodeId: string | null;
+  }>({ item: null, position: 0, duration: 0, episodeId: null });
 
-  stateRef.current = { item, position, duration };
+  stateRef.current = {
+    item,
+    position: usingMpv ? mpv.position : (videoRef.current?.currentTime ?? 0),
+    duration: usingMpv ? mpv.duration : (videoRef.current?.duration ?? 0),
+    episodeId: fileId,
+  };
 
   const persist = useCallback(() => {
-    const { item: current, position: at, duration: total } = stateRef.current;
+    const {
+      item: current,
+      position: at,
+      duration: total,
+      episodeId,
+    } = stateRef.current;
     if (!current || total <= 0 || at <= 0) return;
 
-    // Fire and forget: a failed progress write must not interrupt playback.
     void bridge.progress
       .save({
         ref: current,
-        episodeId: null,
+        episodeId,
         positionSeconds: at,
         durationSeconds: total,
       })
       .catch(() => undefined);
   }, []);
 
-  // Periodic save while open, and one final save on close.
   useEffect(() => {
     if (!item) return;
     const timer = setInterval(persist, 15_000);
@@ -80,206 +248,97 @@ export function PlayerOverlay() {
     };
   }, [item, persist]);
 
+  // Roll on when an episode finishes, if there is somewhere to go.
   useEffect(() => {
-    if (!item) return;
+    if (!usingMpv || !mpv.ended || !hasNext || !autoplayNext) return;
+    persist();
+    next();
+  }, [usingMpv, mpv.ended, hasNext, autoplayNext, persist, next]);
 
-    const onKey = (event: KeyboardEvent) => {
-      const video = videoRef.current;
-      if (!video) return;
-
-      switch (event.key) {
-        case "Escape":
-          close();
-          break;
-        case " ":
-          event.preventDefault();
-          if (video.paused) void video.play();
-          else video.pause();
-          break;
-        case "ArrowRight":
-          video.currentTime += 10;
-          break;
-        case "ArrowLeft":
-          video.currentTime -= 10;
-          break;
-        case "f":
-          void videoRef.current?.requestFullscreen();
-          break;
-      }
-    };
-
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [item, close]);
+  // Watched state is derived from progress, so refresh the views that show it.
+  useEffect(() => {
+    if (item) return;
+    void queryClient.invalidateQueries({ queryKey: ["progress"] });
+  }, [item, queryClient]);
 
   if (!item || !source) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black">
-      <header className="drag-region flex h-11 shrink-0 items-center gap-3 px-3">
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-serif text-[15px]">{item.title}</p>
-        </div>
-        <span className="meta no-drag">{source.label ?? source.kind}</span>
-        <button
-          type="button"
-          aria-label="Close player"
-          onClick={close}
-          className="no-drag grid size-8 place-items-center rounded-field text-base-content/60 transition-colors hover:bg-error hover:text-error-content"
-        >
-          <X className="size-4" />
-        </button>
-      </header>
+  const error = failed ?? (usingMpv ? mpv.error : null);
 
-      <div className="relative min-h-0 flex-1 bg-black">
+  return (
+    <div className="fixed inset-0 z-50 bg-black">
+      {usingMpv ? (
+        // mpv paints into a native window positioned over this element, and
+        // the controls window over that. This exists only to be measured.
+        <div ref={surfaceRef} className="size-full" />
+      ) : (
         <video
           ref={videoRef}
           src={source.locator}
           autoPlay
           className="size-full"
-          onPlay={() => setPlaying(true)}
-          onPause={() => setPlaying(false)}
-          onWaiting={() => setWaiting(true)}
-          onPlaying={() => setWaiting(false)}
-          onCanPlay={() => setWaiting(false)}
-          onTimeUpdate={(event) => setPosition(event.currentTarget.currentTime)}
-          onDurationChange={(event) => setDuration(event.currentTarget.duration)}
-          onVolumeChange={(event) => setMuted(event.currentTarget.muted)}
-          onError={() =>
-            setFailed(
-              "This file could not be played. The codec may be unsupported by Chromium — " +
-                "MKV with H.265 or AC-3 audio is the usual cause.",
-            )
-          }
-        />
-
-        {waiting && !failed ? (
-          <div className="pointer-events-none absolute inset-0 grid place-items-center">
-            <Loader2 className="size-8 animate-spin text-base-content/40" />
-          </div>
-        ) : null}
-
-        {failed ? (
-          <div className="absolute inset-0 grid place-items-center p-8">
-            <div className="max-w-md text-center">
-              <p className="font-serif text-display-sm">Cannot play this</p>
-              <p className="mt-2 text-sm leading-relaxed text-base-content/55">{failed}</p>
-            </div>
-          </div>
-        ) : null}
-      </div>
-
-      <footer className="shrink-0 space-y-2 px-4 py-3">
-        <Scrubber
-          position={position}
-          duration={duration}
-          onSeek={(seconds) => {
-            if (videoRef.current) videoRef.current.currentTime = seconds;
+          onError={() => {
+            if (decision.reasons.length > 0 && !decision.needsMpv) {
+              setOverride("mpv");
+              return;
+            }
+            setFailed("The decoder rejected this file.");
           }}
         />
+      )}
 
-        <div className="flex items-center gap-3">
-          <ControlButton
-            label={playing ? "Pause" : "Play"}
-            onClick={() => {
-              const video = videoRef.current;
-              if (!video) return;
-              if (video.paused) void video.play();
-              else video.pause();
-            }}
-          >
-            {playing ? (
-              <Pause className="size-4 fill-current" />
-            ) : (
-              <Play className="size-4 fill-current" />
-            )}
-          </ControlButton>
+      {decision.needsMpv ? <MpvMissing reasons={decision.reasons} /> : null}
 
-          <ControlButton
-            label={muted ? "Unmute" : "Mute"}
-            onClick={() => {
-              if (videoRef.current) videoRef.current.muted = !videoRef.current.muted;
-            }}
-          >
-            {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
-          </ControlButton>
-
-          <span className="meta tabular-nums">
-            {formatDuration(Math.floor(position))} / {formatDuration(Math.floor(duration))}
-          </span>
-
-          <div className="flex-1" />
-
-          <ControlButton
-            label="Fullscreen"
-            onClick={() => void videoRef.current?.requestFullscreen()}
-          >
-            <Maximize className="size-4" />
-          </ControlButton>
+      {error && !decision.needsMpv ? (
+        <div className="absolute inset-0 grid place-items-center bg-black p-8">
+          <div className="max-w-md text-center">
+            <p className="font-serif text-display-sm">Cannot play this</p>
+            <p className="mt-2 text-sm leading-relaxed text-base-content/55">{error}</p>
+            {decision.probe ? (
+              <p className="meta mt-3">
+                {decision.probe.video[0]?.codec ?? "?"} ·{" "}
+                {decision.probe.audio[0]?.codec ?? "?"} ·{" "}
+                {decision.probe.container ?? "?"}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={close}
+              className="mt-6 rounded-field border border-base-content/20 px-4 py-2 text-sm transition-colors hover:bg-base-content/10"
+            >
+              Close
+            </button>
+          </div>
         </div>
-      </footer>
+      ) : null}
     </div>
   );
 }
 
-function Scrubber({
-  position,
-  duration,
-  onSeek,
-}: {
-  position: number;
-  duration: number;
-  onSeek: (seconds: number) => void;
-}) {
-  const percent = duration > 0 ? (position / duration) * 100 : 0;
-
+/** Shown when a file needs mpv and it cannot be found. */
+function MpvMissing({ reasons }: { reasons: string[] }) {
   return (
-    <div
-      role="slider"
-      aria-label="Seek"
-      aria-valuemin={0}
-      aria-valuemax={Math.floor(duration)}
-      aria-valuenow={Math.floor(position)}
-      tabIndex={0}
-      onClick={(event) => {
-        const bounds = event.currentTarget.getBoundingClientRect();
-        const ratio = (event.clientX - bounds.left) / bounds.width;
-        onSeek(ratio * duration);
-      }}
-      className="group h-4 cursor-pointer"
-    >
-      <div className="relative top-1.5 h-1 rounded-full bg-base-300">
-        <div
-          className="absolute inset-y-0 left-0 rounded-full bg-primary"
-          style={{ width: `${percent}%` }}
-        />
-        <div
-          className="absolute top-1/2 size-2.5 -translate-y-1/2 rounded-full bg-primary opacity-0 transition-opacity group-hover:opacity-100"
-          style={{ left: `calc(${percent}% - 5px)` }}
-        />
+    <div className="absolute inset-0 grid place-items-center bg-black p-8">
+      <div className="max-w-lg text-center">
+        <p className="font-serif text-display-sm">This file needs mpv</p>
+        <p className="mt-3 text-sm leading-relaxed text-base-content/55">
+          {reasons.length > 0
+            ? reasons.join(" ")
+            : "This file uses a format the built-in player cannot decode."}
+        </p>
+        <p className="mt-4 text-sm leading-relaxed text-base-content/55">
+          mpv normally ships with Vestra. If this build was packaged without it,
+          install mpv and it will be picked up automatically, or set its location
+          in Settings.
+        </p>
+        <button
+          type="button"
+          onClick={() => void bridge.shell.openExternal("https://mpv.io/installation/")}
+          className="mt-5 rounded-field border border-base-content/20 px-4 py-2 text-sm transition-colors hover:bg-primary hover:text-primary-content"
+        >
+          Installation guide
+        </button>
       </div>
     </div>
-  );
-}
-
-function ControlButton({
-  label,
-  onClick,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      className="grid size-8 place-items-center rounded-field text-base-content/70 transition-colors hover:bg-base-300 hover:text-base-content"
-    >
-      {children}
-    </button>
   );
 }

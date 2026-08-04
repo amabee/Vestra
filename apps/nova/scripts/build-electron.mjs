@@ -58,7 +58,11 @@ await build({
   format: "cjs",
   // Electron 43 ships Node 22.
   target: "node22",
-  external: ["electron"],
+  // `@ffprobe-installer/ffprobe` derives its binary path from `__dirname`.
+  // Bundling it would rebase that onto `dist-electron` and point at nothing,
+  // so it stays external and is resolved from node_modules at runtime — and is
+  // absent from the packaged app, where PATH or an explicit setting takes over.
+  external: ["electron", "@ffprobe-installer/ffprobe"],
   define: { "import.meta.url": "__vestraModuleUrl" },
   banner: {
     js: "const __vestraModuleUrl = require('node:url').pathToFileURL(__filename).href;",

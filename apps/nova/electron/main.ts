@@ -18,6 +18,7 @@ import {
   stopExtensionWorker,
 } from "./extensions";
 import { registerDataIpc } from "./ipc";
+import { registerMpvIpc, shutdownMpv } from "./mpv/ipc";
 import {
   registerMediaProtocolHandler,
   registerMediaProtocolScheme,
@@ -51,6 +52,23 @@ const isDev = process.env.NODE_ENV === "development";
  * their library, watchlist and settings in two different places.
  */
 app.setName("Vestra Nova");
+
+/**
+ * Turn off DirectComposition so mpv's video is visible.
+ *
+ * Chromium composites the window through a DirectComposition visual that sits
+ * above every child window. mpv renders into a child window of its own, so its
+ * output was being drawn correctly and then covered — the player showed a
+ * black rectangle while reporting perfectly healthy playback state.
+ *
+ * Verified: with DirectComposition on, the video region samples pure #000000;
+ * with it off, the same region shows the decoded frame and its subtitles. The
+ * cost is Chromium's own compositing path, which matters little here because
+ * video is mpv's job, not Chromium's.
+ */
+if (process.platform === "win32") {
+  app.commandLine.appendSwitch("disable-direct-composition");
+}
 
 // Privileged schemes must be declared before the app is ready.
 registerMediaProtocolScheme();
@@ -179,10 +197,30 @@ function registerIpc(): void {
 
   ipcMain.handle("window:close", () => mainWindow?.close());
 
+  /**
+   * Native fullscreen, rather than the renderer's own.
+   *
+   * `requestFullscreen` in the page only resizes the web view. mpv draws into
+   * a separate native window positioned from the real window's bounds, so a
+   * page-level fullscreen left the video at its windowed size and position.
+   * Driving the window itself keeps the two in step.
+   */
+  ipcMain.handle("window:set-fullscreen", (_event, value: unknown) => {
+    if (!mainWindow) return false;
+    mainWindow.setFullScreen(value === true);
+    return mainWindow.isFullScreen();
+  });
+
+  ipcMain.handle("window:is-fullscreen", () => mainWindow?.isFullScreen() ?? false);
+
   ipcMain.handle("app:version", () => app.getVersion());
 
   // Settings, discovery, watchlist, progress, library and extensions.
   registerDataIpc();
+
+  // Playback through mpv. Separate because these channels need the calling
+  // window — mpv draws into a native surface owned by it.
+  registerMpvIpc();
 }
 
 /* -----------------------------------------------------------------------------
@@ -242,6 +280,10 @@ if (!gotLock) {
 
   // Killing the worker disposes every isolate with it.
   app.on("will-quit", stopExtensionWorker);
+
+  // mpv is a child process holding a window handle; leaving it running would
+  // orphan a decoder with no interface attached to it.
+  app.on("will-quit", shutdownMpv);
 
   app.on("window-all-closed", () => {
     // macOS apps conventionally stay running with no windows open.

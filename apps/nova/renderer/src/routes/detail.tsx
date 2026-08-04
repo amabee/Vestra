@@ -42,7 +42,20 @@ export function DetailRoute() {
         await bridge.shell.openExternal(playback.locator);
         return;
       }
-      open((details.data ?? ref) as MediaItem, playback);
+
+      // Hand the player every local source, not just the chosen one, so it can
+      // move to the next episode without coming back here for the list. The
+      // adapter already returns them ordered by season and episode.
+      const local = (sources.data ?? []).filter(
+        (source) => !source.locator.startsWith("http"),
+      );
+      const index = local.findIndex((source) => source.locator === playback.locator);
+
+      open(
+        (details.data ?? ref) as MediaItem,
+        local.length > 0 ? local : [playback],
+        index < 0 ? 0 : index,
+      );
     },
   });
 

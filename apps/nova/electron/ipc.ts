@@ -24,7 +24,7 @@ import {
   watchlistStatusSchema,
   type MediaItem,
 } from "@vestra/types";
-import { matchLibrary, scanLibrary } from "@vestra/providers";
+import { getSkipTimes, matchLibrary, scanLibrary } from "@vestra/providers";
 import { ipcMain, shell, dialog } from "electron";
 import { z } from "zod";
 
@@ -33,6 +33,7 @@ import {
   listLoadedExtensions,
 } from "./extensions";
 import { buildLibraryEntries } from "./library-entries";
+import { probeMedia, resolveFfprobe, skipPointsFrom } from "./media-probe";
 import { getAdapterRegistry, getDriver, getProviderRegistry, resolveDataDir } from "./services";
 
 /**
@@ -107,6 +108,13 @@ const historyAddSchema = z.object({
   episodeId: z.string().max(200).nullable().optional(),
   positionSeconds: z.number().min(0).optional(),
   completed: z.boolean().optional(),
+});
+
+const skipTimesSchema = z.object({
+  source: z.string().max(50),
+  sourceId: z.string().max(100),
+  episodeNumber: z.number().int().min(1).max(9999),
+  episodeLengthSeconds: z.number().min(0).max(360_000).default(0),
 });
 
 export function registerDataIpc(): void {
@@ -264,6 +272,53 @@ export function registerDataIpc(): void {
    * user opens the screen.
    */
   handle("library:entries", () => buildLibraryEntries());
+
+  /**
+   * Inspect a local file.
+   *
+   * Takes a file id rather than a path, for the same reason the media protocol
+   * does: the renderer should never name a location on disk, and only files
+   * already in the library index can be reached.
+   */
+  handle("media:probe", async (raw: unknown) => {
+    const fileId = parse(z.string().min(1).max(200), raw, "file id");
+
+    const files = await getLocalFiles(getDriver());
+    const file = files.find((entry) => entry.id === fileId);
+    if (!file) throw new Error("That file is not in the library.");
+
+    const probe = await probeMedia(file.path);
+
+    return { ...probe, skipPoints: skipPointsFrom(probe.chapters) };
+  });
+
+  /** Whether probing is available at all, so the UI can say so plainly. */
+  handle("media:probe-available", () => {
+    const binary = resolveFfprobe();
+    return { available: binary !== null, path: binary };
+  });
+
+  /**
+   * Opening and ending timings for an episode.
+   *
+   * Sourced from AniSkip rather than the file: releases almost never carry
+   * chapter markers, and inferring an opening from timings alone would cut
+   * into cold opens. An empty list means nobody has submitted timings for this
+   * episode, which is ordinary — the player simply offers no skip control.
+   */
+  handle("media:skip-times", async (raw: unknown) => {
+    const { source, sourceId, episodeNumber, episodeLengthSeconds } = parse(
+      skipTimesSchema,
+      raw,
+      "skip request",
+    );
+
+    // Only AniList references can be mapped to a MyAnimeList id, which is what
+    // AniSkip is keyed by.
+    if (source !== "anilist") return [];
+
+    return getSkipTimes(sourceId, episodeNumber, episodeLengthSeconds);
+  });
 
   handle("library:folders", async () => {
     const settings = await getSettings(getDriver());

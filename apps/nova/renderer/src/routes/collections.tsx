@@ -148,7 +148,7 @@ export function LibraryRoute() {
       const sources = await bridge.media.resolvePlayback(entry.item);
       const local = sources.find((source) => !source.locator.startsWith("http"));
       if (!local) throw new Error("No local source resolved for this entry.");
-      openPlayer(entry.item, local);
+      openPlayer(entry.item, [local]);
     },
   });
 

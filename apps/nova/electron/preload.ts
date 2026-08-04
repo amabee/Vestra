@@ -21,6 +21,9 @@ const api = {
     minimize: () => invoke("window:minimize"),
     toggleMaximize: () => invoke("window:toggle-maximize"),
     close: () => invoke("window:close"),
+    setFullscreen: (value: boolean): Promise<unknown> =>
+      invoke("window:set-fullscreen", value),
+    isFullscreen: (): Promise<unknown> => invoke("window:is-fullscreen"),
   },
 
   app: {
@@ -44,6 +47,74 @@ const api = {
     trending: (kind: unknown): Promise<unknown> => invoke("media:trending", kind),
     details: (item: unknown): Promise<unknown> => invoke("media:details", item),
     resolvePlayback: (item: unknown): Promise<unknown> => invoke("playback:resolve", item),
+    probe: (fileId: string): Promise<unknown> => invoke("media:probe", fileId),
+    probeAvailable: (): Promise<unknown> => invoke("media:probe-available"),
+    skipTimes: (request: unknown): Promise<unknown> => invoke("media:skip-times", request),
+  },
+
+  /**
+   * The mpv playback engine.
+   *
+   * `onState` is the one push channel in the bridge: mpv reports position
+   * several times a second, and polling that over `invoke` would be a round
+   * trip per frame. The listener is wrapped so the renderer never receives
+   * Electron's event object, only the payload.
+   */
+  mpv: {
+    status: (): Promise<unknown> => invoke("mpv:status"),
+    subscribe: (): Promise<unknown> => invoke("mpv:subscribe"),
+    open: (request: unknown): Promise<unknown> => invoke("mpv:open", request),
+    setRect: (rect: unknown): Promise<unknown> => invoke("mpv:set-rect", rect),
+    play: (): Promise<unknown> => invoke("mpv:play"),
+    pause: (): Promise<unknown> => invoke("mpv:pause"),
+    seek: (seconds: number): Promise<unknown> => invoke("mpv:seek", seconds),
+    setVolume: (volume: number): Promise<unknown> => invoke("mpv:set-volume", volume),
+    setMuted: (muted: boolean): Promise<unknown> => invoke("mpv:set-muted", muted),
+    setSpeed: (speed: number): Promise<unknown> => invoke("mpv:set-speed", speed),
+    setSubtitleDelay: (seconds: number): Promise<unknown> =>
+      invoke("mpv:set-subtitle-delay", seconds),
+    setSubtitleScale: (scale: number): Promise<unknown> =>
+      invoke("mpv:set-subtitle-scale", scale),
+    setSubtitleStyleOverride: (enabled: boolean): Promise<unknown> =>
+      invoke("mpv:set-subtitle-style-override", enabled),
+    setSurfaceVisible: (visible: boolean): Promise<unknown> =>
+      invoke("mpv:set-surface-visible", visible),
+    selectTrack: (selection: unknown): Promise<unknown> =>
+      invoke("mpv:select-track", selection),
+    setSubtitleVisible: (visible: boolean): Promise<unknown> =>
+      invoke("mpv:set-subtitle-visible", visible),
+    close: (): Promise<unknown> => invoke("mpv:close"),
+    onState: (listener: (state: unknown) => void): (() => void) => {
+      const wrapped = (_event: unknown, state: unknown) => listener(state);
+      ipcRenderer.on("mpv:state", wrapped);
+      return () => ipcRenderer.off("mpv:state", wrapped);
+    },
+  },
+
+  /**
+   * The link between the catalogue window and the controls window.
+   *
+   * The controls float in their own transparent window above mpv's video
+   * surface, so anything they need that mpv does not report has to travel
+   * through here.
+   */
+  player: {
+    setNowPlaying: (value: unknown): Promise<unknown> =>
+      invoke("player:set-now-playing", value),
+    getNowPlaying: (): Promise<unknown> => invoke("player:get-now-playing"),
+    send: (command: string): Promise<unknown> => invoke("player:command", command),
+    setInteractive: (interactive: boolean): Promise<unknown> =>
+      invoke("player:set-interactive", interactive),
+    onNowPlaying: (listener: (value: unknown) => void): (() => void) => {
+      const wrapped = (_event: unknown, value: unknown) => listener(value);
+      ipcRenderer.on("player:now-playing", wrapped);
+      return () => ipcRenderer.off("player:now-playing", wrapped);
+    },
+    onCommand: (listener: (command: string) => void): (() => void) => {
+      const wrapped = (_event: unknown, command: unknown) => listener(String(command));
+      ipcRenderer.on("player:command", wrapped);
+      return () => ipcRenderer.off("player:command", wrapped);
+    },
   },
 
   watchlist: {

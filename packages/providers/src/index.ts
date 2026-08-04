@@ -24,6 +24,7 @@ import { createYoutubeProvider } from "./youtube";
 
 export * from "./adapters";
 export * from "./anilist";
+export * from "./aniskip";
 export * from "./auto-import";
 export * from "./filename";
 export * from "./local";

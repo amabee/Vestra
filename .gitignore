@@ -20,10 +20,19 @@ build/
 # Vestra runtime data (watchlist / history / progress JSON)
 .vestra/
 *.vestra-cache/
+.vestra-preserved/
+
+# Local developer binaries (mpv, ffmpeg). Never committed: they are separate
+# GPL programs, and bundling one would extend that licence over this project.
+.tools/
 
 # Electron
 apps/nova/release/
 apps/nova/dist-electron/
+apps/nova/dist-renderer/
+# mpv, downloaded at package time by `pnpm --filter @vestra/nova fetch:mpv`.
+# A separate GPL program: shipped beside the app, never committed.
+apps/nova/vendor/
 # Bundled Atlas standalone build, produced by `pnpm --filter @vestra/nova bundle:atlas`
 apps/nova/resources/
 

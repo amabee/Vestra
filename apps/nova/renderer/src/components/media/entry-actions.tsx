@@ -51,7 +51,7 @@ export function EntryActions({ item }: { item: MediaItem }) {
         return;
       }
 
-      openPlayer(item, best);
+      openPlayer(item, [best]);
     },
   });
 

@@ -2,6 +2,7 @@
   "name": "vestra",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Vestra — a unified entertainment platform for anime, movies, TV, K-drama, YouTube and local media.",
   "packageManager": "pnpm@11.9.0",
   "engines": {

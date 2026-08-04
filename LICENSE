@@ -1,0 +1,50 @@
+MIT License
+
+Copyright (c) 2026 Vestra contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---------------------------------------------------------------------------
+Third-party software distributed with Vestra
+---------------------------------------------------------------------------
+
+The MIT terms above cover Vestra's own source code. Packaged builds also carry
+programs under their own licences, which are unaffected by the above.
+
+mpv (https://mpv.io) — GPL-2.0-or-later
+    Packaged builds include an mpv executable, used to decode and render video.
+    mpv is a separate program: Vestra starts it as its own process and speaks
+    to it over a local socket. It is not linked into Vestra, and the two remain
+    separate works.
+
+    Vestra does not modify mpv. The exact upstream release shipped is recorded
+    in `resources/mpv/mpv-build.json` beside the binary, alongside a NOTICE
+    naming the corresponding sources:
+
+        https://github.com/mpv-player/mpv
+        https://github.com/shinchiro/mpv-winbuild-cmake
+
+    The full GPL text is at https://www.gnu.org/licenses/gpl-2.0.html
+
+Electron, Chromium and their dependencies
+    Distributed under their respective licences. Packaged builds include
+    `LICENSES.chromium.html` with the complete text.
+
+Skip timings are retrieved at runtime from AniSkip (https://aniskip.com) and
+are not distributed with Vestra.

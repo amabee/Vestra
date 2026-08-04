@@ -56,8 +56,42 @@ export type SourceSettings = z.infer<typeof sourceSettingsSchema>;
  * Playback
  * ========================================================================== */
 
+/**
+ * Which decoder plays the file.
+ *
+ * `builtin` is Chromium's `<video>`: no extra install, but a narrow codec set
+ * that excludes HEVC, 10-bit, AC-3 and anything in a Matroska container it
+ * dislikes. `mpv` is an external player driven over a socket and handles
+ * essentially everything, including ASS subtitles with embedded fonts.
+ *
+ * `auto` probes the file and picks — builtin when it will work, mpv when it
+ * won't. That is the useful default: it avoids launching a second process for
+ * files Chromium can already play.
+ */
+export const playbackEngineSchema = z.enum(["auto", "builtin", "mpv"]);
+export type PlaybackEngine = z.infer<typeof playbackEngineSchema>;
+
 export const playbackSettingsSchema = z.object({
   autoplayNext: z.boolean().default(true),
+  /** Begin playing as soon as a file is opened, rather than waiting. */
+  autoPlay: z.boolean().default(true),
+  /** Offer a skip control when an opening or ending is known. */
+  skipSegments: z.boolean().default(true),
+  /**
+   * Jump past openings and endings without asking.
+   *
+   * Off by default: skipping on someone's behalf is irreversible in the moment
+   * and the timings are community-submitted, so a wrong one would cut into the
+   * episode.
+   */
+  autoSkipSegments: z.boolean().default(false),
+  /**
+   * Replace the styling authored into ASS subtitles with a plain one.
+   *
+   * Off by default: fansubbed releases typeset signs and dialogue deliberately,
+   * and overriding discards that work.
+   */
+  subtitleStyleOverride: z.boolean().default(false),
   /** Fraction of runtime after which an item counts as watched. */
   markWatchedAt: z.number().min(0.5).max(1).default(0.9),
   /** Skip-forward/back step in seconds. */
@@ -67,6 +101,19 @@ export const playbackSettingsSchema = z.object({
   preferredAudioLanguage: z.string().default("en"),
   /** Resume rather than restart when progress is between 1% and `markWatchedAt`. */
   rememberPosition: z.boolean().default(true),
+  engine: playbackEngineSchema.default("auto"),
+  /**
+   * Explicit path to an `mpv` executable.
+   *
+   * mpv is not bundled: the usual Windows builds are GPL, and shipping them
+   * would impose that licence on the whole application. It is located on PATH
+   * or pointed at here instead, which keeps it a separate program.
+   */
+  mpvPath: z.string().default(""),
+  /** Explicit path to `ffprobe`, used to inspect files before playing them. */
+  ffprobePath: z.string().default(""),
+  /** Hardware decoding for mpv. `no` is the escape hatch for driver trouble. */
+  hardwareDecoding: z.enum(["auto-safe", "auto", "no"]).default("auto-safe"),
 });
 export type PlaybackSettings = z.infer<typeof playbackSettingsSchema>;
 
