@@ -5,6 +5,7 @@ import { createHashRouter, RouterProvider } from "react-router";
 
 import { AppShell } from "@/components/chrome/app-shell";
 import { BrowseRoute } from "@/routes/browse";
+import { DetailRoute } from "@/routes/detail";
 import {
   HistoryRoute,
   LibraryRoute,
@@ -78,6 +79,7 @@ const router = createHashRouter([
       { path: "extensions", element: <ExtensionsRoute /> },
       { path: "settings", element: <SettingsRoute /> },
       { path: "search", element: <SearchRoute /> },
+      { path: "media/:source/:kind/:id", element: <DetailRoute /> },
     ],
   },
 ]);

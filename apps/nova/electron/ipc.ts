@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import {
   addHistoryEntry,
   addToWatchlist,
@@ -21,7 +23,8 @@ import {
   settingsSchema,
   watchlistStatusSchema,
 } from "@vestra/types";
-import { ipcMain, shell } from "electron";
+import { matchLibrary, scanLibrary } from "@vestra/providers";
+import { ipcMain, shell, dialog } from "electron";
 import { z } from "zod";
 
 import {
@@ -234,6 +237,98 @@ export function registerDataIpc(): void {
    * --------------------------------------------------------------------- */
 
   handle("library:files", () => getLocalFiles(getDriver()));
+
+  handle("library:folders", async () => {
+    const settings = await getSettings(getDriver());
+    return settings.library.folders;
+  });
+
+  /**
+   * Pick a folder through the OS dialog rather than a text field.
+   *
+   * A typed path is the one place a user can hand the scanner something that
+   * does not exist, or that they cannot read. The native picker cannot produce
+   * either, so the whole class of error disappears.
+   */
+  handle("library:pick-folder", async () => {
+    const result = await dialog.showOpenDialog({
+      title: "Add a media folder",
+      properties: ["openDirectory", "createDirectory"],
+    });
+
+    if (result.canceled || !result.filePaths[0]) return null;
+
+    const chosen = result.filePaths[0];
+    const driver = getDriver();
+    const settings = await getSettings(driver);
+
+    if (settings.library.folders.some((folder) => folder.path === chosen)) {
+      return settings.library.folders;
+    }
+
+    const updated = await saveSettings(driver, {
+      ...settings,
+      library: {
+        ...settings.library,
+        folders: [
+          ...settings.library.folders,
+          {
+            id: randomUUID(),
+            path: chosen,
+            label: null,
+            enabled: true,
+            lastScannedAt: null,
+            fileCount: 0,
+          },
+        ],
+      },
+    });
+
+    return updated.library.folders;
+  });
+
+  handle("library:remove-folder", async (raw: unknown) => {
+    const id = parse(z.string().min(1).max(200), raw, "folder id");
+    const driver = getDriver();
+    const settings = await getSettings(driver);
+
+    const updated = await saveSettings(driver, {
+      ...settings,
+      library: {
+        ...settings.library,
+        folders: settings.library.folders.filter((folder) => folder.id !== id),
+      },
+    });
+
+    return updated.library.folders;
+  });
+
+  /**
+   * Walk the configured folders, then match what was found.
+   *
+   * Matching runs in the same call because a scan that indexes files without
+   * identifying them leaves the library in a state the UI cannot present:
+   * paths with no titles, no artwork and nothing to link to.
+   */
+  handle("library:scan", async () => {
+    const driver = getDriver();
+    const settings = await getSettings(driver);
+
+    const scan = await scanLibrary(driver, settings.library);
+
+    const match = settings.library.autoMatchMetadata
+      ? await matchLibrary(driver, getProviderRegistry())
+      : { matched: 0, unmatched: 0 };
+
+    return {
+      scanned: scan.scanned,
+      added: scan.added,
+      removed: scan.removed,
+      errors: scan.errors,
+      matched: match.matched,
+      unmatched: match.unmatched,
+    };
+  });
 
   /* --------------------------------------------------------------------- *
    * Extensions

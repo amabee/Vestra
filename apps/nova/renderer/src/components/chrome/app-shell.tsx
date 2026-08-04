@@ -5,6 +5,7 @@ import { Outlet, useNavigate } from "react-router";
 
 import { NavRail } from "@/components/chrome/nav-rail";
 import { TitleBar } from "@/components/chrome/title-bar";
+import { PlayerOverlay } from "@/components/player/player-overlay";
 
 /**
  * Application shell.
@@ -28,6 +29,7 @@ export function AppShell() {
       </div>
 
       <StatusBar />
+      <PlayerOverlay />
     </div>
   );
 }

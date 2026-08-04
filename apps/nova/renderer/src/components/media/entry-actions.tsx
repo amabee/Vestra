@@ -3,6 +3,7 @@ import { isSameMedia, type MediaItem } from "@vestra/types";
 import { Bookmark, BookmarkCheck, Ellipsis, Loader2, Play } from "lucide-react";
 
 import { bridge } from "@/lib/bridge";
+import { usePlayer } from "@/lib/player-store";
 import { useWatchlist } from "@/lib/queries";
 
 /**
@@ -16,6 +17,7 @@ import { useWatchlist } from "@/lib/queries";
 export function EntryActions({ item }: { item: MediaItem }) {
   const queryClient = useQueryClient();
   const { data: watchlist = [] } = useWatchlist();
+  const openPlayer = usePlayer((state) => state.open);
 
   const saved = watchlist.some((entry) => isSameMedia(entry.ref, item));
 
@@ -31,14 +33,14 @@ export function EntryActions({ item }: { item: MediaItem }) {
       const best = sources[0];
       if (!best) throw new Error("No playable source found.");
 
-      // Until the in-app player exists, anything that is a web destination
-      // opens where it can actually play.
+      // Web destinations open where they can actually play; anything Vestra
+      // serves itself goes to the in-app player.
       if (best.locator.startsWith("http")) {
         await bridge.shell.openExternal(best.locator);
         return;
       }
 
-      throw new Error(`"${best.label}" needs the in-app player, which is not built yet.`);
+      openPlayer(item, best);
     },
   });
 

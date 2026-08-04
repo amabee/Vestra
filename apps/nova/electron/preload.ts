@@ -66,6 +66,10 @@ const api = {
 
   library: {
     files: (): Promise<unknown> => invoke("library:files"),
+    folders: (): Promise<unknown> => invoke("library:folders"),
+    pickFolder: (): Promise<unknown> => invoke("library:pick-folder"),
+    removeFolder: (id: string): Promise<unknown> => invoke("library:remove-folder", id),
+    scan: (): Promise<unknown> => invoke("library:scan"),
   },
 
   extensions: {

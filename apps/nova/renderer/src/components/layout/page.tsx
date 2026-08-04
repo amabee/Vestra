@@ -1,4 +1,5 @@
 import { mediaKey, type MediaItem } from "@vestra/types";
+import { useNavigate } from "react-router";
 
 import { CatalogueEntry } from "@/components/media/catalogue-entry";
 
@@ -106,6 +107,14 @@ export function EntryList({
   ownedKeys?: Set<string>;
   onSelect?: (item: MediaItem) => void;
 }) {
+  const navigate = useNavigate();
+
+  // Selecting an entry goes to its detail page unless a caller wants otherwise.
+  const select =
+    onSelect ??
+    ((item: MediaItem) =>
+      void navigate(`/media/${item.source}/${item.kind}/${encodeURIComponent(item.sourceId)}`));
+
   if (pending) return <EntrySkeletons />;
 
   if (error) {
@@ -129,7 +138,7 @@ export function EntryList({
           item={item}
           index={index}
           owned={ownedKeys?.has(mediaKey(item))}
-          onSelect={onSelect}
+          onSelect={select}
         />
       ))}
     </div>

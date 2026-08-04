@@ -1,5 +1,6 @@
 import type {
   HistoryEntry,
+  LocalFolder,
   LocalMediaFile,
   MediaDetails,
   MediaItem,
@@ -67,6 +68,10 @@ interface RawBridge {
   };
   library: {
     files: () => Promise<unknown>;
+    folders: () => Promise<unknown>;
+    pickFolder: () => Promise<unknown>;
+    removeFolder: (id: string) => Promise<unknown>;
+    scan: () => Promise<unknown>;
   };
   extensions: {
     list: () => Promise<unknown>;
@@ -113,6 +118,15 @@ export interface Diagnostics {
   extensions: string[];
   counts: { watchlist: number; localFiles: number };
   theme: string;
+}
+
+export interface ScanSummary {
+  scanned: number;
+  added: number;
+  removed: number;
+  errors: string[];
+  matched: number;
+  unmatched: number;
 }
 
 export const bridge = {
@@ -202,6 +216,19 @@ export const bridge = {
   library: {
     files: async (): Promise<LocalMediaFile[]> =>
       (await raw().library.files()) as LocalMediaFile[],
+
+    folders: async (): Promise<LocalFolder[]> =>
+      (await raw().library.folders()) as LocalFolder[],
+
+    /** Returns null when the user cancels the native picker. */
+    pickFolder: async (): Promise<LocalFolder[] | null> =>
+      (await raw().library.pickFolder()) as LocalFolder[] | null,
+
+    removeFolder: async (id: string): Promise<LocalFolder[]> =>
+      (await raw().library.removeFolder(id)) as LocalFolder[],
+
+    scan: async (): Promise<ScanSummary> =>
+      (await raw().library.scan()) as ScanSummary,
   },
 
   extensions: {
