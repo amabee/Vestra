@@ -81,18 +81,12 @@ await build({
 });
 
 /**
- * Renderer — browser.
+ * Renderer.
  *
- * Runs inside the sandboxed renderer where `require` and Node globals do not
- * exist. Built for the browser so a Node builtin cannot slip in unnoticed.
+ * Built by Vite, not here — see `renderer/vite.config.ts`. It needs JSX, CSS
+ * and asset handling that esbuild alone would not give, and it outputs to
+ * `dist-renderer` rather than `dist-electron`.
  */
-await build({
-  ...shared,
-  entryPoints: ["electron/shell.ts"],
-  platform: "browser",
-  format: "iife",
-  target: "chrome130",
-});
 
 /**
  * Copy the QuickJS WASM next to the bundle.
@@ -119,7 +113,4 @@ await copyFile(
   path.join(outDir, "emscripten-module.wasm"),
 );
 
-// `loadFile` resolves the shell relative to the bundle, so it lives in output.
-await copyFile(path.join(novaRoot, "electron/shell.html"), path.join(outDir, "shell.html"));
-
-console.info("[build-electron] copied emscripten-module.wasm and shell.html");
+console.info("[build-electron] copied emscripten-module.wasm");

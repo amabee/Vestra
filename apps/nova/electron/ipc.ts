@@ -21,7 +21,7 @@ import {
   settingsSchema,
   watchlistStatusSchema,
 } from "@vestra/types";
-import { ipcMain } from "electron";
+import { ipcMain, shell } from "electron";
 import { z } from "zod";
 
 import {
@@ -44,6 +44,22 @@ import { getAdapterRegistry, getDriver, getProviderRegistry, resolveDataDir } fr
  * isolation is switched on.
  */
 
+/**
+ * Force a response into something structured-cloneable.
+ *
+ * Electron clones IPC payloads, and anything holding a function throws "An
+ * object could not be cloned" at runtime with no compile-time warning. Package
+ * APIs legitimately return live objects — `TrendingResult.provider` is a whole
+ * `MetadataProvider` with methods — so the boundary strips them rather than
+ * trusting every present and future handler to remember.
+ *
+ * Everything crossing here is already schema-validated plain data, so a JSON
+ * round-trip loses nothing real.
+ */
+function plain<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value ?? null)) as T;
+}
+
 /** Wraps a handler so a thrown error reaches the renderer as a message, not a stack. */
 function handle<TArgs extends unknown[], TResult>(
   channel: string,
@@ -51,7 +67,7 @@ function handle<TArgs extends unknown[], TResult>(
 ): void {
   ipcMain.handle(channel, async (_event, ...args: unknown[]) => {
     try {
-      return await handler(...(args as TArgs));
+      return plain(await handler(...(args as TArgs)));
     } catch (error) {
       // Log the real error here; hand the renderer something safe to display.
       console.error(`[nova] ${channel} failed`, error);
@@ -101,6 +117,22 @@ export function registerDataIpc(): void {
 
   handle("app:data-dir", () => resolveDataDir());
 
+  /**
+   * Open a URL in the system browser.
+   *
+   * https only. `shell.openExternal` will happily hand the OS a `file://` or a
+   * custom scheme, which turns a link in provider metadata into arbitrary
+   * local execution.
+   */
+  handle("shell:open-external", async (raw: unknown) => {
+    const url = parse(z.string().url().max(2048), raw, "URL");
+    if (!url.startsWith("https://")) {
+      throw new Error("Only https links can be opened.");
+    }
+    await shell.openExternal(url);
+    return null;
+  });
+
   /* --------------------------------------------------------------------- *
    * Discovery
    * --------------------------------------------------------------------- */
@@ -118,9 +150,18 @@ export function registerDataIpc(): void {
   handle("media:trending", async (raw: unknown) => {
     const kind = parse(mediaKindSchema, raw, "media kind");
 
-    return trendingAcrossProviders(getProviderRegistry(), kind, {
+    const results = await trendingAcrossProviders(getProviderRegistry(), kind, {
       signal: AbortSignal.timeout(15_000),
     });
+
+    // Flatten the live provider reference to its identity. The renderer only
+    // ever needs to name the source, never to call it.
+    return results.map((result) => ({
+      providerId: result.provider.id,
+      providerName: result.provider.name,
+      items: result.items,
+      error: result.error,
+    }));
   });
 
   handle("media:details", async (raw: unknown) => {

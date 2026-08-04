@@ -1,0 +1,186 @@
+@import "tailwindcss";
+
+/* Self-hosted, not a CDN. Nova is an offline-capable desktop app, and a font
+   request to a third party on every launch would be both a failure mode and a
+   privacy leak. */
+@import "@fontsource-variable/inter";
+@import "@fontsource/instrument-serif/400.css";
+@import "@fontsource/instrument-serif/400-italic.css";
+@import "@fontsource-variable/jetbrains-mono";
+
+@plugin "daisyui" {
+  themes: false;
+}
+
+/* =============================================================================
+   Vestra — "Archive"
+   =============================================================================
+
+   The design brief was to not look like every other media app. Those are
+   storefronts: poster wall, carousels, hero banner, grey on black. Vestra is
+   for someone who keeps local files and runs a media server — they curate.
+   So this is built as a CATALOGUE, not a shop.
+
+   Three decisions carry the identity:
+
+   1. Typography leads, artwork supports. Most apps bury the title under an
+      image; here the title is set large in a high-contrast serif and the
+      artwork is secondary. That inversion alone reads as "archive".
+
+   2. Metadata is monospaced. Year, runtime, resolution, source, codec — set in
+      mono at small sizes. It gives a visual rhythm nothing else in this space
+      has, and it flatters the kind of user who cares that a file is 10-bit.
+
+   3. Warm near-black, not grey. `base-100` carries a little warmth, and the
+      text is off-white rather than pure white — ink on paper rather than
+      pixels on glass. Vermillion is the single accent, used for state and
+      emphasis, never decoration.
+   ============================================================================= */
+
+@plugin "daisyui/theme" {
+  name: "vestra";
+  default: true;
+  prefersdark: true;
+  color-scheme: dark;
+
+  /* Surfaces — warm near-black, three steps only. More steps invite mush. */
+  --color-base-100: oklch(14.5% 0.006 60);
+  --color-base-200: oklch(18.5% 0.007 60);
+  --color-base-300: oklch(24% 0.008 60);
+  --color-base-content: oklch(92% 0.008 85);
+
+  /* Vermillion — film leader, archive stamps, Criterion spines. */
+  --color-primary: oklch(64% 0.19 33);
+  --color-primary-content: oklch(98% 0.01 60);
+
+  /* Cool counterweight, used for technical/source metadata. */
+  --color-secondary: oklch(72% 0.075 205);
+  --color-secondary-content: oklch(16% 0.01 205);
+
+  /* Reserved for "owned locally" — the thing this app is actually about. */
+  --color-accent: oklch(80% 0.14 85);
+  --color-accent-content: oklch(18% 0.02 85);
+
+  --color-neutral: oklch(24% 0.008 60);
+  --color-neutral-content: oklch(88% 0.008 85);
+
+  --color-info: oklch(72% 0.09 230);
+  --color-info-content: oklch(16% 0.01 230);
+  --color-success: oklch(72% 0.13 155);
+  --color-success-content: oklch(16% 0.02 155);
+  --color-warning: oklch(80% 0.14 85);
+  --color-warning-content: oklch(18% 0.02 85);
+  --color-error: oklch(63% 0.20 25);
+  --color-error-content: oklch(97% 0.01 25);
+
+  /* Editorial geometry: almost square. Rounded corners read as "consumer app";
+     a catalogue reads as printed. */
+  --radius-selector: 0.25rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.375rem;
+
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@theme {
+  --font-sans: "Inter Variable", system-ui, sans-serif;
+  --font-serif: "Instrument Serif", Georgia, serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+
+  /* Display sizes for the serif. Deliberately larger and tighter than the
+     Tailwind defaults — this face is meant to be set big. */
+  --text-display-sm: 1.75rem;
+  --text-display-sm--line-height: 1.1;
+  --text-display-sm--letter-spacing: -0.02em;
+
+  --text-display: 2.75rem;
+  --text-display--line-height: 1.03;
+  --text-display--letter-spacing: -0.025em;
+
+  --text-display-lg: 4rem;
+  --text-display-lg--line-height: 0.98;
+  --text-display-lg--letter-spacing: -0.03em;
+
+  /* Metadata scale — small, wide-tracked mono. */
+  --text-meta: 0.6875rem;
+  --text-meta--line-height: 1.45;
+  --text-meta--letter-spacing: 0.06em;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--color-base-100);
+    color: var(--color-base-content);
+    /* A desktop app should not feel like a web page: no text selection or
+       rubber-banding unless a surface opts in. */
+    user-select: none;
+    overscroll-behavior: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Opt back in where selecting text is actually useful. */
+  input,
+  textarea,
+  [data-selectable] {
+    user-select: text;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-base-300);
+    border: 3px solid var(--color-base-100);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklch, var(--color-base-300), var(--color-base-content) 20%);
+  }
+}
+
+@layer components {
+  /* Frameless window: these mark what the OS treats as the title bar. */
+  .drag-region {
+    -webkit-app-region: drag;
+  }
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  /* The metadata voice. Used for year, runtime, source, codec, resolution. */
+  .meta {
+    font-family: var(--font-mono);
+    font-size: var(--text-meta);
+    letter-spacing: var(--text-meta--letter-spacing);
+    text-transform: uppercase;
+    color: color-mix(in oklch, var(--color-base-content), transparent 55%);
+  }
+
+  /* Catalogue index numbers running down the left of a list. */
+  .index-mark {
+    font-family: var(--font-mono);
+    font-size: var(--text-meta);
+    font-variant-numeric: tabular-nums;
+    color: color-mix(in oklch, var(--color-base-content), transparent 70%);
+  }
+
+  /* Hairline separators. A catalogue is ruled, not shadowed. */
+  .rule {
+    border-color: color-mix(in oklch, var(--color-base-content), transparent 88%);
+  }
+}

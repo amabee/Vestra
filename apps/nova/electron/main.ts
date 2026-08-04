@@ -58,6 +58,25 @@ registerMediaProtocolScheme();
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 
+/**
+ * Where the renderer comes from.
+ *
+ * Development uses the Vite dev server so edits hot-reload; production loads
+ * the built files from disk. Nothing is served in production — there is no
+ * HTTP server in Nova any more.
+ */
+const DEV_SERVER_URL = "http://localhost:5273";
+
+function loadRenderer(window: BrowserWindow): void {
+  if (isDev) {
+    void window.loadURL(DEV_SERVER_URL);
+    window.webContents.openDevTools({ mode: "detach" });
+    return;
+  }
+
+  void window.loadFile(join(__dirname, "../dist-renderer/index.html"));
+}
+
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1440,
@@ -103,16 +122,18 @@ function createWindow(): BrowserWindow {
     return { action: "deny" };
   });
 
-  // Block in-app navigation. The shell is a local file and has nowhere
-  // legitimate to navigate to, so every attempt goes to the system browser.
+  // Block in-app navigation. The renderer is a single-page app using hash
+  // routing, so any real navigation attempt is either a mistake or hostile.
   window.webContents.on("will-navigate", (event, url) => {
+    if (isDev && url.startsWith(DEV_SERVER_URL)) return;
+
     event.preventDefault();
     if (url.startsWith("https://") || url.startsWith("http://")) {
       void shell.openExternal(url);
     }
   });
 
-  void window.loadFile(join(__dirname, "shell.html"));
+  void loadRenderer(window);
 
   window.on("closed", () => {
     mainWindow = null;

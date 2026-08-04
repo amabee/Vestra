@@ -5,13 +5,16 @@
   "description": "Vestra Nova — the Vestra desktop application (Electron).",
   "main": "dist-electron/main.js",
   "scripts": {
-    "build": "node scripts/build-electron.mjs",
+    "build:renderer": "vite build --config renderer/vite.config.ts",
     "build:electron": "node scripts/build-electron.mjs",
+    "build": "pnpm run build:electron && pnpm run build:renderer",
     "start": "electron .",
-    "dev": "pnpm run build:electron && cross-env NODE_ENV=development electron .",
-    "package": "pnpm run build:electron && electron-builder",
-    "typecheck": "tsc --noEmit -p tsconfig.electron.json && tsc --noEmit -p tsconfig.renderer.json",
-    "clean": "rimraf dist-electron release .turbo"
+    "dev:renderer": "vite --config renderer/vite.config.ts",
+    "dev:electron": "pnpm run build:electron && wait-on -t 60000 tcp:127.0.0.1:5273 && cross-env NODE_ENV=development electron .",
+    "dev": "concurrently -k -n renderer,electron -c magenta,cyan \"pnpm run dev:renderer\" \"pnpm run dev:electron\"",
+    "package": "pnpm run build && electron-builder",
+    "typecheck": "tsc --noEmit -p tsconfig.electron.json && tsc --noEmit -p renderer/tsconfig.json",
+    "clean": "rimraf dist-electron dist-renderer release .turbo"
   },
   "dependencies": {
     "@vestra/config": "workspace:*",
@@ -24,14 +27,31 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@fontsource/instrument-serif": "^5.3.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@tanstack/react-query": "catalog:",
     "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
     "@vestra/tsconfig": "workspace:*",
+    "@vitejs/plugin-react": "^5.2.0",
+    "concurrently": "^10.0.4",
     "cross-env": "^10.1.0",
+    "daisyui": "^5.7.14",
     "electron": "^43.2.0",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.1",
+    "lucide-react": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-router": "^8.3.0",
     "rimraf": "^6.1.3",
-    "typescript": "catalog:"
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vite": "^7.3.6",
+    "wait-on": "^9.1.0"
   },
   "build": {
     "appId": "app.vestra.nova",
@@ -40,7 +60,8 @@
       "output": "release"
     },
     "files": [
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "dist-renderer/**/*"
     ]
   }
 }

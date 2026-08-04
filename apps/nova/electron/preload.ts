@@ -30,6 +30,10 @@ const api = {
     diagnostics: (): Promise<unknown> => invoke("diagnostics:report"),
   },
 
+  shell: {
+    openExternal: (url: string): Promise<unknown> => invoke("shell:open-external", url),
+  },
+
   settings: {
     get: (): Promise<unknown> => invoke("settings:get"),
     save: (settings: unknown): Promise<unknown> => invoke("settings:save", settings),
