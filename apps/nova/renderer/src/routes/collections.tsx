@@ -138,6 +138,13 @@ export function LibraryRoute() {
 
   const play = useMutation({
     mutationFn: async (entry: LibraryEntry) => {
+      // A single file is unambiguous; anything more is a series, and choosing
+      // an episode on someone's behalf is a guess.
+      if (entry.files.length > 1) {
+        open(entry);
+        return;
+      }
+
       const sources = await bridge.media.resolvePlayback(entry.item);
       const local = sources.find((source) => !source.locator.startsWith("http"));
       if (!local) throw new Error("No local source resolved for this entry.");
@@ -146,11 +153,6 @@ export function LibraryRoute() {
   });
 
   const open = (entry: LibraryEntry) => {
-    // Unmatched entries have no provider page to show, so they play directly.
-    if (!entry.matched) {
-      play.mutate(entry);
-      return;
-    }
     void navigate(
       `/media/${entry.item.source}/${entry.item.kind}/${encodeURIComponent(entry.item.sourceId)}`,
     );
@@ -161,7 +163,7 @@ export function LibraryRoute() {
       <PageHeader
         eyebrow="Yours"
         title="Library"
-        lead="Files on this machine, grouped into the works they belong to and matched against catalogue metadata."
+        lead="Everything on this machine, grouped into the works the files belong to."
       />
 
       {isPending ? (
@@ -182,30 +184,29 @@ export function LibraryRoute() {
       ) : (
         <>
           {matched.length > 0 ? (
-            <section className="mt-10">
-              <SectionRule label="Matched" count={matched.length} />
-              <div className="mt-5">
-                <MediaGrid>
-                  {matched.map((entry) => (
-                    <MediaCard
-                      key={mediaKey(entry.item)}
-                      item={entry.item}
-                      detail={describe(entry)}
-                      onSelect={() => open(entry)}
-                      onPlay={() => play.mutate(entry)}
-                    />
-                  ))}
-                </MediaGrid>
-              </div>
+            <section className="mt-8">
+              <MediaGrid>
+                {matched.map((entry) => (
+                  <MediaCard
+                    key={mediaKey(entry.item)}
+                    item={entry.item}
+                    detail={describe(entry)}
+                    onSelect={() => open(entry)}
+                    onPlay={() => play.mutate(entry)}
+                  />
+                ))}
+              </MediaGrid>
             </section>
           ) : null}
 
           {unmatched.length > 0 ? (
             <section className="mt-12">
               <SectionRule
-                label="Unmatched"
+                label="Needs identifying"
                 count={unmatched.length}
-                trailing={<span className="meta">no metadata found</span>}
+                trailing={
+                  <span className="meta">no catalogue entry found</span>
+                }
               />
               <div className="mt-5">
                 <MediaGrid>
@@ -215,7 +216,7 @@ export function LibraryRoute() {
                       item={entry.item}
                       detail={describe(entry)}
                       muted
-                      onSelect={() => open(entry)}
+                      onSelect={() => play.mutate(entry)}
                       onPlay={() => play.mutate(entry)}
                     />
                   ))}

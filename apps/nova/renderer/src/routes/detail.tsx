@@ -58,6 +58,10 @@ export function DetailRoute() {
   const backdrop = data?.images.backdrop ?? null;
   const poster = data?.images.poster ?? null;
 
+  // The matched-local adapter returns one source per file, already ordered by
+  // season and episode, so more than one source means this is a series.
+  const multiple = (sources.data ?? []).length > 1;
+
   return (
     <div>
       {/* Backdrop, faded into the page rather than sitting on it. */}
@@ -137,7 +141,13 @@ export function DetailRoute() {
         ) : null}
 
         <section className="mt-10">
-          <SectionRule label="Play from" count={sources.data?.length} />
+          <SectionRule
+            label={multiple ? "Episodes" : "Play from"}
+            count={sources.data?.length}
+            trailing={
+              multiple ? <span className="meta">choose one</span> : null
+            }
+          />
 
           {sources.isPending ? (
             <div className="py-6">
@@ -150,10 +160,11 @@ export function DetailRoute() {
             />
           ) : (
             <div>
-              {(sources.data ?? []).map((playback) => (
+              {(sources.data ?? []).map((playback, index) => (
                 <SourceRow
                   key={`${playback.kind}-${playback.locator}`}
                   playback={playback}
+                  index={multiple ? index : undefined}
                   busy={start.isPending}
                   onPlay={() => start.mutate(playback)}
                 />
@@ -219,17 +230,25 @@ function MetaRow({ data }: { data: { year: number | null; isSeries: boolean; rat
  */
 function SourceRow({
   playback,
+  index,
   busy,
   onPlay,
 }: {
   playback: PlaybackSource;
+  index?: number;
   busy: boolean;
   onPlay: () => void;
 }) {
   const external = playback.locator.startsWith("http");
 
   return (
-    <div className="flex items-center gap-4 border-b rule px-2 py-3">
+    <div className="group flex items-center gap-4 border-b rule px-2 py-3 transition-colors hover:bg-base-200/50">
+      {index !== undefined ? (
+        <span className="index-mark w-8 shrink-0 text-right tabular-nums">
+          {String(index + 1).padStart(2, "0")}
+        </span>
+      ) : null}
+
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm">{playback.label ?? playback.kind}</p>
         <p className="meta">

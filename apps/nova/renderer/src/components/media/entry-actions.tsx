@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { isSameMedia, type MediaItem } from "@vestra/types";
 import { Bookmark, BookmarkCheck, Ellipsis, Loader2, Play } from "lucide-react";
+import { useNavigate } from "react-router";
 
 import { bridge } from "@/lib/bridge";
 import { usePlayer } from "@/lib/player-store";
@@ -18,6 +19,7 @@ export function EntryActions({ item }: { item: MediaItem }) {
   const queryClient = useQueryClient();
   const { data: watchlist = [] } = useWatchlist();
   const openPlayer = usePlayer((state) => state.open);
+  const navigate = useNavigate();
 
   const saved = watchlist.some((entry) => isSameMedia(entry.ref, item));
 
@@ -32,6 +34,15 @@ export function EntryActions({ item }: { item: MediaItem }) {
       const sources = await bridge.media.resolvePlayback(item);
       const best = sources[0];
       if (!best) throw new Error("No playable source found.");
+
+      // More than one source means episodes. Picking the first for someone is
+      // a guess, and usually the wrong one — send them to the list instead.
+      if (sources.length > 1) {
+        void navigate(
+          `/media/${item.source}/${item.kind}/${encodeURIComponent(item.sourceId)}`,
+        );
+        return;
+      }
 
       // Web destinations open where they can actually play; anything Vestra
       // serves itself goes to the in-app player.

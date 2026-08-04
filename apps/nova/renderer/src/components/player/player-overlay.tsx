@@ -1,5 +1,5 @@
-import { useMutation } from "@tanstack/react-query";
 import { formatDuration } from "@vestra/core/format";
+import type { MediaItem } from "@vestra/types";
 import {
   Loader2,
   Maximize,
@@ -36,27 +36,41 @@ export function PlayerOverlay() {
   const [waiting, setWaiting] = useState(true);
   const [failed, setFailed] = useState<string | null>(null);
 
-  // Mirrored so the unmount cleanup can persist a final position without
-  // reading refs that have already been torn down.
-  const latest = useRef({ position: 0, duration: 0 });
-  latest.current = { position, duration };
+  /**
+   * Everything the save needs, in one ref.
+   *
+   * This used to read a `useMutation` object inside a `useCallback`. That object
+   * gets a new identity every render, so the callback did too, so the effect
+   * below re-ran every render — and its cleanup called the save, which set
+   * state, which rendered again. React caught it as error #185.
+   *
+   * A ref has stable identity, so the callback can have empty deps and the
+   * effect runs once per item.
+   */
+  const stateRef = useRef<{
+    item: MediaItem | null;
+    position: number;
+    duration: number;
+  }>({ item: null, position: 0, duration: 0 });
 
-  const saveProgress = useMutation({
-    mutationFn: (input: { positionSeconds: number; durationSeconds: number }) =>
-      bridge.progress.save({
-        ref: item!,
-        episodeId: null,
-        ...input,
-      }),
-  });
+  stateRef.current = { item, position, duration };
 
   const persist = useCallback(() => {
-    const { position: at, duration: total } = latest.current;
-    if (!item || total <= 0 || at <= 0) return;
-    saveProgress.mutate({ positionSeconds: at, durationSeconds: total });
-  }, [item, saveProgress]);
+    const { item: current, position: at, duration: total } = stateRef.current;
+    if (!current || total <= 0 || at <= 0) return;
 
-  // Periodic save while playing, and one final save on close.
+    // Fire and forget: a failed progress write must not interrupt playback.
+    void bridge.progress
+      .save({
+        ref: current,
+        episodeId: null,
+        positionSeconds: at,
+        durationSeconds: total,
+      })
+      .catch(() => undefined);
+  }, []);
+
+  // Periodic save while open, and one final save on close.
   useEffect(() => {
     if (!item) return;
     const timer = setInterval(persist, 15_000);
