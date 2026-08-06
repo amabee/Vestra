@@ -9,6 +9,7 @@
     "build:electron": "node scripts/build-electron.mjs",
     "build": "pnpm run build:electron && pnpm run build:renderer",
     "start": "electron .",
+    "start:debug": "cross-env VESTRA_DEBUG_PORT=9222 electron .",
     "fetch:mpv": "node scripts/fetch-mpv.mjs",
     "dev:renderer": "vite --config renderer/vite.config.ts",
     "dev:electron": "pnpm run build:electron && wait-on -t 60000 tcp:127.0.0.1:5273 && cross-env NODE_ENV=development electron .",

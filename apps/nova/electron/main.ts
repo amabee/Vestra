@@ -70,6 +70,33 @@ if (process.platform === "win32") {
   app.commandLine.appendSwitch("disable-direct-composition");
 }
 
+/**
+ * Remote debugging, for development only.
+ *
+ * Opens a DevTools Protocol endpoint on loopback so the renderer can be
+ * inspected and driven from outside the app — reading the DOM, console errors
+ * and computed styles without a human watching the window.
+ *
+ * Gated twice, deliberately. The endpoint is an unauthenticated channel that
+ * can execute arbitrary script in the renderer and read anything it can reach,
+ * so it must never exist in a packaged build: `app.isPackaged` refuses that
+ * outright, and an explicit environment variable is required on top, so it
+ * cannot appear by accident during ordinary development either.
+ */
+const debugPort = Number.parseInt(process.env.VESTRA_DEBUG_PORT ?? "", 10);
+
+if (!app.isPackaged && Number.isInteger(debugPort) && debugPort > 0) {
+  app.commandLine.appendSwitch("remote-debugging-port", String(debugPort));
+  // Bind to loopback explicitly rather than trusting the default.
+  app.commandLine.appendSwitch("remote-debugging-address", "127.0.0.1");
+  console.warn(
+    `[nova] DevTools Protocol listening on 127.0.0.1:${debugPort}. ` +
+      "Development only — this endpoint is unauthenticated.",
+  );
+} else if (app.isPackaged && process.env.VESTRA_DEBUG_PORT) {
+  console.warn("[nova] VESTRA_DEBUG_PORT ignored: refused in a packaged build.");
+}
+
 // Privileged schemes must be declared before the app is ready.
 registerMediaProtocolScheme();
 

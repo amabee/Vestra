@@ -22,9 +22,12 @@ build/
 *.vestra-cache/
 .vestra-preserved/
 
-# Local developer binaries (mpv, ffmpeg). Never committed: they are separate
-# GPL programs, and bundling one would extend that licence over this project.
-.tools/
+# Local developer binaries (mpv, ffmpeg) and scratch captures. The small
+# scripts in here are worth keeping; the 112MB binaries next to them are not.
+.tools/*
+!.tools/*.mjs
+!.tools/*.ps1
+!.tools/*.cjs
 
 # Electron
 apps/nova/release/
