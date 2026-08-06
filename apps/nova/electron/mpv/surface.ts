@@ -122,7 +122,9 @@ export class MpvSurface {
     this.#hidden = !visible;
 
     if (!visible) {
-      this.hide();
+      // Hide the window directly rather than through `hide()`, which delegates
+      // back here.
+      if (this.#window && !this.#window.isDestroyed()) this.#window.hide();
       return;
     }
 
@@ -164,8 +166,18 @@ export class MpvSurface {
     if (!surface.isVisible()) surface.showInactive();
   }
 
+  /**
+   * Hide the surface and keep it hidden.
+   *
+   * The flag is the important part. Hiding the window alone is not enough:
+   * the parent's move, resize and fullscreen handlers all call `#apply()`,
+   * which re-shows the surface. Closing the player also leaves fullscreen,
+   * so the surface came straight back as an opaque black window over the whole
+   * interface — covering the title bar, and unclickable because it does not
+   * take focus.
+   */
   hide(): void {
-    if (this.#window && !this.#window.isDestroyed()) this.#window.hide();
+    this.setVisible(false);
   }
 
   destroy(): void {

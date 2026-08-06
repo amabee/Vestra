@@ -231,7 +231,7 @@ export function registerMpvIpc(): void {
    */
   handle("mpv:close", async () => {
     overlay.setVisible(false);
-    surface.hide();
+    surface.setVisible(false);
     nowPlaying = null;
     if (session.running) await session.stop();
     return null;
