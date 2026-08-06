@@ -113,6 +113,7 @@ const historyAddSchema = z.object({
 const skipTimesSchema = z.object({
   source: z.string().max(50),
   sourceId: z.string().max(100),
+  seasonNumber: z.number().int().min(1).max(99).default(1),
   episodeNumber: z.number().int().min(1).max(9999),
   episodeLengthSeconds: z.number().min(0).max(360_000).default(0),
 });
@@ -307,17 +308,14 @@ export function registerDataIpc(): void {
    * episode, which is ordinary — the player simply offers no skip control.
    */
   handle("media:skip-times", async (raw: unknown) => {
-    const { source, sourceId, episodeNumber, episodeLengthSeconds } = parse(
-      skipTimesSchema,
-      raw,
-      "skip request",
-    );
+    const { source, sourceId, seasonNumber, episodeNumber, episodeLengthSeconds } =
+      parse(skipTimesSchema, raw, "skip request");
 
     // Only AniList references can be mapped to a MyAnimeList id, which is what
     // AniSkip is keyed by.
     if (source !== "anilist") return [];
 
-    return getSkipTimes(sourceId, episodeNumber, episodeLengthSeconds);
+    return getSkipTimes(sourceId, seasonNumber, episodeNumber, episodeLengthSeconds);
   });
 
   handle("library:folders", async () => {

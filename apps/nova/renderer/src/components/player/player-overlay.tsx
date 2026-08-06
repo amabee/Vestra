@@ -62,16 +62,26 @@ export function PlayerOverlay() {
   }, [source?.label, queue.length, index]);
 
   /**
-   * Which episode this is, for looking up skip times.
+   * Which season and episode this file is, for looking up skip times.
    *
-   * Read from the filename's episode marker rather than the queue position:
-   * a library folder can start at any episode, and a queue index would be
-   * wrong for anything but a complete season starting at one.
+   * Read from the filename rather than the queue position or the matched
+   * entry. The queue index is wrong for a folder that starts at episode five,
+   * and the matched entry is frequently the series' first season even when the
+   * files are a later one — which is exactly how a skip button ends up
+   * appearing halfway through an episode and never during the opening.
    */
-  const episodeNumber = useMemo(() => {
-    const match = source?.label?.match(/S\d{1,2}\s*E(\d{1,3})/i);
-    if (match?.[1]) return Number.parseInt(match[1], 10);
-    return queue.length > 1 ? index + 1 : 1;
+  const placement = useMemo(() => {
+    const match = source?.label?.match(/S(\d{1,2})\s*E(\d{1,3})/i);
+
+    if (match?.[1] && match[2]) {
+      return {
+        season: Number.parseInt(match[1], 10),
+        episode: Number.parseInt(match[2], 10),
+      };
+    }
+
+    // No season marker: assume a single-season release, numbered in order.
+    return { season: 1, episode: queue.length > 1 ? index + 1 : 1 };
   }, [source?.label, queue.length, index]);
 
   /**
@@ -80,17 +90,27 @@ export function PlayerOverlay() {
    * Community-sourced, because the files carry no chapter markers to read them
    * from. Nothing known means no skip control, which is the common case for
    * obscure or very new series.
+   *
+   * The episode's real duration is sent along so the lookup can be rejected
+   * when it does not plausibly belong to this file.
    */
   const skipTimes = useQuery({
-    queryKey: ["skip-times", item?.source, item?.sourceId, episodeNumber],
+    queryKey: [
+      "skip-times",
+      item?.source,
+      item?.sourceId,
+      placement.season,
+      placement.episode,
+    ],
     queryFn: () =>
       bridge.media.skipTimes({
         source: item?.source ?? "",
         sourceId: item?.sourceId ?? "",
-        episodeNumber,
+        seasonNumber: placement.season,
+        episodeNumber: placement.episode,
         episodeLengthSeconds: Math.round(mpv.duration),
       }),
-    enabled: Boolean(item) && skipSegments,
+    enabled: Boolean(item) && skipSegments && mpv.duration > 0,
     retry: false,
     staleTime: Number.POSITIVE_INFINITY,
   });

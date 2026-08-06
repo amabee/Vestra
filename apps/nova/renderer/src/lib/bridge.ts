@@ -329,6 +329,7 @@ export const bridge = {
     skipTimes: async (request: {
       source: string;
       sourceId: string;
+      seasonNumber: number;
       episodeNumber: number;
       episodeLengthSeconds?: number;
     }): Promise<SkipInterval[]> =>
