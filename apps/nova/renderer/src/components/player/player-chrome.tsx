@@ -286,7 +286,7 @@ export function PlayerChrome() {
           }}
           className="meta absolute bottom-28 right-6 z-10 flex items-center gap-2 rounded-field border border-white/25 bg-black/70 py-2 pl-2 pr-4 text-white backdrop-blur transition-colors hover:bg-primary hover:text-primary-content"
         >
-          <SongMarker kind={activeSkip.kind} className="size-10" />
+          <SongMarker kind={activeSkip.kind} className="size-14" />
           Skip {activeSkip.kind}
         </button>
       ) : null}
@@ -599,7 +599,7 @@ function Scrubber({
           />
           <SongMarker
             kind={band.kind}
-            className="pointer-events-none absolute -top-9 size-9 -translate-x-1/2 opacity-0 transition-opacity duration-200 group-hover/bar:opacity-100"
+            className="pointer-events-none absolute -top-12 size-12 -translate-x-1/2 opacity-0 transition-opacity duration-200 group-hover/bar:opacity-100"
             style={{ left: `${ratio(band.startSeconds)}%` }}
           />
         </span>

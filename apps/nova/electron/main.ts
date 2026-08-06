@@ -158,7 +158,18 @@ function createWindow(): BrowserWindow {
   });
 
   // Avoid a white flash before the first paint.
-  window.once("ready-to-show", () => window.show());
+  /**
+   * Open maximised.
+   *
+   * Maximised before being shown, rather than after: doing it afterwards makes
+   * the window appear at its default size and then jump, which is visible on
+   * every launch. The width and height above remain the size it returns to
+   * when unmaximised.
+   */
+  window.once("ready-to-show", () => {
+    window.maximize();
+    window.show();
+  });
 
   // Surface renderer logs in the terminal. Without this the renderer's console
   // is only visible in devtools, which makes a headless run impossible to

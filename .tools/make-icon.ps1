@@ -18,6 +18,15 @@ param(
   [double]$SearchHeight = 0.52,
   # How tightly the subject fills the square. Below 1 crops in further.
   [double]$Fill = 1.0,
+  # How the frame is squared.
+  #   mean - split the difference: trim the sides a little, pad a little top and
+  #          bottom. Best when the subject is only slightly off square, since it
+  #          keeps the artwork large.
+  #   pad  - square on the longer edge and pad the shorter one. Keeps every
+  #          pixel, at the cost of empty bands. Needed for a wide lockup, where
+  #          trimming the sides would cut the lettering off.
+  [ValidateSet("mean", "pad")]
+  [string]$SquareMode = "mean",
   # Nudge the crop vertically, to clear artwork that sits just outside the
   # subject - the top of the wordmark, for instance.
   [int]$OffsetY = 0,
@@ -57,41 +66,60 @@ if ($maxX -le $minX -or $maxY -le $minY) {
 
 Write-Output "SUBJECT: x $minX..$maxX  y $minY..$maxY"
 
-# Square the frame, splitting the difference between cropping and padding.
-#
-# The subject is wider than it is tall, so a square that contains all of it
-# leaves broad empty bands above and below - and at 32px in a taskbar those
-# bands are most of the icon, shrinking the artwork to something unreadable.
-# Squaring on the mean of the two dimensions trims a little from the sides and
-# pads a little at top and bottom, so the subject fills far more of the frame.
 $cw = $maxX - $minX + 1
 $ch = $maxY - $minY + 1
-$side = [int](($cw + $ch) / 2 * $Fill)
 
-$srcX = $minX + [int](($cw - $side) / 2)
-$srcY = $minY + [int](($ch - $side) / 2) + $OffsetY
+if ($SquareMode -eq "pad") {
+  # Keep everything: square on the longer edge, centre the artwork, accept the
+  # empty bands. Anything else would clip the wordmark.
+  $side = [int]([Math]::Max($cw, $ch) * $Fill)
 
-# Source rectangle, clamped to the image.
-$sx = [Math]::Max(0, $srcX)
-$sy = [Math]::Max(0, $srcY)
-$sw = [Math]::Min($side, $w - $sx)
-$sh = [Math]::Min($side, $h - $sy)
+  Write-Output "SUBJECT SIZE: ${cw}x${ch}  CANVAS: ${side}x${side}  (padded)"
 
-Write-Output "SUBJECT SIZE: ${cw}x${ch}  CANVAS: ${side}x${side}  SOURCE RECT: ${sw}x${sh} at ${sx},${sy}"
+  $crop = New-Object System.Drawing.Bitmap $side, $side
+  $g = [System.Drawing.Graphics]::FromImage($crop)
+  $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+  $g.Clear([System.Drawing.Color]::Transparent)
+  $g.DrawImage(
+    $bmp,
+    (New-Object System.Drawing.Rectangle ([int](($side - $cw) / 2)), ([int](($side - $ch) / 2) + $OffsetY), $cw, $ch),
+    $minX, $minY, $cw, $ch,
+    [System.Drawing.GraphicsUnit]::Pixel
+  )
+  $g.Dispose()
+  $bmp.Dispose()
+}
+else {
+  # Square on the mean of the two dimensions: trim a little from the sides, pad
+  # a little at top and bottom. Squaring on the longer edge alone would leave
+  # broad empty bands, and at 32px in a taskbar those bands are most of the
+  # icon, shrinking the artwork to something unreadable.
+  $side = [int](($cw + $ch) / 2 * $Fill)
 
-$crop = New-Object System.Drawing.Bitmap $side, $side
-$g = [System.Drawing.Graphics]::FromImage($crop)
-$g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-$g.Clear([System.Drawing.Color]::Transparent)
+  $srcX = $minX + [int](($cw - $side) / 2)
+  $srcY = $minY + [int](($ch - $side) / 2) + $OffsetY
 
-$g.DrawImage(
-  $bmp,
-  (New-Object System.Drawing.Rectangle ([int](($side - $sw) / 2)), ([int](($side - $sh) / 2)), $sw, $sh),
-  $sx, $sy, $sw, $sh,
-  [System.Drawing.GraphicsUnit]::Pixel
-)
-$g.Dispose()
-$bmp.Dispose()
+  $sx = [Math]::Max(0, $srcX)
+  $sy = [Math]::Max(0, $srcY)
+  $sw = [Math]::Min($side, $w - $sx)
+  $sh = [Math]::Min($side, $h - $sy)
+
+  Write-Output "SUBJECT SIZE: ${cw}x${ch}  CANVAS: ${side}x${side}  SOURCE RECT: ${sw}x${sh} at ${sx},${sy}"
+
+  $crop = New-Object System.Drawing.Bitmap $side, $side
+  $g = [System.Drawing.Graphics]::FromImage($crop)
+  $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+  $g.Clear([System.Drawing.Color]::Transparent)
+
+  $g.DrawImage(
+    $bmp,
+    (New-Object System.Drawing.Rectangle ([int](($side - $sw) / 2)), ([int](($side - $sh) / 2)), $sw, $sh),
+    $sx, $sy, $sw, $sh,
+    [System.Drawing.GraphicsUnit]::Pixel
+  )
+  $g.Dispose()
+  $bmp.Dispose()
+}
 
 # --- drop the background ----------------------------------------------------
 # Flood fill inward from the edges rather than clearing every white pixel:
