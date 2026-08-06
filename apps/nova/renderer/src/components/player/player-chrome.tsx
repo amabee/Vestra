@@ -27,6 +27,8 @@ import {
 } from "./icons";
 import { PlayerSettingsIcon } from "./icons-settings";
 import { SettingsMenu } from "./settings-menu";
+import { SongMarker } from "./song-marker";
+import { usePlayerShortcuts } from "./use-player-shortcuts";
 
 /**
  * The player's floating controls.
@@ -124,13 +126,13 @@ export function PlayerChrome() {
   /**
    * Only take the pointer when something is on screen to click.
    *
-   * The overlay covers the entire video, so leaving it interactive while
-   * hidden would block the window underneath entirely. `forward: true` keeps
-   * movement events coming through so the controls can still be woken.
+   * Kept live even while the controls are faded: nothing beneath this window
+   * is interactive during playback, and staying live is what lets a click on
+   * the picture bring the application back to the foreground.
    */
   useEffect(() => {
-    void bridge.player.setInteractive(visible || menuOpen).catch(() => undefined);
-  }, [visible, menuOpen]);
+    void bridge.player.setInteractive(true).catch(() => undefined);
+  }, []);
 
   /* ---------------------------------------------------------------------- *
    * Actions
@@ -210,12 +212,69 @@ export function PlayerChrome() {
     skippedRanges.current.clear();
   }, [nowPlaying?.index, nowPlaying?.title]);
 
+  /* ---------------------------------------------------------------------- *
+   * Keyboard
+   * ---------------------------------------------------------------------- */
+
+  /**
+   * This window handles the shortcuts too.
+   *
+   * It covers the whole video, so clicking the picture focuses it rather than
+   * the catalogue window — and the focused window is the one the keyboard
+   * reaches. Both understand the same keys so it does not matter which was
+   * clicked last.
+   */
+  usePlayerShortcuts(true, {
+    togglePlay,
+    seekBy,
+    seekToFraction: (fraction) => {
+      if (mpv.duration > 0) seek(fraction * mpv.duration);
+    },
+    adjustVolume: (delta) => {
+      const next = Math.max(0, Math.min(1, mpv.volume + delta));
+      void bridge.mpv.setVolume(next).catch(() => undefined);
+      if (next > 0 && mpv.muted) void bridge.mpv.setMuted(false).catch(() => undefined);
+    },
+    toggleMute: () => {
+      void bridge.mpv.setMuted(!mpv.muted).catch(() => undefined);
+    },
+    toggleSubtitles,
+    toggleFullscreen,
+    nextEpisode: () => {
+      if (hasNext) send("next");
+    },
+    previousEpisode: () => {
+      if (hasPrevious) send("previous");
+    },
+    skipSegment: () => {
+      if (activeSkip) seek(activeSkip.endSeconds);
+    },
+    adjustSpeed: (delta) => {
+      void bridge.mpv
+        .setSpeed(Math.max(0.25, Math.min(4, mpv.speed + delta)))
+        .catch(() => undefined);
+    },
+    escape: () => {
+      if (menuOpen) {
+        setMenuOpen(false);
+        return;
+      }
+      if (fullscreen) void bridge.window.setFullscreen(false).then(setFullscreen);
+      else send("close");
+    },
+  });
+
   const shown = visible || menuOpen;
 
   return (
     <div
       className="relative h-full w-full select-none"
       onDoubleClick={toggleFullscreen}
+      // This window cannot take focus, so a click on the video would otherwise
+      // leave the application unfocused and every shortcut dead.
+      onPointerDownCapture={() => {
+        void bridge.player.focus().catch(() => undefined);
+      }}
     >
       {/* Skip sits outside the fading chrome: it is offered for a fixed window
           of the episode and should not vanish with the controls. */}
@@ -225,9 +284,9 @@ export function PlayerChrome() {
           onClick={() => {
             void bridge.mpv.seek(activeSkip.endSeconds).catch(() => undefined);
           }}
-          className="meta absolute bottom-28 right-6 z-10 flex items-center gap-2 rounded-field border border-white/25 bg-black/70 px-4 py-2.5 text-white backdrop-blur transition-colors hover:bg-primary hover:text-primary-content"
+          className="meta absolute bottom-28 right-6 z-10 flex items-center gap-2 rounded-field border border-white/25 bg-black/70 py-2 pl-2 pr-4 text-white backdrop-blur transition-colors hover:bg-primary hover:text-primary-content"
         >
-          <SkipSegmentIcon className="size-4" />
+          <SongMarker kind={activeSkip.kind} className="size-10" />
           Skip {activeSkip.kind}
         </button>
       ) : null}
@@ -526,7 +585,8 @@ function Scrubber({
       </div>
 
       {/* Boundary notches, drawn outside the track so the edges of a song can
-          be found without hovering along the bar to hunt for them. */}
+          be found without hovering along the bar to hunt for them, with the
+          character sitting above the start of each range. */}
       {bands.map((band) => (
         <span key={`mark-${band.kind}-${band.startSeconds}`}>
           <span
@@ -536,6 +596,11 @@ function Scrubber({
           <span
             className="pointer-events-none absolute top-0 h-2 w-px bg-white/70"
             style={{ left: `${ratio(band.endSeconds)}%` }}
+          />
+          <SongMarker
+            kind={band.kind}
+            className="pointer-events-none absolute -top-9 size-9 -translate-x-1/2 opacity-0 transition-opacity duration-200 group-hover/bar:opacity-100"
+            style={{ left: `${ratio(band.startSeconds)}%` }}
           />
         </span>
       ))}

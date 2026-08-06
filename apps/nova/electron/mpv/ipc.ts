@@ -287,6 +287,22 @@ export function registerMpvIpc(): void {
    * click. It reports which regions are interactive and the rest passes to
    * whatever is beneath.
    */
+  /**
+   * Give focus to the player.
+   *
+   * Called when the controls window is clicked while the application is in the
+   * background. Focusing the window that was actually clicked is what Windows
+   * will honour; asking the parent to take focus from a background process is
+   * refused outright.
+   */
+  handle("player:focus", (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window || window.isDestroyed()) return null;
+    if (window.isMinimized()) window.restore();
+    window.focus();
+    return null;
+  });
+
   handle("player:set-interactive", (_event, raw) => {
     const interactive = parse(z.boolean(), raw, "interactive flag");
     const contents = overlay.webContents;

@@ -108,6 +108,7 @@ interface RawBridge {
     setNowPlaying: (value: unknown) => Promise<unknown>;
     getNowPlaying: () => Promise<unknown>;
     send: (command: string) => Promise<unknown>;
+    focus: () => Promise<unknown>;
     setInteractive: (interactive: boolean) => Promise<unknown>;
     onNowPlaying: (listener: (value: unknown) => void) => () => void;
     onCommand: (listener: (command: string) => void) => () => void;
@@ -494,6 +495,11 @@ export const bridge = {
 
     send: async (command: PlayerCommand): Promise<void> => {
       await raw().player.send(command);
+    },
+
+    /** Return focus to the interface window, which owns the shortcuts. */
+    focus: async (): Promise<void> => {
+      await raw().player.focus();
     },
 
     /** Whether the overlay should receive pointer events at all. */

@@ -104,6 +104,18 @@ let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 
 /**
+ * Where the application icon lives at runtime.
+ *
+ * electron-builder embeds it into the executable for the taskbar and installer,
+ * but the tray needs a real file it can load, so a copy is shipped alongside.
+ */
+function appIconPath(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, "icon.png")
+    : join(app.getAppPath(), "build", "icon.png");
+}
+
+/**
  * Where the renderer comes from.
  *
  * Development uses the Vite dev server so edits hot-reload; production loads
@@ -129,6 +141,7 @@ function createWindow(): BrowserWindow {
     minWidth: 960,
     minHeight: 640,
     show: false,
+    icon: appIconPath(),
     // Fully frameless. The renderer draws its own traffic lights, so the native
     // overlay is off — leaving it on would put a second set of controls in the
     // top right.
@@ -185,8 +198,14 @@ function createWindow(): BrowserWindow {
 }
 
 function createTray(): void {
-  // An empty image keeps the tray functional before branding assets exist.
-  tray = new Tray(nativeImage.createEmpty());
+  // Scaled down here rather than shipping a second asset: the source is a
+  // 1024px icon, and handing that to the tray leaves Windows to resize it with
+  // a cheaper filter.
+  const icon = nativeImage
+    .createFromPath(appIconPath())
+    .resize({ width: 16, height: 16, quality: "best" });
+
+  tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
   tray.setToolTip("Vestra Nova");
 
   tray.setContextMenu(

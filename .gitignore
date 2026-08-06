@@ -36,6 +36,11 @@ apps/nova/dist-renderer/
 # mpv, downloaded at package time by `pnpm --filter @vestra/nova fetch:mpv`.
 # A separate GPL program: shipped beside the app, never committed.
 apps/nova/vendor/
+# The blanket `build/` rule above is meant for compiler output, but this folder
+# holds the application icon that electron-builder and the tray both read.
+# The directory has to be re-included before the files inside it can be.
+!apps/nova/build/
+!apps/nova/build/**
 # Bundled Atlas standalone build, produced by `pnpm --filter @vestra/nova bundle:atlas`
 apps/nova/resources/
 

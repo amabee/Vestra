@@ -104,6 +104,7 @@ const api = {
       invoke("player:set-now-playing", value),
     getNowPlaying: (): Promise<unknown> => invoke("player:get-now-playing"),
     send: (command: string): Promise<unknown> => invoke("player:command", command),
+    focus: (): Promise<unknown> => invoke("player:focus"),
     setInteractive: (interactive: boolean): Promise<unknown> =>
       invoke("player:set-interactive", interactive),
     onNowPlaying: (listener: (value: unknown) => void): (() => void) => {

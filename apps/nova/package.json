@@ -62,8 +62,10 @@
     "appId": "app.vestra.nova",
     "productName": "Vestra Nova",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
+    "icon": "build/icon.png",
     "files": [
       "dist-electron/**/*",
       "dist-renderer/**/*",
@@ -74,6 +76,10 @@
       {
         "from": "vendor/mpv",
         "to": "mpv"
+      },
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
       }
     ],
     "electronLanguages": [

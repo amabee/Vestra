@@ -53,9 +53,20 @@ export class MpvOverlay {
       },
     });
 
-    // Never take focus: keyboard shortcuts belong to the main window, and an
-    // activated overlay would steal them. Clicks still land on the controls.
-    overlay.setFocusable(false);
+    /**
+     * Focusable, deliberately.
+     *
+     * It was not, on the reasoning that the controls should never take focus
+     * from the interface. That was wrong: this window covers the whole video,
+     * so clicking the picture landed on a window that refuses activation, the
+     * application never became foreground, and every keyboard shortcut went
+     * dead until something else was clicked. Windows will not let a background
+     * process hand itself focus either, so asking the parent to take it did
+     * nothing.
+     *
+     * As an ordinary window it activates on click like anything else, and it
+     * understands the same shortcuts as the catalogue window.
+     */
     overlay.setMenuBarVisibility(false);
 
     void (isDev
