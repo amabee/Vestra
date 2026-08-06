@@ -1,12 +1,46 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDuration } from "@vestra/core/format";
-import { parseMediaKey, type MediaItem, type PlaybackSource } from "@vestra/types";
-import { ArrowLeft, ExternalLink, Loader2, Play } from "lucide-react";
+import {
+  mediaKey,
+  parseMediaKey,
+  type MediaItem,
+  type MediaRef,
+  type PlaybackSource,
+  type WatchProgress,
+} from "@vestra/types";
+import {
+  ArrowLeft,
+  Bookmark,
+  Check,
+  ExternalLink,
+  Loader2,
+  Play,
+  RotateCcw,
+} from "lucide-react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import { Notice, Page, SectionRule } from "@/components/layout/page";
 import { bridge } from "@/lib/bridge";
 import { usePlayer } from "@/lib/player-store";
+import { keys, useBookmarks, useProgress } from "@/lib/queries";
+
+/** Below this an entry is an accidental open, not somewhere to return to. */
+const MIN_PROGRESS = 0.01;
+
+type EpisodeFilter = "all" | "unwatched" | "bookmarked";
+
+interface EpisodeView {
+  source: PlaybackSource;
+  /** Index into the play queue — not the episode number. */
+  index: number;
+  /** Storage key shared by progress and bookmarks. */
+  key: string;
+  watch: WatchProgress | null;
+  bookmarked: boolean;
+  title: string;
+  number: string;
+}
 
 /**
  * Detail view.
@@ -59,6 +93,155 @@ export function DetailRoute() {
     },
   });
 
+  /* ---------------------------------------------------------------------- *
+   * Episodes
+   * ---------------------------------------------------------------------- */
+
+  const queryClient = useQueryClient();
+  const progress = useProgress();
+  const bookmarks = useBookmarks();
+  const [filter, setFilter] = useState<EpisodeFilter>("all");
+
+  const baseKey = ref ? mediaKey(ref) : "";
+
+  /**
+   * Everything the list needs about each playable file, in one pass.
+   *
+   * Progress and bookmarks are stored under the same key, so they are looked
+   * up together rather than threaded separately through the card.
+   */
+  const episodes = useMemo<EpisodeView[]>(() => {
+    const local = (sources.data ?? []).filter(
+      (entry) => !entry.locator.startsWith("http"),
+    );
+
+    // Real episode titles, where the provider has them. TMDb does; AniList
+    // returns no per-episode data at all, so for anime this stays empty and
+    // the generated "Ep 3" is what shows.
+    const titles = new Map<string, string>();
+    for (const season of details.data?.seasons ?? []) {
+      for (const episode of season.episodes) {
+        if (episode.title) {
+          titles.set(`${season.seasonNumber}:${episode.episodeNumber}`, episode.title);
+        }
+      }
+    }
+
+    return local.map((entry, index) => {
+      const key = entry.fileId ? `${baseKey}#${entry.fileId}` : baseKey;
+      const named =
+        entry.episode == null
+          ? undefined
+          : titles.get(`${entry.season ?? 1}:${entry.episode}`);
+
+      return {
+        source: entry,
+        index,
+        key,
+        watch: progress.data?.[key] ?? null,
+        bookmarked: bookmarks.data?.[key] !== undefined,
+        title:
+          named ??
+          (entry.episode == null
+            ? (entry.label ?? entry.fileName ?? "Untitled")
+            : `Episode ${entry.episode}`),
+        number: String(entry.episode ?? index + 1).padStart(2, "0"),
+      };
+    });
+  }, [sources.data, details.data, progress.data, bookmarks.data, baseKey]);
+
+  const externals = (sources.data ?? []).filter((entry) =>
+    entry.locator.startsWith("http"),
+  );
+
+  /**
+   * Where "Continue" goes.
+   *
+   * Whatever was left part-watched most recently, falling back to the first
+   * episode not yet finished — which for an untouched series is episode one.
+   */
+  const resume = useMemo(() => {
+    const started = episodes
+      .filter(
+        (entry) =>
+          entry.watch && !entry.watch.completed && entry.watch.percent >= MIN_PROGRESS,
+      )
+      .sort((a, b) => (b.watch?.updatedAt ?? 0) - (a.watch?.updatedAt ?? 0));
+
+    return started[0] ?? episodes.find((entry) => !entry.watch?.completed) ?? null;
+  }, [episodes]);
+
+  const playEpisode = (entry: EpisodeView, startAt: number | null) => {
+    open(
+      (details.data ?? ref) as MediaItem,
+      episodes.map((each) => each.source),
+      entry.index,
+      startAt,
+    );
+  };
+
+  const toggleBookmark = useMutation({
+    mutationFn: (episodeId: string | null | undefined) =>
+      bridge.bookmarks.toggle({ ref: ref as MediaRef, episodeId: episodeId ?? null }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.bookmarks }),
+  });
+
+  /**
+   * Mark an episode watched or unwatched by hand.
+   *
+   * Completion is derived from position over duration, so a runtime is needed
+   * even when nothing has played yet and none is known. One second stands in:
+   * the flag is what matters, and no duration is shown for a finished episode.
+   */
+  const setWatched = useMutation({
+    mutationFn: async (input: { entry: EpisodeView; watched: boolean }) => {
+      const seconds = input.entry.watch?.durationSeconds || 1;
+      await bridge.progress.save({
+        ref: ref as MediaRef,
+        episodeId: input.entry.source.fileId,
+        positionSeconds: input.watched ? seconds : 0,
+        durationSeconds: seconds,
+      });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.progress }),
+  });
+
+  const visible = episodes.filter((entry) =>
+    filter === "unwatched"
+      ? !entry.watch?.completed
+      : filter === "bookmarked"
+        ? entry.bookmarked
+        : true,
+  );
+
+  /**
+   * Episodes grouped under their season.
+   *
+   * A library that has both seasons of a show matched to one entry would
+   * otherwise show two runs of 01–12 with nothing to tell them apart, and the
+   * season had to be repeated on every single row to compensate.
+   */
+  const groups = [
+    ...visible
+      .reduce((map, entry) => {
+        const season = entry.source.season ?? 1;
+        map.set(season, [...(map.get(season) ?? []), entry]);
+        return map;
+      }, new Map<number, EpisodeView[]>())
+      .entries(),
+  ]
+    .sort(([a], [b]) => a - b)
+    .map(([season, items]) => ({ season, items }));
+
+  // Worth naming only when it is not simply "season one of one".
+  const showSeasons = groups.length > 1 || (groups[0]?.season ?? 1) !== 1;
+
+  // Somewhere to pick up from, as opposed to somewhere to start.
+  const resumeFrom =
+    resume?.watch && !resume.watch.completed && resume.watch.percent >= MIN_PROGRESS
+      ? resume.watch
+      : null;
+
   if (!ref) {
     return (
       <Page>
@@ -70,10 +253,6 @@ export function DetailRoute() {
   const data = details.data;
   const backdrop = data?.images.backdrop ?? null;
   const poster = data?.images.poster ?? null;
-
-  // The matched-local adapter returns one source per file, already ordered by
-  // season and episode, so more than one source means this is a series.
-  const multiple = (sources.data ?? []).length > 1;
 
   return (
     <div>
@@ -175,10 +354,14 @@ export function DetailRoute() {
 
         <section className="mt-10">
           <SectionRule
-            label={multiple ? "Episodes" : "Play from"}
+            label={episodes.length > 0 ? "Episodes" : "Play from"}
             count={sources.data?.length}
             trailing={
-              multiple ? <span className="meta">choose one</span> : null
+              episodes.length > 1 ? (
+                <span className="meta">
+                  {episodes.filter((entry) => entry.watch?.completed).length} watched
+                </span>
+              ) : null
             }
           />
 
@@ -198,11 +381,96 @@ export function DetailRoute() {
             />
           ) : (
             <div>
-              {(sources.data ?? []).map((playback, index) => (
+              {episodes.length > 0 ? (
+                <div className="mb-4 mt-4 flex flex-wrap items-center gap-3">
+                  {resume ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        playEpisode(
+                          resume,
+                          resumeFrom ? Math.floor(resumeFrom.positionSeconds) : 0,
+                        )
+                      }
+                      className="flex items-center gap-2 rounded-field bg-primary px-4 py-2 text-xs font-medium text-primary-content transition-opacity hover:opacity-90"
+                    >
+                      <Play className="size-3.5 fill-current" />
+                      <span>
+                        {resumeFrom ? "Resume" : "Play"} {resume.title}
+                      </span>
+                      {resumeFrom ? (
+                        <span className="opacity-70">
+                          {formatDuration(
+                            Math.max(
+                              0,
+                              resumeFrom.durationSeconds - resumeFrom.positionSeconds,
+                            ),
+                          )}{" "}
+                          left
+                        </span>
+                      ) : null}
+                    </button>
+                  ) : null}
+
+                  {episodes.length > 1 ? (
+                    <div className="flex items-center gap-1">
+                      {(["all", "unwatched", "bookmarked"] as const).map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setFilter(value)}
+                          className={`rounded-field border px-2.5 py-1 text-xs capitalize transition-colors ${
+                            filter === value
+                              ? "border-primary/50 bg-primary/10 text-primary"
+                              : "rule text-base-content/60 hover:bg-base-200"
+                          }`}
+                        >
+                          {value}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {episodes.length > 0 && visible.length === 0 ? (
+                <Notice
+                  title="Nothing here"
+                  body={
+                    filter === "bookmarked"
+                      ? "No episodes bookmarked yet."
+                      : "Every episode has been watched."
+                  }
+                />
+              ) : null}
+
+              <div className="space-y-5">
+                {groups.map((group) => (
+                  <div key={group.season} className="space-y-2">
+                    {showSeasons ? (
+                      <p className="meta pt-1">Season {group.season}</p>
+                    ) : null}
+
+                    {group.items.map((entry) => (
+                      <EpisodeCard
+                        key={entry.source.locator}
+                        entry={entry}
+                        busy={start.isPending}
+                        onPlay={(startAt) => playEpisode(entry, startAt)}
+                        onBookmark={() => toggleBookmark.mutate(entry.source.fileId)}
+                        onWatched={(watched) => setWatched.mutate({ entry, watched })}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
+
+              {/* Deep links out to the provider, kept plain — they are not
+                  episodes and should not look like them. */}
+              {externals.map((playback) => (
                 <SourceRow
                   key={`${playback.kind}-${playback.locator}`}
                   playback={playback}
-                  index={multiple ? index : undefined}
                   busy={start.isPending}
                   onPlay={() => start.mutate(playback)}
                 />
@@ -213,7 +481,10 @@ export function DetailRoute() {
 
         {data && data.seasons.length > 0 ? (
           <section className="mt-10">
-            <SectionRule label="Episodes" />
+            {/* The provider's full listing, including episodes with no local
+                file. Named apart from the playable list above so the page does
+                not carry two headings that both say "Episodes". */}
+            <SectionRule label="All episodes" />
             {data.seasons.map((season) => (
               <div key={season.id} className="mt-4">
                 <p className="meta mb-1">
@@ -257,6 +528,149 @@ function MetaRow({ data }: { data: { year: number | null; isSeries: boolean; rat
   if (data.studios[0]) parts.push(data.studios[0]);
 
   return <p className="meta mt-3">{parts.join(" · ")}</p>;
+}
+
+/**
+ * One playable episode.
+ *
+ * A card rather than a table row: an episode carries more than a name now —
+ * how far in you are, whether it is finished, whether you flagged it — and
+ * those do not fit on one line without becoming a wall of text.
+ */
+function EpisodeCard({
+  entry,
+  busy,
+  onPlay,
+  onBookmark,
+  onWatched,
+}: {
+  entry: EpisodeView;
+  busy: boolean;
+  onPlay: (startAt: number | null) => void;
+  onBookmark: () => void;
+  onWatched: (watched: boolean) => void;
+}) {
+  const { watch } = entry;
+  const watched = watch?.completed ?? false;
+  const partial = Boolean(watch && !watched && watch.percent >= MIN_PROGRESS);
+  const remaining = watch ? Math.max(0, watch.durationSeconds - watch.positionSeconds) : 0;
+
+  return (
+    <article
+      className={`group flex items-center gap-4 rounded-box border px-4 py-3 transition-colors ${
+        watched ? "rule bg-base-200/20" : "rule bg-base-200/40"
+      } hover:border-primary/40 hover:bg-base-200/70`}
+    >
+      <span
+        className={`index-mark w-9 shrink-0 text-right tabular-nums ${
+          watched ? "text-base-content/25" : "text-base-content/50"
+        }`}
+      >
+        {entry.number}
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className={`truncate text-sm ${watched ? "text-base-content/50" : ""}`}>
+            {entry.title}
+          </p>
+          {watched ? <Check className="size-3.5 shrink-0 text-success" /> : null}
+          {entry.bookmarked ? (
+            <Bookmark className="size-3.5 shrink-0 fill-current text-primary" />
+          ) : null}
+        </div>
+
+        {entry.source.fileName && entry.source.fileName !== entry.title ? (
+          <p className="filename truncate" title={entry.source.fileName}>
+            {entry.source.fileName}
+          </p>
+        ) : null}
+
+        {partial ? (
+          <div className="mt-2 flex items-center gap-2">
+            <div className="h-1 flex-1 overflow-hidden rounded-full bg-base-content/10">
+              <div
+                className="h-full rounded-full bg-primary"
+                style={{ width: `${Math.round((watch?.percent ?? 0) * 100)}%` }}
+              />
+            </div>
+            <span className="meta shrink-0">{formatDuration(remaining)} left</span>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1">
+        <CardAction
+          label={entry.bookmarked ? `Remove bookmark from ${entry.title}` : `Bookmark ${entry.title}`}
+          active={entry.bookmarked}
+          onClick={onBookmark}
+        >
+          <Bookmark className={`size-4 ${entry.bookmarked ? "fill-current" : ""}`} />
+        </CardAction>
+
+        <CardAction
+          label={watched ? `Mark ${entry.title} unwatched` : `Mark ${entry.title} watched`}
+          active={watched}
+          onClick={() => onWatched(!watched)}
+        >
+          <Check className="size-4" />
+        </CardAction>
+
+        {partial ? (
+          <CardAction label={`Start ${entry.title} over`} onClick={() => onPlay(0)}>
+            <RotateCcw className="size-4" />
+          </CardAction>
+        ) : null}
+
+        <button
+          type="button"
+          disabled={busy}
+          aria-label={`${partial ? "Resume" : "Play"} ${entry.title}`}
+          onClick={() =>
+            onPlay(partial ? Math.floor(watch?.positionSeconds ?? 0) : 0)
+          }
+          className="ml-1 flex items-center gap-2 rounded-field border border-primary/40 px-3 py-1.5 text-xs text-primary transition-colors hover:bg-primary hover:text-primary-content"
+        >
+          {busy ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Play className="size-3.5 fill-current" />
+          )}
+          {partial ? "Resume" : "Play"}
+        </button>
+      </div>
+    </article>
+  );
+}
+
+/** A small square icon control on an episode card. */
+function CardAction({
+  label,
+  active = false,
+  onClick,
+  children,
+}: {
+  label: string;
+  active?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+      onClick={onClick}
+      className={`grid size-8 place-items-center rounded-field transition-colors ${
+        active
+          ? "text-primary hover:bg-primary/10"
+          : "text-base-content/35 hover:bg-base-200 hover:text-base-content/80"
+      }`}
+    >
+      {children}
+    </button>
+  );
 }
 
 /**

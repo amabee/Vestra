@@ -139,6 +139,8 @@ export const STORAGE_KEYS = {
   watchlist: "watchlist",
   history: "history",
   progress: "progress",
+  /** Per-episode flags, keyed the same way progress is. */
+  bookmarks: "bookmarks",
   localLibrary: "local-library",
   recentSearches: "recent-searches",
   /** Installed community extensions. Code is stored separately, content-addressed. */

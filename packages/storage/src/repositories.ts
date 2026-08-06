@@ -3,6 +3,7 @@ import { z } from "zod";
 import { MAX_RECENT_SEARCHES, STORAGE_KEYS } from "@vestra/config/constants";
 import {
   DEFAULT_SETTINGS,
+  episodeBookmarkSchema,
   historyEntrySchema,
   isSameMedia,
   localMediaFileSchema,
@@ -11,6 +12,7 @@ import {
   settingsSchema,
   watchProgressSchema,
   watchlistEntrySchema,
+  type EpisodeBookmark,
   type HistoryEntry,
   type LocalMediaFile,
   type MediaItem,
@@ -51,6 +53,12 @@ const progressDocSchema = z.object({
   entries: z.record(z.string(), watchProgressSchema).default({}),
 });
 
+const bookmarksDocSchema = z.object({
+  version: z.literal(1).default(1),
+  /** Keyed exactly as progress is, so the two line up per episode. */
+  entries: z.record(z.string(), episodeBookmarkSchema).default({}),
+});
+
 const localLibraryDocSchema = z.object({
   version: z.literal(1).default(1),
   files: z.array(localMediaFileSchema).default([]),
@@ -64,6 +72,7 @@ const recentSearchesDocSchema = z.object({
 const EMPTY_WATCHLIST = { version: 1 as const, entries: [] };
 const EMPTY_HISTORY = { version: 1 as const, entries: [] };
 const EMPTY_PROGRESS = { version: 1 as const, entries: {} };
+const EMPTY_BOOKMARKS = { version: 1 as const, entries: {} };
 const EMPTY_LIBRARY = { version: 1 as const, files: [] };
 const EMPTY_SEARCHES = { version: 1 as const, entries: [] };
 
@@ -269,6 +278,52 @@ export async function clearProgress(
     version: 1,
     entries,
   });
+}
+
+/* =============================================================================
+ * Episode bookmarks
+ * ========================================================================== */
+
+export async function getBookmarks(
+  driver: StorageDriver,
+): Promise<Record<string, EpisodeBookmark>> {
+  const doc = await readDocument(
+    driver,
+    STORAGE_KEYS.bookmarks,
+    bookmarksDocSchema,
+    EMPTY_BOOKMARKS,
+  );
+  return doc.entries;
+}
+
+/**
+ * Flag or unflag one episode.
+ *
+ * A toggle rather than separate add/remove calls: the caller is a single
+ * button whose meaning depends on state the store already holds, and asking
+ * it to decide invites the two to disagree under a double click.
+ */
+export async function toggleBookmark(
+  driver: StorageDriver,
+  ref: MediaRef,
+  episodeId: string | null = null,
+): Promise<{ bookmarked: boolean; entries: Record<string, EpisodeBookmark> }> {
+  const entries = await getBookmarks(driver);
+  const key = progressKey(ref, episodeId);
+  const bookmarked = entries[key] === undefined;
+
+  if (bookmarked) {
+    entries[key] = { ref, episodeId, createdAt: Date.now() };
+  } else {
+    delete entries[key];
+  }
+
+  await writeDocument(driver, STORAGE_KEYS.bookmarks, bookmarksDocSchema, {
+    version: 1,
+    entries,
+  });
+
+  return { bookmarked, entries };
 }
 
 /* =============================================================================

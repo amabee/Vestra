@@ -133,6 +133,11 @@ const api = {
     clear: (ref: unknown): Promise<unknown> => invoke("progress:clear", ref),
   },
 
+  bookmarks: {
+    all: (): Promise<unknown> => invoke("bookmarks:all"),
+    toggle: (input: unknown): Promise<unknown> => invoke("bookmarks:toggle", input),
+  },
+
   history: {
     list: (): Promise<unknown> => invoke("history:list"),
     add: (entry: unknown): Promise<unknown> => invoke("history:add", entry),

@@ -6,6 +6,7 @@ import {
   clearHistory,
   clearProgress,
   getAllProgress,
+  getBookmarks,
   getHistory,
   getLocalFiles,
   getSettings,
@@ -13,6 +14,7 @@ import {
   removeFromWatchlist,
   saveProgress,
   saveSettings,
+  toggleBookmark,
 } from "@vestra/storage";
 import { resolvePlayback, searchAcrossProviders, trendingAcrossProviders } from "@vestra/provider-sdk";
 import {
@@ -96,6 +98,11 @@ const progressInputSchema = z.object({
   episodeId: z.string().max(200).nullable().default(null),
   positionSeconds: z.number().min(0),
   durationSeconds: z.number().min(0),
+});
+
+const bookmarkInputSchema = z.object({
+  ref: mediaRefSchema,
+  episodeId: z.string().max(200).nullable().default(null),
 });
 
 const watchlistAddSchema = z.object({
@@ -245,6 +252,13 @@ export function registerDataIpc(): void {
   handle("progress:clear", (raw: unknown) =>
     clearProgress(getDriver(), parse(mediaRefSchema, raw, "media reference")),
   );
+
+  handle("bookmarks:all", () => getBookmarks(getDriver()));
+
+  handle("bookmarks:toggle", (raw: unknown) => {
+    const input = parse(bookmarkInputSchema, raw, "bookmark");
+    return toggleBookmark(getDriver(), input.ref, input.episodeId ?? null);
+  });
 
   handle("history:list", () => getHistory(getDriver()));
 

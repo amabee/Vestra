@@ -17,6 +17,7 @@ export const keys = {
   watchlist: ["watchlist"] as const,
   history: ["history"] as const,
   progress: ["progress"] as const,
+  bookmarks: ["bookmarks"] as const,
   library: ["library"] as const,
   libraryEntries: ["library", "entries"] as const,
   trending: (kind: MediaKind) => ["trending", kind] as const,
@@ -87,5 +88,21 @@ export function useSettings() {
   return useQuery({
     queryKey: keys.settings,
     queryFn: () => bridge.settings.get(),
+  });
+}
+
+/** Every stored position, keyed by media key plus an optional `#fileId`. */
+export function useProgress() {
+  return useQuery({
+    queryKey: keys.progress,
+    queryFn: () => bridge.progress.all(),
+  });
+}
+
+/** Flagged episodes, keyed exactly as progress is. */
+export function useBookmarks() {
+  return useQuery({
+    queryKey: keys.bookmarks,
+    queryFn: () => bridge.bookmarks.all(),
   });
 }

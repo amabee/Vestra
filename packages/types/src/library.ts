@@ -60,6 +60,26 @@ export const historyEntrySchema = z.object({
 export type HistoryEntry = z.infer<typeof historyEntrySchema>;
 
 /* =============================================================================
+ * Episode bookmarks
+ * ========================================================================== */
+
+/**
+ * A flagged episode.
+ *
+ * Distinct from the watchlist, which tracks whole titles. This marks one
+ * episode inside one of them — a favourite, or somewhere worth returning to.
+ * Nothing is copied from the file: a bookmark that outlives its file should
+ * disappear rather than linger as a dead entry.
+ */
+export const episodeBookmarkSchema = z.object({
+  ref: mediaRefSchema,
+  /** Library file id. Null bookmarks the item as a whole. */
+  episodeId: z.string().nullable().default(null),
+  createdAt: z.number().int(),
+});
+export type EpisodeBookmark = z.infer<typeof episodeBookmarkSchema>;
+
+/* =============================================================================
  * Local library
  * ========================================================================== */
 

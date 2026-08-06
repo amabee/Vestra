@@ -1,4 +1,5 @@
 import type {
+  EpisodeBookmark,
   HistoryEntry,
   LocalFolder,
   LocalMediaFile,
@@ -65,6 +66,10 @@ interface RawBridge {
     all: () => Promise<unknown>;
     save: (input: unknown) => Promise<unknown>;
     clear: (ref: unknown) => Promise<unknown>;
+  };
+  bookmarks: {
+    all: () => Promise<unknown>;
+    toggle: (input: unknown) => Promise<unknown>;
   };
   history: {
     list: () => Promise<unknown>;
@@ -365,6 +370,20 @@ export const bridge = {
     clear: async (ref: MediaRef): Promise<void> => {
       await raw().progress.clear(ref);
     },
+  },
+
+  bookmarks: {
+    all: async (): Promise<Record<string, EpisodeBookmark>> =>
+      (await raw().bookmarks.all()) as Record<string, EpisodeBookmark>,
+
+    toggle: async (input: {
+      ref: MediaRef;
+      episodeId?: string | null;
+    }): Promise<{ bookmarked: boolean; entries: Record<string, EpisodeBookmark> }> =>
+      (await raw().bookmarks.toggle(input)) as {
+        bookmarked: boolean;
+        entries: Record<string, EpisodeBookmark>;
+      },
   },
 
   history: {

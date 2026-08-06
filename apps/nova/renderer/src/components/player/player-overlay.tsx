@@ -1,4 +1,4 @@
-import type { MediaItem } from "@vestra/types";
+import { mediaKey, type MediaItem } from "@vestra/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -6,7 +6,36 @@ import { bridge } from "@/lib/bridge";
 import { usePlayer } from "@/lib/player-store";
 import { useSettings } from "@/lib/queries";
 
-import { useEngineDecision, useFileId, useMpvState, useSurfaceRect } from "./use-engine";
+import {
+  useEngineDecision,
+  useFileId,
+  useLatest,
+  useMpvState,
+  useSurfaceRect,
+} from "./use-engine";
+
+/** Below this, an entry is an accidental open rather than somewhere to return to. */
+const MIN_RESUME_PERCENT = 0.01;
+
+/**
+ * Where a file should start.
+ *
+ * A finished episode starts again from the top — reaching the end and then
+ * being dropped back two seconds from it is not a useful place to resume.
+ */
+async function resumeSecondsFor(
+  item: MediaItem | null,
+  fileId: string,
+  rememberPosition: boolean,
+): Promise<number> {
+  if (!item || !rememberPosition) return 0;
+
+  const all = await bridge.progress.all().catch(() => null);
+  const entry = all?.[`${mediaKey(item)}#${fileId}`];
+  if (!entry || entry.completed || entry.percent < MIN_RESUME_PERCENT) return 0;
+
+  return Math.floor(entry.positionSeconds);
+}
 
 /**
  * The player, as far as the catalogue window is concerned.
@@ -46,43 +75,43 @@ export function PlayerOverlay() {
   const skipSegments = settings.data?.playback.skipSegments ?? true;
   const autoSkipSegments = settings.data?.playback.autoSkipSegments ?? false;
 
+  // Read at open time only, so a settings change cannot restart the file.
+  const itemRef = useLatest(item);
+  const rememberPositionRef = useLatest(
+    settings.data?.playback.rememberPosition ?? true,
+  );
+
   const hasNext = index + 1 < queue.length;
 
   /**
    * A short episode designation.
    *
-   * The source label is the release filename — "[Judas] Isekai Nonbiri -
-   * S02E01.mkv" — which is noise next to the title. Only the season/episode
-   * marker is worth showing.
+   * The adapter builds this now. It used to be recovered from the release
+   * filename with a regex, which meant the player disagreed with the episode
+   * list whenever the filename was unusual.
    */
   const episodeLabel = useMemo(() => {
-    const match = source?.label?.match(/S\d{1,2}\s*E\d{1,3}/i);
-    if (match) return match[0].replace(/\s+/g, "").toUpperCase();
-    return queue.length > 1 ? `Episode ${index + 1}` : null;
+    if (source?.label) return source.label;
+    return queue.length > 1 ? `Ep ${index + 1}` : null;
   }, [source?.label, queue.length, index]);
 
   /**
    * Which season and episode this file is, for looking up skip times.
    *
-   * Read from the filename rather than the queue position or the matched
+   * Taken from the file record rather than the queue position or the matched
    * entry. The queue index is wrong for a folder that starts at episode five,
    * and the matched entry is frequently the series' first season even when the
    * files are a later one — which is exactly how a skip button ends up
    * appearing halfway through an episode and never during the opening.
    */
   const placement = useMemo(() => {
-    const match = source?.label?.match(/S(\d{1,2})\s*E(\d{1,3})/i);
-
-    if (match?.[1] && match[2]) {
-      return {
-        season: Number.parseInt(match[1], 10),
-        episode: Number.parseInt(match[2], 10),
-      };
+    if (source?.episode != null) {
+      return { season: source.season ?? 1, episode: source.episode };
     }
 
-    // No season marker: assume a single-season release, numbered in order.
+    // Nothing parsed: assume a single-season release, numbered in order.
     return { season: 1, episode: queue.length > 1 ? index + 1 : 1 };
-  }, [source?.label, queue.length, index]);
+  }, [source?.season, source?.episode, queue.length, index]);
 
   /**
    * Opening and ending timings.
@@ -380,24 +409,38 @@ export function PlayerOverlay() {
     if (!usingMpv || !fileId || !decision.ready || decision.needsMpv) return;
 
     let cancelled = false;
-    const box = surfaceRef.current?.getBoundingClientRect();
 
-    void bridge.mpv
-      .open({
+    /*
+      Progress is read here rather than subscribed to. Held as query state it
+      would change every time the periodic save ran, and this effect would
+      reopen the file mid-playback each time it did.
+    */
+    void (async () => {
+      const startSeconds = await resumeSecondsFor(
+        itemRef.current,
         fileId,
-        startSeconds: 0,
+        rememberPositionRef.current,
+      );
+      if (cancelled) return;
+
+      const box = surfaceRef.current?.getBoundingClientRect();
+
+      await bridge.mpv.open({
+        fileId,
+        // An explicit choice from the episode list wins over stored progress.
+        startSeconds: usePlayer.getState().startAt ?? startSeconds,
         rect: {
           x: Math.round(box?.left ?? 0),
           y: Math.round(box?.top ?? 0),
           width: Math.round(box?.width ?? 0),
           height: Math.round(box?.height ?? 0),
         },
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        setFailed(error instanceof Error ? error.message : "mpv could not start.");
-        setOverride("builtin");
       });
+    })().catch((error: unknown) => {
+      if (cancelled) return;
+      setFailed(error instanceof Error ? error.message : "mpv could not start.");
+      setOverride("builtin");
+    });
 
     return () => {
       cancelled = true;

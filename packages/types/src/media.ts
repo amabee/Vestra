@@ -234,8 +234,26 @@ export const playbackSourceSchema = z.object({
   /** File path, stream URL, YouTube video id, or external URL. */
   locator: z.string(),
   mimeType: z.string().nullable().default(null),
+  /** Short human label — an episode designation, not a filename. */
   label: z.string().nullable().default(null),
   /** Higher wins when several sources exist for one item. */
   priority: z.number().int().default(0),
+  /**
+   * Where this sits in a series, when it is one episode of one.
+   *
+   * Carried as numbers rather than left to be read back out of the label.
+   * The label is a release filename, and parsing it at each point of use put
+   * the same brittle regex in the player, the episode list and the skip-time
+   * lookup — three copies that were free to disagree, and did.
+   *
+   * Absent rather than null-by-default: a film, a trailer and a deep link have
+   * no episode to describe, and should not have to say so.
+   */
+  season: z.number().int().nullish(),
+  episode: z.number().int().nullish(),
+  /** Library file id for local sources — the key progress is stored under. */
+  fileId: z.string().nullish(),
+  /** Original filename, so a particular release is still identifiable. */
+  fileName: z.string().nullish(),
 });
 export type PlaybackSource = z.infer<typeof playbackSourceSchema>;

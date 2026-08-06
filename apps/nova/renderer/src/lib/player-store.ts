@@ -18,7 +18,21 @@ interface PlayerState {
   item: MediaItem | null;
   queue: PlaybackSource[];
   index: number;
-  open: (item: MediaItem, queue: PlaybackSource[], index?: number) => void;
+  /**
+   * Where to start the file that is about to open.
+   *
+   * Only set when the caller has an opinion — "Resume" and "Start over" from
+   * the episode list. Left null the rest of the time so the player falls back
+   * to whatever progress it has stored, which is what autoplaying the next
+   * episode should do.
+   */
+  startAt: number | null;
+  open: (
+    item: MediaItem,
+    queue: PlaybackSource[],
+    index?: number,
+    startAt?: number | null,
+  ) => void;
   /** Jump to a position in the queue, ignoring anything out of range. */
   playAt: (index: number) => void;
   next: () => void;
@@ -30,26 +44,28 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   item: null,
   queue: [],
   index: 0,
+  startAt: null,
 
-  open: (item, queue, index = 0) => set({ item, queue, index: clamp(index, queue.length) }),
+  open: (item, queue, index = 0, startAt = null) =>
+    set({ item, queue, index: clamp(index, queue.length), startAt }),
 
   playAt: (index) => {
     const { queue } = get();
     if (index < 0 || index >= queue.length) return;
-    set({ index });
+    set({ index, startAt: null });
   },
 
   next: () => {
     const { index, queue } = get();
-    if (index + 1 < queue.length) set({ index: index + 1 });
+    if (index + 1 < queue.length) set({ index: index + 1, startAt: null });
   },
 
   previous: () => {
     const { index } = get();
-    if (index > 0) set({ index: index - 1 });
+    if (index > 0) set({ index: index - 1, startAt: null });
   },
 
-  close: () => set({ item: null, queue: [], index: 0 }),
+  close: () => set({ item: null, queue: [], index: 0, startAt: null }),
 }));
 
 function clamp(index: number, length: number): number {

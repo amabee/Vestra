@@ -389,11 +389,22 @@ export class MpvSession {
     // A queued seek belongs to the file being replaced.
     this.#cancelPendingSeek();
 
-    if (startSeconds > 0) {
-      await connection.command("loadfile", filePath, "replace", `start=${startSeconds}`);
-    } else {
-      await connection.command("loadfile", filePath, "replace");
-    }
+    /*
+      Resume is set through the option rather than as a loadfile argument.
+
+      mpv 0.38 redefined loadfile's third parameter from a list of options to
+      an insertion index, so passing "start=..." there is rejected outright as
+      an invalid parameter by any current build — this one is 0.41. Writing
+      "options/start" means the same thing to every version, and applies to
+      the next file loaded. It is written on every load, including back to
+      "none", because it would otherwise persist and silently skip into the
+      following episode.
+    */
+    await connection.setProperty(
+      "options/start",
+      startSeconds > 0 ? String(startSeconds) : "none",
+    );
+    await connection.command("loadfile", filePath, "replace");
   }
 
   async play(): Promise<void> {

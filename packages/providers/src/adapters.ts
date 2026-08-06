@@ -2,7 +2,7 @@ import { mediaserver } from "@vestra/api";
 import { isMediaServerConfigured } from "@vestra/config";
 import type { SourceAdapter } from "@vestra/provider-sdk";
 import { getLocalFiles, type StorageDriver } from "@vestra/storage";
-import type { MediaDetails, MediaItem } from "@vestra/types";
+import type { LocalMediaFile, MediaDetails, MediaItem } from "@vestra/types";
 
 /**
  * Source adapters — how an item actually plays.
@@ -46,6 +46,22 @@ export interface LocalFileAdapterOptions {
   buildStreamUrl: (fileId: string) => string;
 }
 
+/**
+ * A short, readable designation for one file.
+ *
+ * Release filenames are unreadable at a glance — "[Judas] Isekai Nonbiri -
+ * S02E01.mkv" — and the interesting part is a couple of numbers buried in the
+ * middle. The season is only worth naming when there is more than one, since
+ * most of a library is a single season and "S1 · " on every row is noise.
+ */
+function episodeLabel(file: LocalMediaFile): string | null {
+  if (file.parsedEpisode === null) return null;
+  const season = file.parsedSeason ?? 1;
+  return season > 1
+    ? `S${season} · Ep ${file.parsedEpisode}`
+    : `Ep ${file.parsedEpisode}`;
+}
+
 /** Local files from the scanned library. */
 export function createLocalFileAdapter(
   driver: StorageDriver,
@@ -69,8 +85,12 @@ export function createLocalFileAdapter(
           kind: "file",
           locator: options.buildStreamUrl(file.id),
           mimeType: null,
-          label: file.fileName,
+          label: episodeLabel(file) ?? file.parsedTitle ?? file.fileName,
           priority: 90,
+          season: file.parsedSeason,
+          episode: file.parsedEpisode,
+          fileId: file.id,
+          fileName: file.fileName,
         },
       ];
     },
@@ -116,18 +136,17 @@ export function createMatchedLocalAdapter(
         );
 
       return matches.map((file, index) => {
-        const episodeLabel =
-          file.parsedEpisode !== null
-            ? `S${String(file.parsedSeason ?? 1).padStart(2, "0")}E${String(file.parsedEpisode).padStart(2, "0")}`
-            : null;
-
         return {
           kind: "file" as const,
           locator: options.buildStreamUrl(file.id),
           mimeType: null,
-          label: episodeLabel ? `${episodeLabel} · ${file.fileName}` : file.fileName,
+          label: episodeLabel(file) ?? file.fileName,
           // Outrank the external deep link, and keep playlist order stable.
           priority: 95 - index,
+          season: file.parsedSeason,
+          episode: file.parsedEpisode,
+          fileId: file.id,
+          fileName: file.fileName,
         };
       });
     },

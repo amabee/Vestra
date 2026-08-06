@@ -172,6 +172,15 @@
     color: color-mix(in oklch, var(--color-base-content), transparent 55%);
   }
 
+  /* A release name or path. The metadata voice without the shouting: case is
+     meaningful in a filename, and uppercasing one makes it unreadable. */
+  .filename {
+    font-family: var(--font-mono);
+    font-size: var(--text-meta);
+    letter-spacing: var(--text-meta--letter-spacing);
+    color: color-mix(in oklch, var(--color-base-content), transparent 60%);
+  }
+
   /* Catalogue index numbers running down the left of a list. */
   .index-mark {
     font-family: var(--font-mono);
