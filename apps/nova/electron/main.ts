@@ -154,6 +154,17 @@ function createWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      /**
+       * Keep running while covered.
+       *
+       * During playback this window is entirely hidden behind the video
+       * surface and the controls above it. Chromium treats a fully occluded
+       * window as not worth servicing and throttles its timers and animation
+       * frames — which stalled the periodic progress save, and left the video
+       * at its old size after a fullscreen change because the callback that
+       * reports the new one never ran.
+       */
+      backgroundThrottling: false,
     },
   });
 

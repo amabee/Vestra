@@ -103,8 +103,20 @@ export function useSurfaceRect(
     if (!element) return;
 
     let last: SurfaceRect | null = null;
-    let frame = 0;
 
+    /**
+     * Report synchronously, not on an animation frame.
+     *
+     * While playing, this window is completely covered by the video surface
+     * and the controls above it. Chromium treats a fully occluded window as
+     * not worth rendering and stops running animation frames, so a callback
+     * scheduled that way never arrives — which left the video and controls at
+     * their windowed size after going fullscreen, with a black band across the
+     * bottom of the screen.
+     *
+     * Measuring is cheap and the comparison below drops repeats, so there is
+     * nothing to gain from deferring it.
+     */
     const report = () => {
       const box = element.getBoundingClientRect();
       const rect: SurfaceRect = {
@@ -130,21 +142,15 @@ export function useSurfaceRect(
       void bridge.mpv.setRect(rect).catch(() => undefined);
     };
 
-    const schedule = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(report);
-    };
-
     report();
 
-    const observer = new ResizeObserver(schedule);
+    const observer = new ResizeObserver(report);
     observer.observe(element);
-    window.addEventListener("resize", schedule);
+    window.addEventListener("resize", report);
 
     return () => {
-      cancelAnimationFrame(frame);
       observer.disconnect();
-      window.removeEventListener("resize", schedule);
+      window.removeEventListener("resize", report);
     };
   }, [ref, active]);
 }
