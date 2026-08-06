@@ -102,6 +102,12 @@ export class MpvOverlay {
     return this.#window.webContents;
   }
 
+  /** The window the controls belong to, which is the one that gets moved. */
+  get parentWindow(): BrowserWindow | null {
+    if (!this.#parent || this.#parent.isDestroyed()) return null;
+    return this.#parent;
+  }
+
   setRect(rect: SurfaceRect): void {
     this.#rect = rect;
     this.#apply();

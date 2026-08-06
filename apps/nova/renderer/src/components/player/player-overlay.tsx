@@ -411,7 +411,14 @@ export function PlayerOverlay() {
     setOverride(null);
     setFailed(null);
     void bridge.mpv.close().catch(() => undefined);
-    void bridge.window.setFullscreen(false).catch(() => undefined);
+
+    // Only leave fullscreen if it was entered. Calling this unconditionally
+    // also drops a maximised window back to its restored size, so the window
+    // shrank every time the player was closed.
+    void bridge.window
+      .isFullscreen()
+      .then((value) => (value ? bridge.window.setFullscreen(false) : undefined))
+      .catch(() => undefined);
   }, [item]);
 
   /* ---------------------------------------------------------------------- *

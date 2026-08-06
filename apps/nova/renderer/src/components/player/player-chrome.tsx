@@ -266,6 +266,61 @@ export function PlayerChrome() {
 
   const shown = visible || menuOpen;
 
+  /**
+   * Dragging the window by the player's header.
+   *
+   * Done by hand rather than with a drag region: this is a separate window
+   * stacked over the video, so the usual mechanism would move it alone and the
+   * main process would immediately put it back. Pointer movement is reported
+   * and the window underneath is moved instead.
+   */
+  const dragFrom = useRef<{ x: number; y: number } | null>(null);
+
+  const headerDragProps = {
+    onPointerDown: (event: React.PointerEvent) => {
+      // Left button only, and never when starting on a control.
+      if (event.button !== 0) return;
+      if ((event.target as HTMLElement).closest("button")) return;
+
+      dragFrom.current = { x: event.screenX, y: event.screenY };
+
+      // Capture keeps the drag alive if the pointer outruns the header, but it
+      // throws for a pointer id the element never saw — which a synthetic
+      // event produces. The drag still works without it.
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        /* not capturable */
+      }
+
+      void bridge.player.drag("start").catch(() => undefined);
+    },
+    onPointerMove: (event: React.PointerEvent) => {
+      const from = dragFrom.current;
+      if (!from) return;
+
+      const dx = event.screenX - from.x;
+      const dy = event.screenY - from.y;
+      if (dx === 0 && dy === 0) return;
+
+      dragFrom.current = { x: event.screenX, y: event.screenY };
+      void bridge.player.drag("move", dx, dy).catch(() => undefined);
+    },
+    onPointerUp: (event: React.PointerEvent) => {
+      dragFrom.current = null;
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+        /* never captured */
+      }
+    },
+    onDoubleClick: (event: React.MouseEvent) => {
+      if ((event.target as HTMLElement).closest("button")) return;
+      event.stopPropagation();
+      void bridge.player.toggleMaximize().catch(() => undefined);
+    },
+  };
+
   return (
     <div
       className="relative h-full w-full select-none"
@@ -300,7 +355,10 @@ export function PlayerChrome() {
         <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/85 to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/90 via-black/60 to-transparent" />
 
-      <header className="absolute inset-x-0 top-0 flex h-14 items-center gap-2 px-3">
+      <header
+        className="absolute inset-x-0 top-0 flex h-14 items-center gap-2 px-3"
+        {...headerDragProps}
+      >
         <IconButton label="Back" onClick={() => send("close")}>
           <BackIcon className="size-4" />
         </IconButton>

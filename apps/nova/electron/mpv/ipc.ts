@@ -295,6 +295,47 @@ export function registerMpvIpc(): void {
    * will honour; asking the parent to take focus from a background process is
    * refused outright.
    */
+  /**
+   * Move the window by dragging the player's header.
+   *
+   * The usual `-webkit-app-region: drag` cannot be used here. The controls are
+   * a window of their own stacked over the video, so dragging them would move
+   * that window alone — and the main process immediately puts it back, since
+   * its position is derived from the window beneath. The header reports
+   * pointer movement instead and the window underneath is moved, which the
+   * surface and controls then follow.
+   */
+  handle("player:drag", (_event, raw) => {
+    const { phase, dx, dy } = parse(dragSchema, raw, "drag");
+
+    const parent = overlay.parentWindow;
+    if (!parent) return null;
+
+    if (phase === "start") {
+      // A maximised window cannot be moved; Windows restores it when its title
+      // bar is dragged, so do the same.
+      if (parent.isMaximized()) parent.unmaximize();
+      return null;
+    }
+
+    if (parent.isMaximized() || parent.isFullScreen()) return null;
+
+    // getPosition returns a plain array, so the elements are only optional as
+    // far as the type system is concerned.
+    const [x = 0, y = 0] = parent.getPosition();
+    parent.setPosition(Math.round(x + dx), Math.round(y + dy));
+    return null;
+  });
+
+  /** Maximise or restore, for a double-click on the player's header. */
+  handle("player:toggle-maximize", () => {
+    const parent = overlay.parentWindow;
+    if (!parent) return null;
+    if (parent.isMaximized()) parent.unmaximize();
+    else parent.maximize();
+    return null;
+  });
+
   handle("player:focus", (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
     if (!window || window.isDestroyed()) return null;
@@ -333,6 +374,12 @@ const nowPlayingSchema = z.object({
 });
 
 const commandSchema = z.enum(["next", "previous", "close", "toggle-fullscreen"]);
+
+const dragSchema = z.object({
+  phase: z.enum(["start", "move"]),
+  dx: z.number().finite().min(-10_000).max(10_000).default(0),
+  dy: z.number().finite().min(-10_000).max(10_000).default(0),
+});
 
 /** Tear mpv down. Called on quit so no orphan process is left behind. */
 export function shutdownMpv(): void {

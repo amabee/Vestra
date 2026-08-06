@@ -109,6 +109,8 @@ interface RawBridge {
     getNowPlaying: () => Promise<unknown>;
     send: (command: string) => Promise<unknown>;
     focus: () => Promise<unknown>;
+    drag: (payload: unknown) => Promise<unknown>;
+    toggleMaximize: () => Promise<unknown>;
     setInteractive: (interactive: boolean) => Promise<unknown>;
     onNowPlaying: (listener: (value: unknown) => void) => () => void;
     onCommand: (listener: (command: string) => void) => () => void;
@@ -500,6 +502,15 @@ export const bridge = {
     /** Return focus to the interface window, which owns the shortcuts. */
     focus: async (): Promise<void> => {
       await raw().player.focus();
+    },
+
+    /** Move the window beneath the player by a pointer delta. */
+    drag: async (phase: "start" | "move", dx = 0, dy = 0): Promise<void> => {
+      await raw().player.drag({ phase, dx, dy });
+    },
+
+    toggleMaximize: async (): Promise<void> => {
+      await raw().player.toggleMaximize();
     },
 
     /** Whether the overlay should receive pointer events at all. */
