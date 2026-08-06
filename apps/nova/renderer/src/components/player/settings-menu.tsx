@@ -13,10 +13,51 @@ import { bridge, type MpvState, type MpvTrack } from "@/lib/bridge";
  * chosen — which keeps every option two clicks away at most.
  */
 
-type Page = "root" | "speed" | "audio" | "subtitles" | "delay" | "size";
+type Page = "root" | "speed" | "audio" | "subtitles" | "delay" | "size" | "keys";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
 const SIZES = [0.75, 0.9, 1, 1.15, 1.3, 1.5] as const;
+
+/**
+ * Shortcuts, grouped the way they are reached for.
+ *
+ * Listed here rather than left to be discovered: none of them are visible in
+ * the interface, so an unlisted shortcut may as well not exist.
+ */
+const SHORTCUTS: { group: string; keys: [string, string][] }[] = [
+  {
+    group: "Playback",
+    keys: [
+      ["Space  K", "Play or pause"],
+      ["J  L", "Back or forward 10s"],
+      ["\u2190  \u2192", "Back or forward 5s"],
+      ["0 \u2013 9", "Jump to 0\u201390% of the episode"],
+      ["[  ]", "Slower or faster"],
+    ],
+  },
+  {
+    group: "Episode",
+    keys: [
+      ["N  P", "Next or previous episode"],
+      ["S", "Skip the opening or ending"],
+    ],
+  },
+  {
+    group: "Sound and subtitles",
+    keys: [
+      ["\u2191  \u2193", "Volume"],
+      ["M", "Mute"],
+      ["V", "Show or hide subtitles"],
+    ],
+  },
+  {
+    group: "Window",
+    keys: [
+      ["F", "Fullscreen"],
+      ["Esc", "Leave fullscreen, or close the player"],
+    ],
+  },
+];
 
 export function SettingsMenu({
   mpv,
@@ -101,6 +142,7 @@ export function SettingsMenu({
             value={mpv.subtitleScale === 1 ? "Default" : `${Math.round(mpv.subtitleScale * 100)}%`}
             onClick={() => setPage("size")}
           />
+          <Row label="Keyboard shortcuts" value="" onClick={() => setPage("keys")} />
         </>
       ) : null}
 
@@ -206,6 +248,28 @@ export function SettingsMenu({
             />
           ))
         : null}
+      {page === "keys" ? (
+        <div className="px-3 py-2">
+          {SHORTCUTS.map((section) => (
+            <div key={section.group} className="mb-3 last:mb-0">
+              <p className="meta pb-1.5">{section.group}</p>
+              {section.keys.map(([combination, description]) => (
+                <div
+                  key={combination}
+                  className="flex items-baseline gap-3 py-1"
+                >
+                  <kbd className="index-mark shrink-0 rounded border border-white/20 px-1.5 py-0.5 text-white/85">
+                    {combination}
+                  </kbd>
+                  <span className="text-xs leading-relaxed text-white/55">
+                    {description}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -222,6 +286,8 @@ function titleFor(page: Page): string {
       return "Subtitle delay";
     case "size":
       return "Subtitle size";
+    case "keys":
+      return "Keyboard shortcuts";
     default:
       return "Settings";
   }

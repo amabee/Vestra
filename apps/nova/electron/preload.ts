@@ -68,6 +68,7 @@ const api = {
     play: (): Promise<unknown> => invoke("mpv:play"),
     pause: (): Promise<unknown> => invoke("mpv:pause"),
     seek: (seconds: number): Promise<unknown> => invoke("mpv:seek", seconds),
+    seekBy: (delta: number): Promise<unknown> => invoke("mpv:seek-by", delta),
     setVolume: (volume: number): Promise<unknown> => invoke("mpv:set-volume", volume),
     setMuted: (muted: boolean): Promise<unknown> => invoke("mpv:set-muted", muted),
     setSpeed: (speed: number): Promise<unknown> => invoke("mpv:set-speed", speed),

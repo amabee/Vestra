@@ -118,8 +118,15 @@ export function registerMpvIpc(): void {
 
   handle("mpv:subscribe", (event) => {
     const contents = event.sender;
-    subscribers.add(contents);
-    contents.once("destroyed", () => subscribers.delete(contents));
+
+    // Subscribing happens on every mount of the player, always from the same
+    // renderer. Registering the cleanup listener each time leaked one per
+    // playback and tripped Node's max-listener warning after eleven.
+    if (!subscribers.has(contents)) {
+      subscribers.add(contents);
+      contents.once("destroyed", () => subscribers.delete(contents));
+    }
+
     return session.state;
   });
 
@@ -166,6 +173,12 @@ export function registerMpvIpc(): void {
   handle("mpv:seek", (_event, raw) => {
     const seconds = parse(z.number().min(0).max(360_000), raw, "seek position");
     return session.seek(seconds).then(() => null);
+  });
+
+  handle("mpv:seek-by", (_event, raw) => {
+    const delta = parse(z.number().min(-3600).max(3600), raw, "seek offset");
+    session.seekBy(delta);
+    return null;
   });
 
   handle("mpv:set-volume", (_event, raw) => {

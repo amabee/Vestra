@@ -59,6 +59,9 @@ const EMPTY: MpvState = {
 
 const HIDE_AFTER_MS = 2600;
 
+/** An opening or ending range, as published by the catalogue window. */
+type SkipRange = NonNullable<NowPlaying["skips"]>[number];
+
 export function PlayerChrome() {
   const [mpv, setMpv] = useState<MpvState>(EMPTY);
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
@@ -143,6 +146,11 @@ export function PlayerChrome() {
 
   const seek = (seconds: number) => {
     void bridge.mpv.seek(Math.max(0, seconds)).catch(() => undefined);
+  };
+
+  /** Stepping goes through mpv so repeated presses accumulate. */
+  const seekBy = (delta: number) => {
+    void bridge.mpv.seekBy(delta).catch(() => undefined);
   };
 
   const toggleFullscreen = () => {
@@ -256,6 +264,7 @@ export function PlayerChrome() {
         <Scrubber
           position={mpv.position}
           duration={mpv.duration}
+          skips={nowPlaying?.skips ?? []}
           onSeek={seek}
           onScrubbing={setScrubbing}
         />
@@ -281,11 +290,11 @@ export function PlayerChrome() {
             <NextIcon className="size-4" />
           </IconButton>
 
-          <IconButton label="Back 10 seconds" onClick={() => seek(mpv.position - 10)}>
+          <IconButton label="Back 10 seconds" onClick={() => seekBy(-10)}>
             <RewindIcon className="size-4" />
           </IconButton>
 
-          <IconButton label="Forward 10 seconds" onClick={() => seek(mpv.position + 10)}>
+          <IconButton label="Forward 10 seconds" onClick={() => seekBy(10)}>
             <ForwardIcon className="size-4" />
           </IconButton>
 
@@ -411,14 +420,27 @@ function IconButton({
   );
 }
 
+/**
+ * The seek bar.
+ *
+ * Openings and endings are drawn onto the track rather than only announced by
+ * a button. Once the timings are trustworthy they are worth showing: a hatched
+ * band makes it obvious at a glance where the song sits, how long it runs, and
+ * how close it is — the same reason chapter marks are useful on a long video.
+ *
+ * The bands sit above the progress fill so they stay legible once watched, and
+ * a notch marks each boundary so the edges are findable without hovering.
+ */
 function Scrubber({
   position,
   duration,
+  skips,
   onSeek,
   onScrubbing,
 }: {
   position: number;
   duration: number;
+  skips: SkipRange[];
   onSeek: (seconds: number) => void;
   onScrubbing: (value: boolean) => void;
 }) {
@@ -433,6 +455,15 @@ function Scrubber({
   };
 
   const percent = duration > 0 ? (position / duration) * 100 : 0;
+  const ratio = (seconds: number) => (duration > 0 ? (seconds / duration) * 100 : 0);
+
+  // Only meaningful once the duration is known; before that every range would
+  // collapse to the left edge.
+  const bands = duration > 0 ? skips : [];
+
+  const hovered = hover === null ? null : bands.find(
+    (band) => hover >= band.startSeconds && hover < band.endSeconds,
+  );
 
   return (
     <div className="group/bar relative py-2">
@@ -466,17 +497,55 @@ function Scrubber({
           className="absolute inset-y-0 left-0 rounded-full bg-primary"
           style={{ width: `${percent}%` }}
         />
+
+        {bands.map((band) => (
+          <div
+            key={`${band.kind}-${band.startSeconds}`}
+            className="pointer-events-none absolute inset-y-0 overflow-hidden"
+            style={{
+              left: `${ratio(band.startSeconds)}%`,
+              width: `${ratio(band.endSeconds - band.startSeconds)}%`,
+            }}
+          >
+            {/* Hatching rather than a flat tint: it reads as a marked-out
+                stretch even where the progress fill sits underneath it. */}
+            <div
+              className="size-full"
+              style={{
+                backgroundImage:
+                  "repeating-linear-gradient(115deg, rgba(255,255,255,0.85) 0 2px, rgba(255,255,255,0.25) 2px 5px)",
+              }}
+            />
+          </div>
+        ))}
+
         <div
           className="absolute top-1/2 size-3 -translate-y-1/2 rounded-full bg-primary opacity-0 transition-opacity group-hover/bar:opacity-100"
           style={{ left: `calc(${percent}% - 6px)` }}
         />
       </div>
 
+      {/* Boundary notches, drawn outside the track so the edges of a song can
+          be found without hovering along the bar to hunt for them. */}
+      {bands.map((band) => (
+        <span key={`mark-${band.kind}-${band.startSeconds}`}>
+          <span
+            className="pointer-events-none absolute top-0 h-2 w-px bg-white/70"
+            style={{ left: `${ratio(band.startSeconds)}%` }}
+          />
+          <span
+            className="pointer-events-none absolute top-0 h-2 w-px bg-white/70"
+            style={{ left: `${ratio(band.endSeconds)}%` }}
+          />
+        </span>
+      ))}
+
       {hover !== null ? (
         <span
-          className="index-mark pointer-events-none absolute -top-4 -translate-x-1/2 rounded bg-black/85 px-1.5 py-0.5 text-white tabular-nums"
-          style={{ left: `${duration > 0 ? (hover / duration) * 100 : 0}%` }}
+          className="index-mark pointer-events-none absolute -top-5 -translate-x-1/2 whitespace-nowrap rounded bg-black/90 px-1.5 py-0.5 text-white tabular-nums"
+          style={{ left: `${ratio(hover)}%` }}
         >
+          {hovered ? `${hovered.kind === "opening" ? "OP" : "ED"} · ` : ""}
           {formatTime(hover)}
         </span>
       ) : null}

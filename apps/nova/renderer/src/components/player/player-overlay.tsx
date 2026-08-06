@@ -173,6 +173,206 @@ export function PlayerOverlay() {
   }, [next, previous, close]);
 
   /* ---------------------------------------------------------------------- *
+   * Keyboard
+   * ---------------------------------------------------------------------- */
+
+  /**
+   * Shortcuts live here, not in the controls window.
+   *
+   * That window is deliberately non-focusable so it cannot steal focus from
+   * the interface, which means it never receives key events. This window has
+   * focus while playing, so it is the one that can hear them.
+   */
+  useEffect(() => {
+    if (!item) return;
+
+    const onKey = (event: KeyboardEvent) => {
+      // Never swallow typing.
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.isContentEditable ||
+          ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+      ) {
+        return;
+      }
+
+      if (event.ctrlKey || event.altKey || event.metaKey) return;
+
+      const at = usingMpv ? mpv.position : (videoRef.current?.currentTime ?? 0);
+
+      /** Absolute seek, for jumps to a known point. */
+      const seek = (seconds: number) => {
+        const to = Math.max(0, seconds);
+        if (usingMpv) void bridge.mpv.seek(to).catch(() => undefined);
+        else if (videoRef.current) videoRef.current.currentTime = to;
+      };
+
+      /**
+       * Relative seek, for stepping.
+       *
+       * mpv applies the offset to its own clock. Computing it here from a
+       * position that lags by a frame would make two quick presses land in the
+       * same place instead of accumulating.
+       */
+      const seekBy = (delta: number) => {
+        if (usingMpv) void bridge.mpv.seekBy(delta).catch(() => undefined);
+        else if (videoRef.current) videoRef.current.currentTime += delta;
+      };
+
+      const setVolume = (value: number) => {
+        const clamped = Math.max(0, Math.min(1, value));
+        if (usingMpv) {
+          void bridge.mpv.setVolume(clamped).catch(() => undefined);
+          if (clamped > 0 && mpv.muted) {
+            void bridge.mpv.setMuted(false).catch(() => undefined);
+          }
+        } else if (videoRef.current) {
+          videoRef.current.volume = clamped;
+        }
+      };
+
+      const key = event.key.toLowerCase();
+
+      // Digits jump to a fraction of the runtime, as in most players.
+      if (/^[0-9]$/.test(key) && mpv.duration > 0) {
+        event.preventDefault();
+        seek((Number(key) / 10) * mpv.duration);
+        return;
+      }
+
+      switch (key) {
+        case " ":
+        case "k":
+          event.preventDefault();
+          if (usingMpv) {
+            void (mpv.paused ? bridge.mpv.play() : bridge.mpv.pause()).catch(
+              () => undefined,
+            );
+          } else if (videoRef.current) {
+            if (videoRef.current.paused) void videoRef.current.play();
+            else videoRef.current.pause();
+          }
+          break;
+
+        case "arrowright":
+          event.preventDefault();
+          seekBy(5);
+          break;
+        case "arrowleft":
+          event.preventDefault();
+          seekBy(-5);
+          break;
+        case "l":
+          seekBy(10);
+          break;
+        case "j":
+          seekBy(-10);
+          break;
+
+        case "arrowup":
+          event.preventDefault();
+          setVolume((usingMpv ? mpv.volume : (videoRef.current?.volume ?? 1)) + 0.05);
+          break;
+        case "arrowdown":
+          event.preventDefault();
+          setVolume((usingMpv ? mpv.volume : (videoRef.current?.volume ?? 1)) - 0.05);
+          break;
+
+        case "m":
+          if (usingMpv) void bridge.mpv.setMuted(!mpv.muted).catch(() => undefined);
+          else if (videoRef.current) videoRef.current.muted = !videoRef.current.muted;
+          break;
+
+        case "f":
+          void bridge.window
+            .isFullscreen()
+            .then((value) => bridge.window.setFullscreen(!value))
+            .catch(() => undefined);
+          break;
+
+        case "escape":
+          // Leave fullscreen first; only close the player when already windowed.
+          void bridge.window
+            .isFullscreen()
+            .then(async (value) => {
+              if (value) await bridge.window.setFullscreen(false);
+              else close();
+            })
+            .catch(() => undefined);
+          break;
+
+        case "n":
+          if (hasNext) next();
+          break;
+        case "p":
+          if (index > 0) previous();
+          break;
+
+        case "v": {
+          if (!usingMpv) break;
+          const subtitles = mpv.tracks.filter((track) => track.type === "sub");
+          const on = mpv.subtitleVisible && subtitles.some((track) => track.selected);
+          void (async () => {
+            if (on) {
+              await bridge.mpv.setSubtitleVisible(false);
+              return;
+            }
+            const chosen = subtitles.find((track) => track.selected) ?? subtitles[0];
+            if (chosen) await bridge.mpv.selectTrack("sub", chosen.id);
+            await bridge.mpv.setSubtitleVisible(true);
+          })().catch(() => undefined);
+          break;
+        }
+
+        // Jump past whichever opening or ending is playing right now.
+        case "s": {
+          const current = (skipTimes.data ?? []).find(
+            (range) => at >= range.startSeconds && at < range.endSeconds - 1,
+          );
+          if (current) seek(current.endSeconds);
+          break;
+        }
+
+        case "[":
+          if (usingMpv) {
+            void bridge.mpv.setSpeed(Math.max(0.25, mpv.speed - 0.25)).catch(
+              () => undefined,
+            );
+          }
+          break;
+        case "]":
+          if (usingMpv) {
+            void bridge.mpv.setSpeed(Math.min(4, mpv.speed + 0.25)).catch(
+              () => undefined,
+            );
+          }
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [
+    item,
+    usingMpv,
+    mpv.position,
+    mpv.paused,
+    mpv.muted,
+    mpv.volume,
+    mpv.speed,
+    mpv.duration,
+    mpv.tracks,
+    mpv.subtitleVisible,
+    skipTimes.data,
+    hasNext,
+    index,
+    next,
+    previous,
+    close,
+  ]);
+
+  /* ---------------------------------------------------------------------- *
    * Playback
    * ---------------------------------------------------------------------- */
 

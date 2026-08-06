@@ -172,6 +172,9 @@ export class MpvSession {
   #state: MpvState = { ...INITIAL_STATE };
   #listeners = new Set<(state: MpvState) => void>();
   #starting: Promise<void> | null = null;
+  /** Offsets gathered from rapid seek presses, applied together. */
+  #pendingSeek = 0;
+  #seekTimer: ReturnType<typeof setTimeout> | null = null;
 
   get state(): MpvState {
     return this.#state;
@@ -383,6 +386,9 @@ export class MpvSession {
     const connection = this.#require();
     this.#emit({ ended: false, error: null, position: 0, duration: 0 });
 
+    // A queued seek belongs to the file being replaced.
+    this.#cancelPendingSeek();
+
     if (startSeconds > 0) {
       await connection.command("loadfile", filePath, "replace", `start=${startSeconds}`);
     } else {
@@ -398,8 +404,66 @@ export class MpvSession {
     await this.#require().setProperty("pause", true);
   }
 
+  /**
+   * Seek to a point.
+   *
+   * `exact` matters on these files: without it mpv lands on the nearest
+   * keyframe, and with the long intervals a modern encode uses that can be
+   * several seconds from where the scrub bar was released.
+   */
   async seek(seconds: number): Promise<void> {
-    await this.#require().command("seek", seconds, "absolute");
+    await this.#require().command("seek", seconds, "absolute+exact");
+  }
+
+  /**
+   * Seek by an offset from wherever playback actually is.
+   *
+   * Rapid presses are gathered into one jump. Three taps of "back ten" issued
+   * separately would each read the position before any of them had landed,
+   * compute the same target, and move ten seconds in total instead of thirty —
+   * so the offsets are accumulated briefly and applied together, which also
+   * avoids three decodes for one intent.
+   *
+   * mpv's own relative seek would avoid the round trip but is not accurate on
+   * these files: asking for ten seconds measured between eleven and twenty
+   * even with the exact flag set, while absolute seeks landed precisely.
+   */
+  seekBy(deltaSeconds: number): void {
+    this.#pendingSeek += deltaSeconds;
+
+    if (this.#seekTimer) clearTimeout(this.#seekTimer);
+    this.#seekTimer = setTimeout(() => {
+      void this.#flushSeek();
+    }, 90);
+  }
+
+  async #flushSeek(): Promise<void> {
+    const delta = this.#pendingSeek;
+    this.#pendingSeek = 0;
+    this.#seekTimer = null;
+
+    if (delta === 0 || !this.#connection) return;
+
+    const connection = this.#connection;
+
+    const current = await connection
+      .getProperty<number>("time-pos")
+      .catch(() => null);
+
+    if (typeof current !== "number" || !Number.isFinite(current)) return;
+
+    const duration = await connection
+      .getProperty<number>("duration")
+      .catch(() => null);
+
+    let target = Math.max(0, current + delta);
+
+    // Stop just short of the end; seeking exactly to it ends the file.
+    if (typeof duration === "number" && Number.isFinite(duration)) {
+      target = Math.min(target, Math.max(0, duration - 1));
+    }
+
+    await this.seek(target).catch(() => undefined);
   }
 
   async setVolume(volume: number): Promise<void> {
@@ -455,12 +519,20 @@ export class MpvSession {
 
   async stop(): Promise<void> {
     if (!this.#connection) return;
+    this.#cancelPendingSeek();
     await this.#connection.command("stop").catch(() => undefined);
     this.#emit({ idle: true, position: 0, duration: 0 });
   }
 
+  #cancelPendingSeek(): void {
+    if (this.#seekTimer) clearTimeout(this.#seekTimer);
+    this.#seekTimer = null;
+    this.#pendingSeek = 0;
+  }
+
   /** Shut mpv down. Safe to call when it was never started. */
   dispose(): void {
+    this.#cancelPendingSeek();
     this.#connection?.close();
     this.#connection = null;
 

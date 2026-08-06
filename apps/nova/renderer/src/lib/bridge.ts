@@ -91,6 +91,7 @@ interface RawBridge {
     play: () => Promise<unknown>;
     pause: () => Promise<unknown>;
     seek: (seconds: number) => Promise<unknown>;
+    seekBy: (delta: number) => Promise<unknown>;
     setVolume: (volume: number) => Promise<unknown>;
     setMuted: (muted: boolean) => Promise<unknown>;
     setSpeed: (speed: number) => Promise<unknown>;
@@ -431,6 +432,11 @@ export const bridge = {
 
     seek: async (seconds: number): Promise<void> => {
       await raw().mpv.seek(seconds);
+    },
+
+    /** Offset from mpv's own position, so repeated presses accumulate. */
+    seekBy: async (delta: number): Promise<void> => {
+      await raw().mpv.seekBy(delta);
     },
 
     setVolume: async (volume: number): Promise<void> => {
