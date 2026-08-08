@@ -2,6 +2,7 @@ import { mediaKey, type MediaItem } from "@vestra/types";
 import { preferChapters, skipRangesFromChapters } from "@vestra/core/chapters";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router";
 
 import { bridge } from "@/lib/bridge";
 import { usePlayer } from "@/lib/player-store";
@@ -54,6 +55,7 @@ async function resumeSecondsFor(
 export function PlayerOverlay() {
   const { item, queue, index, next, previous, close } = usePlayer();
   const source = queue[index] ?? null;
+  const navigate = useNavigate();
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
@@ -215,9 +217,15 @@ export function PlayerOverlay() {
             .then((value) => bridge.window.setFullscreen(!value))
             .catch(() => undefined);
           break;
+        // The settings page is in this window, underneath the player, so
+        // showing it means putting the player away first.
+        case "open-settings":
+          close();
+          void navigate("/settings");
+          break;
       }
     });
-  }, [next, previous, close]);
+  }, [next, previous, close, navigate]);
 
   /* ---------------------------------------------------------------------- *
    * Keyboard

@@ -481,7 +481,14 @@ export function PlayerChrome() {
             </IconButton>
 
             {menuOpen ? (
-              <SettingsMenu mpv={mpv} onClose={() => setMenuOpen(false)} />
+              <SettingsMenu
+                mpv={mpv}
+                onClose={() => setMenuOpen(false)}
+                onOpenAppSettings={() => {
+                  setMenuOpen(false);
+                  send("open-settings");
+                }}
+              />
             ) : null}
           </div>
 

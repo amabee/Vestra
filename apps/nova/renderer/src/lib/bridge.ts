@@ -272,7 +272,12 @@ export interface NowPlaying {
   autoSkip: boolean;
 }
 
-export type PlayerCommand = "next" | "previous" | "close" | "toggle-fullscreen";
+export type PlayerCommand =
+  | "next"
+  | "previous"
+  | "close"
+  | "toggle-fullscreen"
+  | "open-settings";
 
 /** An opening or ending range, from AniSkip. */
 export interface SkipInterval {
