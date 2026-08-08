@@ -373,7 +373,13 @@ const nowPlayingSchema = z.object({
   autoSkip: z.boolean().default(false),
 });
 
-const commandSchema = z.enum(["next", "previous", "close", "toggle-fullscreen"]);
+const commandSchema = z.enum([
+  "next",
+  "previous",
+  "close",
+  "toggle-fullscreen",
+  "open-settings",
+]);
 
 const dragSchema = z.object({
   phase: z.enum(["start", "move"]),

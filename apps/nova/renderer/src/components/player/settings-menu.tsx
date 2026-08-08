@@ -62,9 +62,11 @@ const SHORTCUTS: { group: string; keys: [string, string][] }[] = [
 export function SettingsMenu({
   mpv,
   onClose,
+  onOpenAppSettings,
 }: {
   mpv: MpvState;
   onClose: () => void;
+  onOpenAppSettings: () => void;
 }) {
   const [page, setPage] = useState<Page>("root");
   const container = useRef<HTMLDivElement>(null);
@@ -143,6 +145,16 @@ export function SettingsMenu({
             onClick={() => setPage("size")}
           />
           <Row label="Keyboard shortcuts" value="" onClick={() => setPage("keys")} />
+
+          {/* Everything above is scoped to what is playing. Theme, accent and
+              library folders are not, and live on a page this window is
+              covering — so reaching them means leaving the player, which the
+              row says rather than springing it. */}
+          <Row
+            label="App settings"
+            value="Leaves the player"
+            onClick={onOpenAppSettings}
+          />
         </>
       ) : null}
 
