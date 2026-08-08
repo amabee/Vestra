@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import type { MediaKind } from "@vestra/types";
 
 import { bridge } from "@/lib/bridge";
@@ -105,4 +106,23 @@ export function useBookmarks() {
     queryKey: keys.bookmarks,
     queryFn: () => bridge.bookmarks.all(),
   });
+}
+
+/**
+ * Refetch library data when the main process fills details in.
+ *
+ * Runtimes and stills are read in the background after startup, so a list
+ * rendered before that finishes would otherwise stay blank until something
+ * else happened to invalidate it.
+ */
+export function useLibraryUpdates(): void {
+  const queryClient = useQueryClient();
+
+  useEffect(
+    () =>
+      bridge.library.onChanged(() => {
+        void queryClient.invalidateQueries({ queryKey: keys.library });
+      }),
+    [queryClient],
+  );
 }

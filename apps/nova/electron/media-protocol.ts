@@ -99,13 +99,18 @@ export function registerMediaProtocolHandler(): void {
   protocol.handle(MEDIA_SCHEME, async (request) => {
     const url = new URL(request.url);
 
-    // vestra-media://local/<fileId>
-    if (url.hostname !== "local") {
+    const fileId = decodeURIComponent(url.pathname.replace(/^\//, ""));
+    if (fileId.length === 0) {
       return new Response("Not found", { status: 404 });
     }
 
-    const fileId = decodeURIComponent(url.pathname.replace(/^\//, ""));
-    if (fileId.length === 0) {
+    // vestra-media://thumb/<fileId>
+    if (url.hostname === "thumb") {
+      return serveThumbnail(fileId);
+    }
+
+    // vestra-media://local/<fileId>
+    if (url.hostname !== "local") {
       return new Response("Not found", { status: 404 });
     }
 
@@ -151,4 +156,39 @@ export function registerMediaProtocolHandler(): void {
       },
     });
   });
+}
+
+/**
+ * A still frame for an indexed file.
+ *
+ * The path is read from the library record, never from the URL, so the same
+ * allowlist that governs playback governs this. A record can name a file that
+ * has since been deleted, which is a 404 rather than an error — the list falls
+ * back to showing no image.
+ */
+async function serveThumbnail(fileId: string): Promise<Response> {
+  const files = await getLocalFiles(getDriver());
+  const file = files.find((entry) => entry.id === fileId);
+
+  if (!file?.thumbnailPath) return new Response("Not found", { status: 404 });
+
+  try {
+    const stats = await stat(file.thumbnailPath);
+    if (!stats.isFile()) return new Response("Not found", { status: 404 });
+
+    return new Response(
+      Readable.toWeb(createReadStream(file.thumbnailPath)) as ReadableStream,
+      {
+        status: 200,
+        headers: {
+          "content-type": "image/jpeg",
+          "content-length": String(stats.size),
+          // Regenerated under the same name, so revalidation is worth keeping.
+          "cache-control": "no-cache",
+        },
+      },
+    );
+  } catch {
+    return new Response("Not found", { status: 404 });
+  }
 }

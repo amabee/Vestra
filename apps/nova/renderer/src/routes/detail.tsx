@@ -23,7 +23,7 @@ import { useNavigate, useParams } from "react-router";
 import { Notice, Page, SectionRule } from "@/components/layout/page";
 import { bridge } from "@/lib/bridge";
 import { usePlayer } from "@/lib/player-store";
-import { keys, useBookmarks, useProgress } from "@/lib/queries";
+import { keys, useBookmarks, useLibrary, useLibraryUpdates, useProgress } from "@/lib/queries";
 
 /** Below this an entry is an accidental open, not somewhere to return to. */
 const MIN_PROGRESS = 0.01;
@@ -40,6 +40,10 @@ interface EpisodeView {
   bookmarked: boolean;
   title: string;
   number: string;
+  /** Runtime of the file itself, once it has been read. */
+  runtimeSeconds: number | null;
+  /** Still frame URL, or null until one has been taken. */
+  still: string | null;
 }
 
 /**
@@ -100,7 +104,12 @@ export function DetailRoute() {
   const queryClient = useQueryClient();
   const progress = useProgress();
   const bookmarks = useBookmarks();
+  const library = useLibrary();
   const [filter, setFilter] = useState<EpisodeFilter>("all");
+
+  // Runtimes and stills are read in the background, so this page has to be
+  // told when they land rather than only reading them once on mount.
+  useLibraryUpdates();
 
   const baseKey = ref ? mediaKey(ref) : "";
 
@@ -127,12 +136,19 @@ export function DetailRoute() {
       }
     }
 
+    // Runtime and still come from the library record rather than the playback
+    // source: they are properties of the file, are filled in long after it was
+    // indexed, and only local sources have them at all.
+    const byFileId = new Map((library.data ?? []).map((file) => [file.id, file]));
+
     return local.map((entry, index) => {
       const key = entry.fileId ? `${baseKey}#${entry.fileId}` : baseKey;
       const named =
         entry.episode == null
           ? undefined
           : titles.get(`${entry.season ?? 1}:${entry.episode}`);
+
+      const file = entry.fileId ? byFileId.get(entry.fileId) : undefined;
 
       return {
         source: entry,
@@ -146,9 +162,14 @@ export function DetailRoute() {
             ? (entry.label ?? entry.fileName ?? "Untitled")
             : `Episode ${entry.episode}`),
         number: String(entry.episode ?? index + 1).padStart(2, "0"),
+        runtimeSeconds: file?.durationSeconds ?? null,
+        still:
+          file?.thumbnailPath && entry.fileId
+            ? `vestra-media://thumb/${encodeURIComponent(entry.fileId)}`
+            : null,
       };
     });
-  }, [sources.data, details.data, progress.data, bookmarks.data, baseKey]);
+  }, [sources.data, details.data, progress.data, bookmarks.data, library.data, baseKey]);
 
   const externals = (sources.data ?? []).filter((entry) =>
     entry.locator.startsWith("http"),
@@ -189,13 +210,16 @@ export function DetailRoute() {
   /**
    * Mark an episode watched or unwatched by hand.
    *
-   * Completion is derived from position over duration, so a runtime is needed
-   * even when nothing has played yet and none is known. One second stands in:
-   * the flag is what matters, and no duration is shown for a finished episode.
+   * Completion is derived from position over duration, so a runtime is needed.
+   * The file's own runtime is used where it is known, falling back to whatever
+   * playback last recorded, and finally to a single second — enough to set the
+   * flag, and never shown, because a finished episode displays no time.
    */
   const setWatched = useMutation({
     mutationFn: async (input: { entry: EpisodeView; watched: boolean }) => {
-      const seconds = input.entry.watch?.durationSeconds || 1;
+      const seconds =
+        input.entry.runtimeSeconds ?? input.entry.watch?.durationSeconds ?? 1;
+
       await bridge.progress.save({
         ref: ref as MediaRef,
         episodeId: input.entry.source.fileId,
@@ -561,13 +585,34 @@ function EpisodeCard({
         watched ? "rule bg-base-200/20" : "rule bg-base-200/40"
       } hover:border-primary/40 hover:bg-base-200/70`}
     >
-      <span
-        className={`index-mark w-9 shrink-0 text-right tabular-nums ${
-          watched ? "text-base-content/25" : "text-base-content/50"
-        }`}
-      >
-        {entry.number}
-      </span>
+      {/* The still replaces the index once one exists, so the row keeps its
+          shape whether or not the file has been read yet. */}
+      <div className="relative w-24 shrink-0 overflow-hidden rounded-selector bg-base-300">
+        <div className="aspect-video">
+          {entry.still ? (
+            <img
+              src={entry.still}
+              alt=""
+              loading="lazy"
+              className={`size-full object-cover ${watched ? "opacity-50" : ""}`}
+            />
+          ) : (
+            <span
+              className={`index-mark grid size-full place-items-center tabular-nums ${
+                watched ? "text-base-content/25" : "text-base-content/50"
+              }`}
+            >
+              {entry.number}
+            </span>
+          )}
+        </div>
+
+        {entry.still ? (
+          <span className="absolute left-1 top-1 rounded-selector bg-base-100/80 px-1 text-[10px] font-mono tabular-nums text-base-content/70">
+            {entry.number}
+          </span>
+        ) : null}
+      </div>
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
@@ -577,6 +622,9 @@ function EpisodeCard({
           {watched ? <Check className="size-3.5 shrink-0 text-success" /> : null}
           {entry.bookmarked ? (
             <Bookmark className="size-3.5 shrink-0 fill-current text-primary" />
+          ) : null}
+          {entry.runtimeSeconds ? (
+            <span className="meta shrink-0">{formatDuration(entry.runtimeSeconds)}</span>
           ) : null}
         </div>
 

@@ -84,6 +84,7 @@ interface RawBridge {
     removeFolder: (id: string) => Promise<unknown>;
     scan: () => Promise<unknown>;
     rematch: () => Promise<unknown>;
+    onChanged: (listener: () => void) => () => void;
   };
   extensions: {
     list: () => Promise<unknown>;
@@ -435,6 +436,9 @@ export const bridge = {
         reidentified: number;
         remapped: number;
       },
+
+    /** Returns an unsubscribe function. */
+    onChanged: (listener: () => void): (() => void) => raw().library.onChanged(listener),
   },
 
   extensions: {
