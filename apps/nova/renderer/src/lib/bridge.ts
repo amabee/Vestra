@@ -56,6 +56,7 @@ interface RawBridge {
     probe: (fileId: string) => Promise<unknown>;
     probeAvailable: () => Promise<unknown>;
     skipTimes: (request: unknown) => Promise<unknown>;
+    reportSkip: (skipId: string) => Promise<unknown>;
   };
   watchlist: {
     list: () => Promise<unknown>;
@@ -267,9 +268,17 @@ export interface NowPlaying {
   total: number;
   engine: "mpv" | "builtin";
   /** Opening and ending ranges for the episode playing, if any are known. */
-  skips: { kind: "opening" | "ending"; startSeconds: number; endSeconds: number }[];
+  skips: {
+    kind: "opening" | "ending";
+    startSeconds: number;
+    endSeconds: number;
+    /** Null when the range came from the file's own chapters. */
+    skipId: string | null;
+  }[];
   /** Jump past a range automatically instead of offering a button. */
   autoSkip: boolean;
+  /** Counts up per playback, so replaying one episode is not one session. */
+  sessionId: number;
 }
 
 export type PlayerCommand =
@@ -357,6 +366,10 @@ export const bridge = {
       episodeLengthSeconds?: number;
     }): Promise<SkipInterval[]> =>
       (await raw().media.skipTimes(request)) as SkipInterval[],
+
+    /** Vote a wrong timing down. Resolves false if the vote did not land. */
+    reportSkip: async (skipId: string): Promise<boolean> =>
+      (await raw().media.reportSkip(skipId)) as boolean,
   },
 
   watchlist: {

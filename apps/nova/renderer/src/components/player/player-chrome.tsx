@@ -208,10 +208,16 @@ export function PlayerChrome() {
     void bridge.mpv.seek(activeSkip.endSeconds).catch(() => undefined);
   }, [nowPlaying?.autoSkip, activeSkip]);
 
-  // A new episode gets a clean slate.
+  /*
+    A new playback gets a clean slate.
+
+    Keyed on the session rather than the title or queue position: replaying the
+    same episode changes neither, so an opening skipped once would stay skipped
+    for as long as the app was open.
+  */
   useEffect(() => {
     skippedRanges.current.clear();
-  }, [nowPlaying?.index, nowPlaying?.title]);
+  }, [nowPlaying?.sessionId]);
 
   /* ---------------------------------------------------------------------- *
    * Keyboard
@@ -484,6 +490,9 @@ export function PlayerChrome() {
               <SettingsMenu
                 mpv={mpv}
                 onClose={() => setMenuOpen(false)}
+                reportableSkips={(nowPlaying?.skips ?? [])
+                  .map((skip) => skip.skipId)
+                  .filter((id): id is string => Boolean(id))}
                 onOpenAppSettings={() => {
                   setMenuOpen(false);
                   send("open-settings");

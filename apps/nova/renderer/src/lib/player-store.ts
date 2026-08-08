@@ -27,6 +27,15 @@ interface PlayerState {
    * episode should do.
    */
   startAt: number | null;
+  /**
+   * Which playback this is, counting up.
+   *
+   * Title and queue position do not distinguish replaying the same episode
+   * from never having left it, and the controls window needs to tell those
+   * apart — an opening already skipped once must be skipped again next time
+   * the file is opened.
+   */
+  sessionId: number;
   open: (
     item: MediaItem,
     queue: PlaybackSource[],
@@ -45,24 +54,43 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   queue: [],
   index: 0,
   startAt: null,
+  sessionId: 0,
 
   open: (item, queue, index = 0, startAt = null) =>
-    set({ item, queue, index: clamp(index, queue.length), startAt }),
+    set((state) => ({
+      item,
+      queue,
+      index: clamp(index, queue.length),
+      startAt,
+      sessionId: state.sessionId + 1,
+    })),
 
   playAt: (index) => {
     const { queue } = get();
     if (index < 0 || index >= queue.length) return;
-    set({ index, startAt: null });
+    set((state) => ({ index, startAt: null, sessionId: state.sessionId + 1 }));
   },
 
   next: () => {
     const { index, queue } = get();
-    if (index + 1 < queue.length) set({ index: index + 1, startAt: null });
+    if (index + 1 < queue.length) {
+      set((state) => ({
+        index: index + 1,
+        startAt: null,
+        sessionId: state.sessionId + 1,
+      }));
+    }
   },
 
   previous: () => {
     const { index } = get();
-    if (index > 0) set({ index: index - 1, startAt: null });
+    if (index > 0) {
+      set((state) => ({
+        index: index - 1,
+        startAt: null,
+        sessionId: state.sessionId + 1,
+      }));
+    }
   },
 
   close: () => set({ item: null, queue: [], index: 0, startAt: null }),

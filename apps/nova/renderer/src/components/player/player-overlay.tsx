@@ -54,6 +54,7 @@ async function resumeSecondsFor(
  */
 export function PlayerOverlay() {
   const { item, queue, index, next, previous, close } = usePlayer();
+  const sessionId = usePlayer((state) => state.sessionId);
   const source = queue[index] ?? null;
   const navigate = useNavigate();
 
@@ -178,8 +179,13 @@ export function PlayerOverlay() {
         index,
         total: queue.length,
         engine: usingMpv ? "mpv" : "builtin",
-        skips: skipSegments ? skips : [],
+        // Chapter-derived ranges carry no id; the wire format says so rather
+        // than leaving the field absent.
+        skips: skipSegments
+          ? skips.map((skip) => ({ ...skip, skipId: skip.skipId ?? null }))
+          : [],
         autoSkip: autoSkipSegments,
+        sessionId,
       })
       .catch(() => undefined);
   }, [
@@ -191,6 +197,7 @@ export function PlayerOverlay() {
     skips,
     skipSegments,
     autoSkipSegments,
+    sessionId,
   ]);
 
   /**
