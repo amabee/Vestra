@@ -4,7 +4,7 @@ import { z } from "zod";
  * Sources
  * ========================================================================== */
 
-/** Every provider Vestra can pull content from. */
+/** Every provider built into Vestra. */
 export const MEDIA_SOURCES = [
   "anilist",
   "tmdb",
@@ -14,8 +14,60 @@ export const MEDIA_SOURCES = [
   "qbittorrent",
 ] as const;
 
-export const mediaSourceSchema = z.enum(MEDIA_SOURCES);
-export type MediaSource = z.infer<typeof mediaSourceSchema>;
+export const firstPartySourceSchema = z.enum(MEDIA_SOURCES);
+export type FirstPartySource = z.infer<typeof firstPartySourceSchema>;
+
+/**
+ * Prefix marking a source as belonging to a community extension.
+ *
+ * A hyphen, not a colon, because `mediaKey()` joins a ref with colons and
+ * `parseMediaKey()` splits on them — a colon here would make "ext:kitsu"
+ * parse back as source "ext", kind "kitsu", and every stored key for an
+ * extension would round-trip into a different item.
+ *
+ * The prefix is applied by the host from the extension's id, never chosen by
+ * the extension, so an extension cannot present itself as AniList and take
+ * over routing for entries it did not provide.
+ */
+export const EXTENSION_SOURCE_PREFIX = "ext-";
+
+export type ExtensionSource = `ext-${string}`;
+
+/** Extension ids are already constrained by the manifest; mirror that here. */
+const EXTENSION_SOURCE_PATTERN = /^ext-[a-zA-Z0-9._-]{1,100}$/;
+
+export type MediaSource = FirstPartySource | ExtensionSource;
+
+/**
+ * Checked by hand rather than as a zod union.
+ *
+ * A union of an enum and a plain string collapses to `string` in TypeScript,
+ * which would lose the discrimination every switch on a first-party source
+ * relies on. A template literal type keeps them distinguishable.
+ */
+export const mediaSourceSchema = z.custom<MediaSource>(
+  (value) =>
+    typeof value === "string" &&
+    ((MEDIA_SOURCES as readonly string[]).includes(value) ||
+      EXTENSION_SOURCE_PATTERN.test(value)),
+  { message: "Not a known provider or extension source" },
+);
+
+export function isExtensionSource(source: string): source is ExtensionSource {
+  return EXTENSION_SOURCE_PATTERN.test(source);
+}
+
+/** The source an extension's results are published under. */
+export function toExtensionSource(extensionId: string): ExtensionSource {
+  return `${EXTENSION_SOURCE_PREFIX}${extensionId}`;
+}
+
+/** Inverse of `toExtensionSource`. Null when the source is first-party. */
+export function extensionIdFromSource(source: string): string | null {
+  return isExtensionSource(source)
+    ? source.slice(EXTENSION_SOURCE_PREFIX.length)
+    : null;
+}
 
 /** Content classification, used for routing and section grouping. */
 export const MEDIA_KINDS = [

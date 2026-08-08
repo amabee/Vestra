@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { createBrokeredFetch, type GuardedTransport } from "@vestra/extension-host/net";
 import type { PermissionGrant } from "@vestra/extension-host/permissions";
 import { listInstalled, readSource } from "@vestra/extension-host/store";
+import type { InstalledExtension } from "@vestra/extension-host/install";
 import { NodeDriver } from "@vestra/storage";
 import { utilityProcess, type UtilityProcess } from "electron";
 
@@ -138,7 +139,7 @@ export async function loadExtension(input: {
   extensionId: string;
   source: string;
   grant: PermissionGrant;
-}): Promise<void> {
+}): Promise<string[]> {
   // The fetcher is built here, from the grant, and stays here. The worker only
   // ever receives the outcome of a request it asked for.
   loaded.set(input.extensionId, {
@@ -147,12 +148,15 @@ export async function loadExtension(input: {
   });
 
   try {
-    await send({
+    const result = await send({
       kind: "load",
       extensionId: input.extensionId,
       source: input.source,
       grant: input.grant,
     });
+
+    const methods = (result as { methods?: unknown })?.methods;
+    return Array.isArray(methods) ? methods.filter((m) => typeof m === "string") : [];
   } catch (error) {
     loaded.delete(input.extensionId);
     throw error;
@@ -179,6 +183,10 @@ export function listLoadedExtensions(): string[] {
 export interface StartupReport {
   loaded: string[];
   skipped: { id: string; reason: string }[];
+  /** Exported methods per extension, for whoever decides what to do with them. */
+  methods: Record<string, string[]>;
+  /** The records that loaded, so callers need not re-read the store. */
+  records: InstalledExtension[];
 }
 
 /**
@@ -191,7 +199,7 @@ export interface StartupReport {
  */
 export async function loadInstalledExtensions(dataDir: string): Promise<StartupReport> {
   const driver = new NodeDriver(dataDir);
-  const report: StartupReport = { loaded: [], skipped: [] };
+  const report: StartupReport = { loaded: [], skipped: [], methods: {}, records: [] };
 
   let records;
   try {
@@ -212,13 +220,15 @@ export async function loadInstalledExtensions(dataDir: string): Promise<StartupR
         continue;
       }
 
-      await loadExtension({
+      const methods = await loadExtension({
         extensionId: record.id,
         source,
         grant: record.grant,
       });
 
       report.loaded.push(record.id);
+      report.methods[record.id] = methods;
+      report.records.push(record);
     } catch (error) {
       report.skipped.push({
         id: record.id,

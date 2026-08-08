@@ -54,6 +54,7 @@ import {
   unloadExtension,
 } from "./extensions";
 import { buildLibraryEntries } from "./library-entries";
+import { attachExtensionProvider, detachExtensionProvider } from "./extension-providers";
 import { probeMedia, resolveFfprobe, skipPointsFrom } from "./media-probe";
 import { safeFetch } from "./safe-fetch";
 import { getAdapterRegistry, getDriver, getProviderRegistry, resolveDataDir } from "./services";
@@ -625,7 +626,13 @@ export function registerDataIpc(): void {
     const { record, source } = await completeInstall(plan, granted, transport);
 
     await saveInstalled(getDriver(), record, source);
-    await loadExtension({ extensionId: record.id, source, grant: record.grant });
+    const methods = await loadExtension({
+      extensionId: record.id,
+      source,
+      grant: record.grant,
+    });
+
+    attachExtensionProvider(record, methods);
 
     return record;
   });
@@ -633,6 +640,7 @@ export function registerDataIpc(): void {
   handle("extensions:uninstall", async (raw: unknown) => {
     const id = parse(z.string().min(1).max(200), raw, "extension id");
 
+    detachExtensionProvider(id);
     await unloadExtension(id);
     await removeInstalled(getDriver(), id);
 

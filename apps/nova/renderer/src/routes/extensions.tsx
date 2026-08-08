@@ -344,6 +344,15 @@ function AvailableRow({
   const support = EXTENSION_TYPE_SUPPORT[entry.type];
   const health = healthOf(entry);
 
+  /*
+    Some registries put the code's URL in the manifest rather than the listing.
+    Vestra needs it up front — it is what the integrity fingerprint is taken
+    of, and what "pinned to a commit" is judged from — so a listing without one
+    cannot be installed. Better to say so on the row than to fail after a click
+    with a validation error about a URL the user never saw.
+  */
+  const installable = support.supported && entry.payloadURI.length > 0;
+
   return (
     <article className="flex items-start gap-4 rounded-box border rule bg-base-200/40 px-4 py-3">
       <div className="min-w-0 flex-1">
@@ -370,9 +379,17 @@ function AvailableRow({
         {support.supported ? null : (
           <p className="mt-2 max-w-[70ch] text-xs text-base-content/50">{support.reason}</p>
         )}
+
+        {support.supported && !installable ? (
+          <p className="mt-2 max-w-[70ch] text-xs text-base-content/50">
+            This listing does not say where its code lives, so Vestra has
+            nothing to fingerprint. That is a gap in the registry entry rather
+            than anything about the extension itself.
+          </p>
+        ) : null}
       </div>
 
-      {support.supported ? (
+      {installable ? (
         <button
           type="button"
           disabled={busy || installed}
@@ -382,7 +399,9 @@ function AvailableRow({
           {installed ? "Installed" : "Review"}
         </button>
       ) : (
-        <span className="meta shrink-0 self-center">Not installable</span>
+        <span className="meta shrink-0 self-center">
+          {support.supported ? "No code listed" : "Not installable"}
+        </span>
       )}
     </article>
   );
