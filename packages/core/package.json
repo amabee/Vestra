@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./search": "./src/search.ts",
+    "./chapters": "./src/chapters.ts",
     "./discover": "./src/discover.ts",
     "./format": "./src/format.ts",
     "./filename": "./src/filename.ts",
@@ -14,6 +15,7 @@
   },
   "scripts": {
     "lint": "eslint .",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

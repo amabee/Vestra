@@ -106,6 +106,12 @@ export interface MpvTrack {
   external: boolean;
 }
 
+/** A named point in the file. Releases rarely carry them; some do. */
+export interface MpvChapter {
+  title: string | null;
+  startSeconds: number;
+}
+
 export interface MpvState {
   running: boolean;
   idle: boolean;
@@ -123,6 +129,8 @@ export interface MpvState {
   /** True once the file has played to its end. */
   ended: boolean;
   tracks: MpvTrack[];
+  /** Chapters muxed into the file, in order. Usually empty. */
+  chapters: MpvChapter[];
   subtitleVisible: boolean;
   /** Set when mpv reports a problem loading the file. */
   error: string | null;
@@ -141,6 +149,7 @@ const INITIAL_STATE: MpvState = {
   subtitleScale: 1,
   ended: false,
   tracks: [],
+  chapters: [],
   subtitleVisible: true,
   error: null,
 };
@@ -158,6 +167,7 @@ const OBSERVED = {
   speed: 9,
   subDelay: 10,
   subScale: 11,
+  chapterList: 12,
 } as const;
 
 export interface MpvOptions {
@@ -304,6 +314,7 @@ export class MpvSession {
       ["volume", OBSERVED.volume],
       ["mute", OBSERVED.mute],
       ["track-list", OBSERVED.trackList],
+      ["chapter-list", OBSERVED.chapterList],
       ["eof-reached", OBSERVED.eofReached],
       ["sub-visibility", OBSERVED.subVisibility],
       ["speed", OBSERVED.speed],
@@ -353,6 +364,9 @@ export class MpvSession {
           break;
         case "track-list":
           this.#emit({ tracks: parseTracks(event.data) });
+          break;
+        case "chapter-list":
+          this.#emit({ chapters: parseChapters(event.data) });
           break;
       }
       return;
@@ -595,4 +609,28 @@ function parseTracks(data: unknown): MpvTrack[] {
   }
 
   return tracks;
+}
+
+interface RawChapter {
+  title?: string | null;
+  time?: number;
+}
+
+function parseChapters(data: unknown): MpvChapter[] {
+  if (!Array.isArray(data)) return [];
+
+  const chapters: MpvChapter[] = [];
+
+  for (const entry of data as RawChapter[]) {
+    if (typeof entry.time !== "number" || !Number.isFinite(entry.time)) continue;
+
+    chapters.push({
+      title: entry.title ?? null,
+      startSeconds: Math.max(0, entry.time),
+    });
+  }
+
+  // mpv reports them in order, but a malformed file need not, and the end of
+  // one chapter is read as the start of the next.
+  return chapters.sort((a, b) => a.startSeconds - b.startSeconds);
 }

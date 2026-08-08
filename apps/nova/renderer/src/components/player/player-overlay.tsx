@@ -1,4 +1,5 @@
 import { mediaKey, type MediaItem } from "@vestra/types";
+import { preferChapters, skipRangesFromChapters } from "@vestra/core/chapters";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -144,6 +145,23 @@ export function PlayerOverlay() {
     staleTime: Number.POSITIVE_INFINITY,
   });
 
+  /**
+   * What the skip control actually offers.
+   *
+   * A file that carries its own chapters is the better authority: the ranges
+   * come from the release being watched rather than from a database keyed by a
+   * series id, so there is no season to resolve and no episode numbering to
+   * line up. Most releases have none, and then the community timings stand.
+   */
+  const skips = useMemo(
+    () =>
+      preferChapters(
+        skipRangesFromChapters(mpv.chapters, mpv.duration),
+        skipTimes.data ?? [],
+      ),
+    [mpv.chapters, mpv.duration, skipTimes.data],
+  );
+
   /* ---------------------------------------------------------------------- *
    * Feeding the controls window
    * ---------------------------------------------------------------------- */
@@ -158,7 +176,7 @@ export function PlayerOverlay() {
         index,
         total: queue.length,
         engine: usingMpv ? "mpv" : "builtin",
-        skips: skipSegments ? (skipTimes.data ?? []) : [],
+        skips: skipSegments ? skips : [],
         autoSkip: autoSkipSegments,
       })
       .catch(() => undefined);
@@ -168,7 +186,7 @@ export function PlayerOverlay() {
     index,
     queue.length,
     usingMpv,
-    skipTimes.data,
+    skips,
     skipSegments,
     autoSkipSegments,
   ]);
@@ -356,7 +374,7 @@ export function PlayerOverlay() {
 
         // Jump past whichever opening or ending is playing right now.
         case "s": {
-          const current = (skipTimes.data ?? []).find(
+          const current = skips.find(
             (range) => at >= range.startSeconds && at < range.endSeconds - 1,
           );
           if (current) seek(current.endSeconds);
@@ -393,7 +411,7 @@ export function PlayerOverlay() {
     mpv.duration,
     mpv.tracks,
     mpv.subtitleVisible,
-    skipTimes.data,
+    skips,
     hasNext,
     index,
     next,

@@ -3,6 +3,8 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { promisify } from "node:util";
 
+import { skipRangesFromChapters, type SkipRange } from "@vestra/core/chapters";
+
 const run = promisify(execFile);
 
 /**
@@ -327,42 +329,14 @@ export async function probeMedia(
  * Chapters → skip points
  * ========================================================================== */
 
-const OPENING = /\b(op|opening|intro|avant)\b/i;
-const ENDING = /\b(ed|ending|outro|credits|preview)\b/i;
-
-export interface SkipPoint {
-  kind: "opening" | "ending";
-  startSeconds: number;
-  endSeconds: number;
-}
+export type SkipPoint = SkipRange;
 
 /**
  * Derive skip ranges from chapter titles.
  *
- * Only what the file itself claims — no guessing from timings. A chapter named
- * "Opening" is a fact; assuming the first 90 seconds is an opening is not, and
- * would skip cold opens.
+ * The reading lives in core so that the player, which gets its chapters from
+ * mpv rather than from here, cannot drift from this.
  */
 export function skipPointsFrom(chapters: readonly ChapterInfo[]): SkipPoint[] {
-  const points: SkipPoint[] = [];
-
-  for (const chapter of chapters) {
-    if (!chapter.title || chapter.endSeconds <= chapter.startSeconds) continue;
-
-    const kind = OPENING.test(chapter.title)
-      ? "opening"
-      : ENDING.test(chapter.title)
-        ? "ending"
-        : null;
-
-    if (!kind) continue;
-
-    points.push({
-      kind,
-      startSeconds: chapter.startSeconds,
-      endSeconds: chapter.endSeconds,
-    });
-  }
-
-  return points;
+  return skipRangesFromChapters(chapters);
 }
