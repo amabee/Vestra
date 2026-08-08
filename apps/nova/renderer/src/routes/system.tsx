@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FolderPlus, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { FolderPlus, Loader2, RefreshCw, Trash2, Wand2 } from "lucide-react";
 import { useState } from "react";
 
 import { Notice, Page, PageHeader, SectionRule } from "@/components/layout/page";
@@ -93,6 +93,12 @@ export function SettingsRoute() {
 function MediaFolders() {
   const queryClient = useQueryClient();
   const [summary, setSummary] = useState<ScanSummary | null>(null);
+  const [rematched, setRematched] = useState<{
+    matched: number;
+    unmatched: number;
+    reidentified: number;
+    remapped: number;
+  } | null>(null);
 
   const { data: folders = [] } = useQuery({
     queryKey: ["library-folders"],
@@ -124,6 +130,21 @@ function MediaFolders() {
     },
   });
 
+  /**
+   * Identify everything again from scratch.
+   *
+   * A scan leaves files that already carry a match alone, so a library built
+   * by an earlier version keeps whatever it was given — including matches made
+   * before the matcher knew that each anime season is a separate entry.
+   */
+  const rematch = useMutation({
+    mutationFn: () => bridge.library.rematch(),
+    onSuccess: (result) => {
+      setRematched(result);
+      refresh();
+    },
+  });
+
   return (
     <section className="mt-10">
       <SectionRule
@@ -139,6 +160,22 @@ function MediaFolders() {
             >
               <FolderPlus className="size-3.5" />
               Add
+            </button>
+            <button
+              type="button"
+              // Not gated on folders: this re-reads the existing index rather
+              // than the disk, and an index can outlive the folder it came from.
+              disabled={rematch.isPending}
+              onClick={() => rematch.mutate()}
+              title="Look up every file again, replacing existing matches"
+              className="flex items-center gap-1.5 rounded-field border rule px-2.5 py-1 text-xs transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-40"
+            >
+              {rematch.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Wand2 className="size-3.5" />
+              )}
+              Re-identify
             </button>
             <button
               type="button"
@@ -191,6 +228,20 @@ function MediaFolders() {
 
       {scan.error ? (
         <p className="mt-3 text-xs text-error">{(scan.error as Error).message}</p>
+      ) : null}
+
+      {rematch.error ? (
+        <p className="mt-3 text-xs text-error">{(rematch.error as Error).message}</p>
+      ) : null}
+
+      {rematched ? (
+        <p className="meta mt-3">
+          {rematched.matched} matched · {rematched.unmatched} unmatched ·{" "}
+          {rematched.reidentified} re-identified
+          {rematched.remapped > 0
+            ? ` · ${rematched.remapped} kept their progress`
+            : ""}
+        </p>
       ) : null}
 
       {summary ? (

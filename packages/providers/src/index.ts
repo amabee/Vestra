@@ -32,6 +32,7 @@ export * from "./local-library";
 export * from "./matcher";
 export * from "./mediaserver";
 export * from "./scanner";
+export * from "./seasons";
 export * from "./shared";
 export * from "./tmdb";
 export * from "./youtube";

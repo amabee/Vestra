@@ -3,6 +3,7 @@ import { getLocalFiles, saveLocalFiles, type StorageDriver } from "@vestra/stora
 import type { LocalMediaFile, MediaItem, MediaRef } from "@vestra/types";
 
 import { normaliseTitle } from "./filename";
+import { resolveSeasonAnilistId } from "./seasons";
 
 /**
  * Match scanned local files to catalogue entries.
@@ -64,6 +65,30 @@ export interface MatchResult {
   files: LocalMediaFile[];
 }
 
+/** A file with no parsed season is treated as belonging to the first. */
+function seasonOf(file: LocalMediaFile): number {
+  return file.parsedSeason ?? 1;
+}
+
+/**
+ * The entry for a particular season of whatever was matched.
+ *
+ * Only AniList needs this. TMDb models a series as one entry containing all
+ * its seasons, so the ref is already right; AniList files each season as a
+ * separate entry, and a title search cannot tell them apart.
+ *
+ * Falls back to the entry that was matched when the walk cannot complete —
+ * offline, or a series that does not run to that season, which usually means
+ * the season was misparsed. That is no worse than the behaviour this replaces,
+ * whereas refusing to match would take a playable file out of the catalogue.
+ */
+async function resolveSeasonRef(ref: MediaRef, season: number): Promise<MediaRef> {
+  if (ref.source !== "anilist" || season <= 1) return ref;
+
+  const sourceId = await resolveSeasonAnilistId(ref.sourceId, season);
+  return sourceId === null ? ref : { ...ref, sourceId };
+}
+
 export interface MatchOptions {
   /** Re-match files that already have a `matchedRef`. */
   force?: boolean;
@@ -75,7 +100,11 @@ export interface MatchOptions {
  * Match every unmatched file in the library.
  *
  * Files are grouped by parsed title so a 24-episode series costs one search
- * rather than 24 — important for rate-limited providers like AniList.
+ * rather than 24 — important for rate-limited providers like AniList. The
+ * search is by title alone, because season naming is far too irregular to put
+ * in a query: "2", "II", "2nd Season" and "Season 2" are all in use, and some
+ * seasons are titled something else entirely. The season is applied afterwards
+ * by following the provider's own relation links.
  */
 export async function matchLibrary(
   driver: StorageDriver,
@@ -105,7 +134,8 @@ export async function matchLibrary(
     .filter((provider) => provider.id !== "local")
     .filter((provider) => !providerIds || providerIds.includes(provider.id));
 
-  const resolved = new Map<string, MediaRef>();
+  // Title key → season number → the entry that season belongs to.
+  const resolved = new Map<string, Map<number, MediaRef>>();
 
   for (const [key, bucket] of byTitle) {
     const sample = bucket[0];
@@ -147,7 +177,23 @@ export async function matchLibrary(
       }
     }
 
-    if (best) resolved.set(key, best.ref);
+    if (!best) continue;
+
+    /*
+      The search was by title alone, so `best` is whichever season the provider
+      happened to rank first — the titles differ by little more than a digit.
+      Each distinct season in the bucket is now resolved to its own entry.
+
+      Done per bucket rather than per file so a twelve-episode season costs one
+      walk, and only for seasons that are actually present.
+    */
+    const seasons = new Map<number, MediaRef>();
+
+    for (const season of new Set(bucket.map(seasonOf))) {
+      seasons.set(season, await resolveSeasonRef(best.ref, season));
+    }
+
+    resolved.set(key, seasons);
   }
 
   let matched = 0;
@@ -156,7 +202,7 @@ export async function matchLibrary(
     if (!file.parsedTitle) return file;
     if (!force && file.matchedRef !== null) return file;
 
-    const ref = resolved.get(normaliseTitle(file.parsedTitle));
+    const ref = resolved.get(normaliseTitle(file.parsedTitle))?.get(seasonOf(file));
     if (!ref) return file;
 
     matched += 1;

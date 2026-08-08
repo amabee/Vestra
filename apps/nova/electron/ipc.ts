@@ -12,6 +12,7 @@ import {
   getSettings,
   getWatchlist,
   removeFromWatchlist,
+  remapEpisodeKeys,
   saveProgress,
   saveSettings,
   toggleBookmark,
@@ -19,6 +20,7 @@ import {
 import { resolvePlayback, searchAcrossProviders, trendingAcrossProviders } from "@vestra/provider-sdk";
 import {
   mediaItemSchema,
+  mediaKey,
   mediaKindSchema,
   mediaRefSchema,
   searchQuerySchema,
@@ -421,6 +423,44 @@ export function registerDataIpc(): void {
       errors: scan.errors,
       matched: match.matched,
       unmatched: match.unmatched,
+    };
+  });
+
+  /**
+   * Identify everything again, including files that already carry a match.
+   *
+   * Separate from scanning because it is a repair rather than routine work.
+   * A scan deliberately leaves existing matches alone, so a library matched by
+   * an older build keeps whatever it was given — including matches made before
+   * the matcher understood that AniList files each season separately.
+   */
+  handle("library:rematch", async () => {
+    const driver = getDriver();
+
+    // Captured before the walk, so files whose identity moves can take their
+    // watch history with them.
+    const before = new Map(
+      (await getLocalFiles(driver)).map((file) => [file.id, file.matchedRef]),
+    );
+
+    const result = await matchLibrary(driver, getProviderRegistry(), {
+      force: true,
+    });
+
+    const moves = result.files.flatMap((file) => {
+      const from = before.get(file.id);
+      const to = file.matchedRef;
+      if (!from || !to || mediaKey(from) === mediaKey(to)) return [];
+      return [{ episodeId: file.id, from, to }];
+    });
+
+    const remapped = await remapEpisodeKeys(driver, moves);
+
+    return {
+      matched: result.matched,
+      unmatched: result.unmatched,
+      reidentified: moves.length,
+      remapped: remapped.progress,
     };
   });
 

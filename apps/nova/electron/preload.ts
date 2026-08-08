@@ -151,6 +151,7 @@ const api = {
     pickFolder: (): Promise<unknown> => invoke("library:pick-folder"),
     removeFolder: (id: string): Promise<unknown> => invoke("library:remove-folder", id),
     scan: (): Promise<unknown> => invoke("library:scan"),
+    rematch: (): Promise<unknown> => invoke("library:rematch"),
   },
 
   extensions: {

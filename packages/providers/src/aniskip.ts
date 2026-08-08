@@ -10,14 +10,16 @@
  * AniSkip is keyed by MyAnimeList id, not AniList id. That is worth stating
  * plainly because the two coincide for a few well-known series, so the mistake
  * looks like it works until it silently 404s on everything else. AniList
- * exposes `idMal`, which is how the two are bridged here.
+ * exposes `idMal`, which is how the two are bridged — see `./seasons`, which
+ * also handles the fact that AniList files each season as its own entry.
  *
  * Responses are checked by hand rather than with a schema library: this
  * package has no validation dependency, and the shape is three fields deep.
  */
 
+import { resolveSeasonMalId } from "./seasons";
+
 const ANISKIP_ENDPOINT = "https://api.aniskip.com/v2/skip-times";
-const ANILIST_ENDPOINT = "https://graphql.anilist.co";
 
 export interface SkipInterval {
   kind: "opening" | "ending";
@@ -32,185 +34,6 @@ interface RawResult {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-/** AniList id to MyAnimeList id. */
-const malIdCache = new Map<string, number | null>();
-
-interface RelatedMedia {
-  id: number;
-  idMal: number | null;
-  format: string | null;
-  relationType: string;
-}
-
-interface MediaNode {
-  id: number;
-  idMal: number | null;
-  relations: RelatedMedia[];
-}
-
-const MEDIA_QUERY = `query($id:Int!){
-  Media(id:$id, type:ANIME){
-    id
-    idMal
-    relations {
-      edges {
-        relationType
-        node { id idMal format type }
-      }
-    }
-  }
-}`;
-
-async function fetchMedia(anilistId: number): Promise<MediaNode | null> {
-  try {
-    const response = await fetch(ANILIST_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: MEDIA_QUERY, variables: { id: anilistId } }),
-      signal: AbortSignal.timeout(8000),
-    });
-
-    if (!response.ok) return null;
-
-    const payload: unknown = await response.json();
-    if (!isRecord(payload) || !isRecord(payload.data) || !isRecord(payload.data.Media)) {
-      return null;
-    }
-
-    const media = payload.data.Media;
-    const relations: RelatedMedia[] = [];
-
-    const edges = isRecord(media.relations) ? media.relations.edges : null;
-
-    if (Array.isArray(edges)) {
-      for (const edge of edges) {
-        if (!isRecord(edge) || !isRecord(edge.node)) continue;
-        if (edge.node.type !== "ANIME") continue;
-        if (typeof edge.node.id !== "number") continue;
-
-        relations.push({
-          id: edge.node.id,
-          idMal: typeof edge.node.idMal === "number" ? edge.node.idMal : null,
-          format: typeof edge.node.format === "string" ? edge.node.format : null,
-          relationType: String(edge.relationType ?? ""),
-        });
-      }
-    }
-
-    return {
-      id: typeof media.id === "number" ? media.id : anilistId,
-      idMal: typeof media.idMal === "number" ? media.idMal : null,
-      relations,
-    };
-  } catch {
-    return null;
-  }
-}
-
-export async function resolveMalId(anilistId: string): Promise<number | null> {
-  const cached = malIdCache.get(anilistId);
-  if (cached !== undefined) return cached;
-
-  const numeric = Number.parseInt(anilistId, 10);
-  if (!Number.isFinite(numeric)) return null;
-
-  const media = await fetchMedia(numeric);
-  const idMal = media?.idMal ?? null;
-
-  malIdCache.set(anilistId, idMal);
-  return idMal;
-}
-
-/**
- * The MyAnimeList id for a particular season of a series.
- *
- * AniList files each season as its own entry, and the scanner matches a folder
- * to whichever entry it found — commonly the first season, even for later
- * ones. Asking AniSkip for the wrong season returns perfectly valid timings
- * for the wrong show, which is worse than none: the skip button appears part
- * way through an episode and never during the actual opening.
- *
- * The chain is walked rather than trusted. Prequel links lead back to the
- * first season regardless of which entry was matched, then sequel links walk
- * forward to the season wanted. Only TV entries are followed, so films, OVAs
- * and specials in the same family do not shift the count.
- *
- * Returns null when the season cannot be reached, and the caller shows no skip
- * control rather than a misleading one.
- */
-const seasonCache = new Map<string, number | null>();
-
-const TV_FORMATS = new Set(["TV", "TV_SHORT"]);
-const MAX_HOPS = 12;
-
-export async function resolveSeasonMalId(
-  anilistId: string,
-  seasonNumber: number,
-): Promise<number | null> {
-  if (seasonNumber <= 1) return resolveMalId(anilistId);
-
-  const key = `${anilistId}:${seasonNumber}`;
-  const cached = seasonCache.get(key);
-  if (cached !== undefined) return cached;
-
-  const numeric = Number.parseInt(anilistId, 10);
-  if (!Number.isFinite(numeric)) return null;
-
-  let media = await fetchMedia(numeric);
-  if (!media) {
-    seasonCache.set(key, null);
-    return null;
-  }
-
-  // Back to the first season.
-  const seen = new Set<number>([media.id]);
-
-  for (let hop = 0; hop < MAX_HOPS; hop += 1) {
-    const prequel = media.relations.find(
-      (relation) =>
-        relation.relationType === "PREQUEL" &&
-        (relation.format === null || TV_FORMATS.has(relation.format)) &&
-        !seen.has(relation.id),
-    );
-
-    if (!prequel) break;
-
-    const next = await fetchMedia(prequel.id);
-    if (!next) break;
-
-    seen.add(next.id);
-    media = next;
-  }
-
-  // Forward to the season asked for.
-  for (let step = 1; step < seasonNumber; step += 1) {
-    const sequel = media.relations.find(
-      (relation) =>
-        relation.relationType === "SEQUEL" &&
-        (relation.format === null || TV_FORMATS.has(relation.format)) &&
-        !seen.has(relation.id),
-    );
-
-    if (!sequel) {
-      // The series does not go that far; refuse rather than guess.
-      seasonCache.set(key, null);
-      return null;
-    }
-
-    const next = await fetchMedia(sequel.id);
-    if (!next) {
-      seasonCache.set(key, null);
-      return null;
-    }
-
-    seen.add(next.id);
-    media = next;
-  }
-
-  seasonCache.set(key, media.idMal);
-  return media.idMal;
 }
 
 /** Skip times keyed by "malId:episode", including misses. */

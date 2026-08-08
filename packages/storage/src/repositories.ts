@@ -326,6 +326,66 @@ export async function toggleBookmark(
   return { bookmarked, entries };
 }
 
+/**
+ * Re-file progress and bookmarks after a library file changes identity.
+ *
+ * Both are keyed by media ref plus file id. Re-identifying a file therefore
+ * strands everything recorded against it — a fully watched season reappears as
+ * untouched, with no indication anything was lost. The file id half of the key
+ * does not change, so the entries can simply be moved.
+ *
+ * An entry already present at the destination wins; it describes the file
+ * under its current identity, and is newer than whatever is being moved.
+ */
+export async function remapEpisodeKeys(
+  driver: StorageDriver,
+  moves: readonly { episodeId: string; from: MediaRef; to: MediaRef }[],
+): Promise<{ progress: number; bookmarks: number }> {
+  if (moves.length === 0) return { progress: 0, bookmarks: 0 };
+
+  const progress = await getAllProgress(driver);
+  const bookmarks = await getBookmarks(driver);
+
+  let movedProgress = 0;
+  let movedBookmarks = 0;
+
+  for (const { episodeId, from, to } of moves) {
+    const oldKey = progressKey(from, episodeId);
+    const newKey = progressKey(to, episodeId);
+    if (oldKey === newKey) continue;
+
+    const entry = progress[oldKey];
+    if (entry && progress[newKey] === undefined) {
+      progress[newKey] = { ...entry, ref: to };
+      delete progress[oldKey];
+      movedProgress += 1;
+    }
+
+    const bookmark = bookmarks[oldKey];
+    if (bookmark && bookmarks[newKey] === undefined) {
+      bookmarks[newKey] = { ...bookmark, ref: to };
+      delete bookmarks[oldKey];
+      movedBookmarks += 1;
+    }
+  }
+
+  if (movedProgress > 0) {
+    await writeDocument(driver, STORAGE_KEYS.progress, progressDocSchema, {
+      version: 1,
+      entries: progress,
+    });
+  }
+
+  if (movedBookmarks > 0) {
+    await writeDocument(driver, STORAGE_KEYS.bookmarks, bookmarksDocSchema, {
+      version: 1,
+      entries: bookmarks,
+    });
+  }
+
+  return { progress: movedProgress, bookmarks: movedBookmarks };
+}
+
 /* =============================================================================
  * History
  * ========================================================================== */

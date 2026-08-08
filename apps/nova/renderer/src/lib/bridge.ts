@@ -83,6 +83,7 @@ interface RawBridge {
     pickFolder: () => Promise<unknown>;
     removeFolder: (id: string) => Promise<unknown>;
     scan: () => Promise<unknown>;
+    rematch: () => Promise<unknown>;
   };
   extensions: {
     list: () => Promise<unknown>;
@@ -420,6 +421,20 @@ export const bridge = {
 
     scan: async (): Promise<ScanSummary> =>
       (await raw().library.scan()) as ScanSummary,
+
+    /** Re-identify every file, including ones already matched. */
+    rematch: async (): Promise<{
+      matched: number;
+      unmatched: number;
+      reidentified: number;
+      remapped: number;
+    }> =>
+      (await raw().library.rematch()) as {
+        matched: number;
+        unmatched: number;
+        reidentified: number;
+        remapped: number;
+      },
   },
 
   extensions: {
