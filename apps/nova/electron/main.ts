@@ -18,12 +18,13 @@ import {
   stopExtensionWorker,
 } from "./extensions";
 import { registerDataIpc } from "./ipc";
+import { backfillMediaInfo, pruneThumbnails } from "./media-info";
 import { registerMpvIpc, shutdownMpv } from "./mpv/ipc";
 import {
   registerMediaProtocolHandler,
   registerMediaProtocolScheme,
 } from "./media-protocol";
-import { resolveDataDir } from "./services";
+import { getDriver, resolveDataDir } from "./services";
 
 /**
  * Vestra Nova — Electron main process.
@@ -322,6 +323,35 @@ if (!gotLock) {
     mainWindow = createWindow();
     createTray();
     initAutoUpdate();
+
+    /*
+      Fill in runtimes and stills for anything indexed without them.
+
+      Started here rather than during a scan: it opens every file, which takes
+      far longer than indexing does, and the library is perfectly usable while
+      it runs. Nothing waits on it, and a failure leaves the fields null —
+      which is what they already were.
+
+      The renderer is told at most once a second. It refetches the whole index
+      each time, and a library of several hundred files would otherwise ask it
+      to do so several hundred times in a row.
+    */
+    let announced = 0;
+
+    void backfillMediaInfo(getDriver(), (done, total) => {
+      const now = Date.now();
+      if (done < total && now - announced < 1000) return;
+
+      announced = now;
+      mainWindow?.webContents.send("library:changed");
+    })
+      .then((filled) => {
+        if (filled > 0) console.info(`[nova] filled in ${filled} file(s)`);
+        return pruneThumbnails(getDriver());
+      })
+      .catch((error: unknown) => {
+        console.warn("[nova] could not read media details", error);
+      });
 
     // Extensions are not required for the app to work, so a failure here is
     // reported and moved past rather than blocking startup.

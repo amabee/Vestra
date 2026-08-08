@@ -152,6 +152,13 @@ const api = {
     removeFolder: (id: string): Promise<unknown> => invoke("library:remove-folder", id),
     scan: (): Promise<unknown> => invoke("library:scan"),
     rematch: (): Promise<unknown> => invoke("library:rematch"),
+
+    /** Fires when details are filled in behind the scenes. */
+    onChanged: (listener: () => void): (() => void) => {
+      const handler = (): void => listener();
+      ipcRenderer.on("library:changed", handler);
+      return () => ipcRenderer.removeListener("library:changed", handler);
+    },
   },
 
   extensions: {
