@@ -6,6 +6,8 @@ import { listInstalled, readSource } from "@vestra/extension-host/store";
 import { NodeDriver } from "@vestra/storage";
 import { utilityProcess, type UtilityProcess } from "electron";
 
+import { safeFetch } from "./safe-fetch";
+
 /**
  * Extension manager.
  *
@@ -39,43 +41,16 @@ const loaded = new Map<string, Loaded>();
 /**
  * The real network call, made from the privileged process.
  *
- * Nova has no equivalent of Atlas's SSRF guard yet, so this is deliberately
- * narrow: https only, and the host must already have passed the allowlist in
- * `createBrokeredFetch`. Private-range blocking is still missing and is the
- * next thing this needs.
+ * Everything goes through `safeFetch`, which refuses anything that is not
+ * https and anything resolving to a loopback, private, link-local or
+ * carrier-grade-NAT address. Extension code has already passed the per-host
+ * allowlist in `createBrokeredFetch` by the time it reaches here; this is the
+ * backstop for what that allowlist cannot know, and the same guard covers
+ * registry and manifest fetches during an install.
  */
-const transport: GuardedTransport = {
+export const transport: GuardedTransport = {
   async request({ url, method, headers, body, timeoutMs, maxBytes }) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const response = await fetch(url, {
-        method,
-        headers,
-        body,
-        signal: controller.signal,
-        redirect: "error",
-        credentials: "omit",
-        referrerPolicy: "no-referrer",
-      });
-
-      const declared = Number.parseInt(response.headers.get("content-length") ?? "", 10);
-      if (Number.isFinite(declared) && declared > maxBytes) {
-        throw new Error("Response too large.");
-      }
-
-      const text = await response.text();
-      if (text.length > maxBytes) throw new Error("Response too large.");
-
-      return {
-        status: response.status,
-        headers: Object.fromEntries(response.headers.entries()),
-        body: text,
-      };
-    } finally {
-      clearTimeout(timer);
-    }
+    return safeFetch({ url, method, headers, body, timeoutMs, maxBytes });
   },
 };
 

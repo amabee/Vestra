@@ -273,39 +273,5 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
 }
 
 /* =============================================================================
- * Extensions
+ * Extensions live in their own route file — see routes/extensions.tsx
  * ========================================================================== */
-
-export function ExtensionsRoute() {
-  const { data: diagnostics } = useDiagnostics();
-  const loaded = diagnostics?.extensions ?? [];
-
-  return (
-    <Page>
-      <PageHeader
-        eyebrow="System"
-        title="Extensions"
-        lead="Community extensions run in an isolate with no filesystem access and no network beyond the hosts you allow."
-      />
-
-      <section className="mt-10">
-        <SectionRule label="Loaded" count={loaded.length} />
-        {loaded.length === 0 ? (
-          <Notice
-            title="No extensions installed"
-            body="The runtime is built and the isolate works, but there is no install surface in this UI yet."
-          />
-        ) : (
-          <div>
-            {loaded.map((id) => (
-              <div key={id} className="flex items-center gap-3 border-b rule px-2 py-3">
-                <span className="size-1.5 rounded-full bg-success" />
-                <span className="font-mono text-[13px]">{id}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-    </Page>
-  );
-}

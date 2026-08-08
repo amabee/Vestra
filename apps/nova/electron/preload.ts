@@ -166,6 +166,17 @@ const api = {
     list: (): Promise<unknown> => invoke("extensions:list"),
     call: (extensionId: string, method: string, args: unknown[]): Promise<unknown> =>
       invoke("extensions:call", extensionId, method, args),
+
+    installed: (): Promise<unknown> => invoke("extensions:installed"),
+    registries: (): Promise<unknown> => invoke("extensions:registries"),
+    setRegistries: (urls: unknown): Promise<unknown> =>
+      invoke("extensions:set-registries", urls),
+    browse: (): Promise<unknown> => invoke("extensions:browse"),
+    prepare: (candidate: unknown): Promise<unknown> =>
+      invoke("extensions:prepare", candidate),
+    install: (request: unknown): Promise<unknown> =>
+      invoke("extensions:install", request),
+    uninstall: (id: string): Promise<unknown> => invoke("extensions:uninstall", id),
   },
 
   platform: process.platform,
