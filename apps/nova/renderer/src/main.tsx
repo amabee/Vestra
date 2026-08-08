@@ -12,8 +12,9 @@ import {
   SearchRoute,
   WatchlistRoute,
 } from "@/routes/collections";
+import { ExtensionsRoute } from "@/routes/extensions";
 import { HomeRoute } from "@/routes/home";
-import { ExtensionsRoute, SettingsRoute } from "@/routes/system";
+import { SettingsRoute } from "@/routes/system";
 
 import "@/styles/theme.css";
 

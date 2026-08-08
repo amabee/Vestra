@@ -19,6 +19,20 @@ import {
 } from "@vestra/storage";
 import { resolvePlayback, searchAcrossProviders, trendingAcrossProviders } from "@vestra/provider-sdk";
 import {
+  extensionTypeSchema,
+  parseRegistry,
+  type MarketplaceEntry,
+} from "@vestra/provider-sdk/marketplace";
+import {
+  completeInstall,
+  prepareInstall,
+} from "@vestra/extension-host/install";
+import {
+  listInstalled,
+  removeInstalled,
+  saveInstalled,
+} from "@vestra/extension-host/store";
+import {
   mediaItemSchema,
   mediaKey,
   mediaKindSchema,
@@ -35,9 +49,13 @@ import { z } from "zod";
 import {
   callExtension,
   listLoadedExtensions,
+  loadExtension,
+  transport,
+  unloadExtension,
 } from "./extensions";
 import { buildLibraryEntries } from "./library-entries";
 import { probeMedia, resolveFfprobe, skipPointsFrom } from "./media-probe";
+import { safeFetch } from "./safe-fetch";
 import { getAdapterRegistry, getDriver, getProviderRegistry, resolveDataDir } from "./services";
 
 /**
@@ -105,6 +123,28 @@ const progressInputSchema = z.object({
 const bookmarkInputSchema = z.object({
   ref: mediaRefSchema,
   episodeId: z.string().max(200).nullable().default(null),
+});
+
+/**
+ * A registry listing the user picked out.
+ *
+ * Bounded on the way in because everything here came from a third-party index
+ * and arrives via the renderer. The URLs are checked again by the transport,
+ * and the type is checked again by `assertLoadable` inside the install.
+ */
+const installCandidateSchema = z.object({
+  id: z.string().min(1).max(200),
+  name: z.string().min(1).max(300),
+  version: z.string().min(1).max(60),
+  type: extensionTypeSchema,
+  manifestURI: z.string().url().max(2000),
+  payloadURI: z.string().url().max(2000),
+  registryUrl: z.string().url().max(2000),
+});
+
+const installRequestSchema = z.object({
+  candidate: installCandidateSchema,
+  granted: z.array(z.string().max(100)).max(20).default([]),
 });
 
 const watchlistAddSchema = z.object({
@@ -486,6 +526,117 @@ export function registerDataIpc(): void {
     const methodName = parse(z.string().min(1).max(100), method, "method name");
 
     return callExtension(extensionId, methodName, Array.isArray(args) ? args : []);
+  });
+
+  handle("extensions:installed", () => listInstalled(getDriver()));
+
+  handle("extensions:registries", async () => {
+    const settings = await getSettings(getDriver());
+    return settings.extensions.registries;
+  });
+
+  /**
+   * Add or remove a registry the user wants to browse.
+   *
+   * Vestra ships none. Pointing the app at a third-party index is a decision
+   * the user makes explicitly, and it is recorded in their settings rather
+   * than compiled in.
+   */
+  handle("extensions:set-registries", async (raw: unknown) => {
+    const registries = parse(
+      z.array(z.string().url().max(2000)).max(20),
+      raw,
+      "registry list",
+    );
+
+    const settings = await getSettings(getDriver());
+    const saved = await saveSettings(getDriver(), {
+      ...settings,
+      extensions: { ...settings.extensions, registries },
+    });
+
+    return saved.extensions.registries;
+  });
+
+  /**
+   * Everything the configured registries list.
+   *
+   * A registry that fails is reported alongside the entries rather than
+   * failing the whole browse: one unreachable index should not hide the others.
+   */
+  handle("extensions:browse", async () => {
+    const settings = await getSettings(getDriver());
+    const entries: (MarketplaceEntry & { registryUrl: string })[] = [];
+    const errors: { registryUrl: string; message: string }[] = [];
+    let rejected = 0;
+
+    for (const registryUrl of settings.extensions.registries) {
+      try {
+        const response = await safeFetch({ url: registryUrl });
+        if (response.status !== 200) {
+          errors.push({ registryUrl, message: `Returned status ${response.status}.` });
+          continue;
+        }
+
+        const parsed = parseRegistry(JSON.parse(response.body));
+        rejected += parsed.rejected;
+
+        for (const entry of parsed.entries) entries.push({ ...entry, registryUrl });
+      } catch (error) {
+        errors.push({
+          registryUrl,
+          message: error instanceof Error ? error.message : "Could not be read.",
+        });
+      }
+    }
+
+    return { entries, errors, rejected };
+  });
+
+  /**
+   * Phase one of an install — read the manifest, decide if it is installable.
+   *
+   * Returns what the user is being asked to agree to. Nothing is written and
+   * no code is downloaded until they answer.
+   */
+  handle("extensions:prepare", async (raw: unknown) => {
+    const candidate = parse(installCandidateSchema, raw, "extension");
+    return prepareInstall(candidate, transport);
+  });
+
+  /**
+   * Phase two — download the code, record the grant, start it.
+   *
+   * `granted` is what the user agreed to, which may be less than the manifest
+   * asked for. It is passed through untouched; the host attaches only these.
+   */
+  handle("extensions:install", async (raw: unknown) => {
+    const input = parse(installRequestSchema, raw, "install request");
+
+    const plan = await prepareInstall(input.candidate, transport);
+
+    // Re-read rather than trusting the plan that came back over IPC: the
+    // renderer could return anything, and the permissions being granted have
+    // to be checked against the manifest that is actually being installed.
+    const granted = plan.manifest.permissions.filter((permission) =>
+      input.granted.includes(permission),
+    );
+
+    const { record, source } = await completeInstall(plan, granted, transport);
+
+    await saveInstalled(getDriver(), record, source);
+    await loadExtension({ extensionId: record.id, source, grant: record.grant });
+
+    return record;
+  });
+
+  handle("extensions:uninstall", async (raw: unknown) => {
+    const id = parse(z.string().min(1).max(200), raw, "extension id");
+
+    await unloadExtension(id);
+    await removeInstalled(getDriver(), id);
+
+    return listInstalled(getDriver());
   });
 
   /* --------------------------------------------------------------------- *

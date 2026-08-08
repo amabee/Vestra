@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./search": "./src/search.ts",
     "./chapters": "./src/chapters.ts",
+    "./net-guard": "./src/net-guard.ts",
     "./discover": "./src/discover.ts",
     "./format": "./src/format.ts",
     "./filename": "./src/filename.ts",

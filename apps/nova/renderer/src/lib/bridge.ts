@@ -14,6 +14,30 @@ import type {
   WatchlistStatus,
   WatchProgress,
 } from "@vestra/types";
+import type {
+  InstallCandidate,
+  InstallPlan,
+  InstalledExtension,
+} from "@vestra/extension-host/install";
+import type { MarketplaceEntry } from "@vestra/provider-sdk/marketplace";
+
+export type {
+  InstallCandidate,
+  InstallPlan,
+  InstalledExtension,
+  MarketplaceEntry,
+};
+
+/** A registry listing, tagged with the index it came from. */
+export type BrowseEntry = MarketplaceEntry & { registryUrl: string };
+
+export interface BrowseResult {
+  entries: BrowseEntry[];
+  /** Registries that could not be read, rather than a failed browse. */
+  errors: { registryUrl: string; message: string }[];
+  /** Listings the registry supplied that did not validate. */
+  rejected: number;
+}
 
 /**
  * The preload bridge, typed.
@@ -90,6 +114,13 @@ interface RawBridge {
   extensions: {
     list: () => Promise<unknown>;
     call: (extensionId: string, method: string, args: unknown[]) => Promise<unknown>;
+    installed: () => Promise<unknown>;
+    registries: () => Promise<unknown>;
+    setRegistries: (urls: unknown) => Promise<unknown>;
+    browse: () => Promise<unknown>;
+    prepare: (candidate: unknown) => Promise<unknown>;
+    install: (request: unknown) => Promise<unknown>;
+    uninstall: (id: string) => Promise<unknown>;
   };
   mpv: {
     status: () => Promise<unknown>;
@@ -470,6 +501,31 @@ export const bridge = {
     list: async (): Promise<string[]> => (await raw().extensions.list()) as string[],
     call: (extensionId: string, method: string, args: unknown[] = []): Promise<unknown> =>
       raw().extensions.call(extensionId, method, args),
+
+    installed: async (): Promise<InstalledExtension[]> =>
+      (await raw().extensions.installed()) as InstalledExtension[],
+
+    registries: async (): Promise<string[]> =>
+      (await raw().extensions.registries()) as string[],
+
+    setRegistries: async (urls: string[]): Promise<string[]> =>
+      (await raw().extensions.setRegistries(urls)) as string[],
+
+    browse: async (): Promise<BrowseResult> =>
+      (await raw().extensions.browse()) as BrowseResult,
+
+    /** Reads the manifest so the user can see what they are agreeing to. */
+    prepare: async (candidate: InstallCandidate): Promise<InstallPlan> =>
+      (await raw().extensions.prepare(candidate)) as InstallPlan,
+
+    install: async (request: {
+      candidate: InstallCandidate;
+      granted: string[];
+    }): Promise<InstalledExtension> =>
+      (await raw().extensions.install(request)) as InstalledExtension,
+
+    uninstall: async (id: string): Promise<InstalledExtension[]> =>
+      (await raw().extensions.uninstall(id)) as InstalledExtension[],
   },
 
   mpv: {
