@@ -36,8 +36,15 @@ interface NowPlaying {
   index: number;
   total: number;
   engine: "mpv" | "builtin";
-  skips: { kind: "opening" | "ending"; startSeconds: number; endSeconds: number }[];
+  skips: {
+    kind: "opening" | "ending";
+    startSeconds: number;
+    endSeconds: number;
+    skipId: string | null;
+  }[];
   autoSkip: boolean;
+  /** Counts up per playback, so replaying one episode is not one session. */
+  sessionId: number;
 }
 
 let nowPlaying: NowPlaying | null = null;
@@ -367,10 +374,12 @@ const nowPlayingSchema = z.object({
         kind: z.enum(["opening", "ending"]),
         startSeconds: z.number().min(0),
         endSeconds: z.number().min(0),
+        skipId: z.string().nullable().default(null),
       }),
     )
     .default([]),
   autoSkip: z.boolean().default(false),
+  sessionId: z.number().int().min(0).default(0),
 });
 
 const commandSchema = z.enum([

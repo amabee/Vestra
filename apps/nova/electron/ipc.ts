@@ -28,7 +28,7 @@ import {
   watchlistStatusSchema,
   type MediaItem,
 } from "@vestra/types";
-import { getSkipTimes, matchLibrary, scanLibrary } from "@vestra/providers";
+import { getSkipTimes, matchLibrary, reportSkipTime, scanLibrary } from "@vestra/providers";
 import { ipcMain, shell, dialog } from "electron";
 import { z } from "zod";
 
@@ -333,6 +333,17 @@ export function registerDataIpc(): void {
 
     return getSkipTimes(sourceId, seasonNumber, episodeNumber, episodeLengthSeconds);
   });
+
+  /**
+   * Tell AniSkip a timing is wrong.
+   *
+   * A write to a shared database, so it is kept narrow: one id, always a
+   * downvote, and only ever reached from an explicit action in the player.
+   * The id must be one AniSkip issued, which is a uuid.
+   */
+  handle("media:report-skip", (raw: unknown) =>
+    reportSkipTime(parse(z.string().uuid(), raw, "skip id")),
+  );
 
   handle("library:folders", async () => {
     const settings = await getSettings(getDriver());

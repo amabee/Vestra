@@ -25,10 +25,18 @@ export interface SkipInterval {
   kind: "opening" | "ending";
   startSeconds: number;
   endSeconds: number;
+  /**
+   * AniSkip's id for this submission.
+   *
+   * Kept so a wrong timing can be voted down. Null for ranges that did not
+   * come from AniSkip — a file's own chapters have nothing to report to.
+   */
+  skipId: string | null;
 }
 
 interface RawResult {
   skipType?: unknown;
+  skipId?: unknown;
   interval?: { startTime?: unknown; endTime?: unknown };
 }
 
@@ -98,7 +106,12 @@ export async function fetchSkipTimes(
       // would produce a button that does nothing.
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
 
-      intervals.push({ kind, startSeconds: start, endSeconds: end });
+      intervals.push({
+        kind,
+        startSeconds: start,
+        endSeconds: end,
+        skipId: typeof entry.skipId === "string" ? entry.skipId : null,
+      });
     }
 
     skipCache.set(key, intervals);
@@ -125,4 +138,38 @@ export async function getSkipTimes(
   const malId = await resolveSeasonMalId(anilistId, seasonNumber);
   if (malId === null) return [];
   return fetchSkipTimes(malId, episodeNumber, episodeLengthSeconds);
+}
+
+/**
+ * Vote a timing down.
+ *
+ * The database is community-submitted and occasionally wrong, and a wrong
+ * timing is worse than a missing one — the button appears part way through an
+ * episode and never over the opening. This is how that gets corrected for
+ * everyone rather than worked around locally.
+ *
+ * Deliberately only ever a downvote, and only from an explicit action. This
+ * writes to a shared database on the user's behalf; inferring approval from
+ * the absence of a complaint would put unearned weight behind timings nobody
+ * actually checked.
+ *
+ * The local cache for the episode is dropped so the next lookup sees whatever
+ * the vote changed.
+ */
+export async function reportSkipTime(skipId: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${ANISKIP_ENDPOINT}/vote/${encodeURIComponent(skipId)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ voteType: "downvote" }),
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!response.ok) return false;
+
+    skipCache.clear();
+    return true;
+  } catch {
+    return false;
+  }
 }

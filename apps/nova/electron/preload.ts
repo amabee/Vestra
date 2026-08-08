@@ -50,6 +50,7 @@ const api = {
     probe: (fileId: string): Promise<unknown> => invoke("media:probe", fileId),
     probeAvailable: (): Promise<unknown> => invoke("media:probe-available"),
     skipTimes: (request: unknown): Promise<unknown> => invoke("media:skip-times", request),
+    reportSkip: (skipId: string): Promise<unknown> => invoke("media:report-skip", skipId),
   },
 
   /**

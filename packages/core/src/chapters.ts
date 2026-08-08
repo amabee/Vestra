@@ -21,6 +21,13 @@ export interface SkipRange {
   kind: "opening" | "ending";
   startSeconds: number;
   endSeconds: number;
+  /**
+   * Identifier for the submission a range came from, where it came from one.
+   *
+   * Chapters are read out of the file itself, so they have none — there is
+   * nobody to report a bad chapter to but whoever encoded it.
+   */
+  skipId?: string | null;
 }
 
 /** A chapter marker, as either mpv or ffprobe describes one. */

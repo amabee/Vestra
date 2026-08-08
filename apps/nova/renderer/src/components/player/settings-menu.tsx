@@ -63,11 +63,17 @@ export function SettingsMenu({
   mpv,
   onClose,
   onOpenAppSettings,
+  reportableSkips = [],
 }: {
   mpv: MpvState;
   onClose: () => void;
   onOpenAppSettings: () => void;
+  /** Ranges that came from AniSkip, so can be voted down. */
+  reportableSkips?: readonly string[];
 }) {
+  const [reported, setReported] = useState<"idle" | "sending" | "done" | "failed">(
+    "idle",
+  );
   const [page, setPage] = useState<Page>("root");
   const container = useRef<HTMLDivElement>(null);
 
@@ -145,6 +151,41 @@ export function SettingsMenu({
             onClick={() => setPage("size")}
           />
           <Row label="Keyboard shortcuts" value="" onClick={() => setPage("keys")} />
+
+          {/*
+            Timings are community-submitted and occasionally belong to another
+            cut of the episode. Reporting corrects them for everyone rather
+            than leaving each viewer to work around it.
+
+            Shown only when there is something to report: a range read from the
+            file's own chapters has no submission behind it. Sends once, then
+            says so, because this writes to a shared database.
+          */}
+          {reportableSkips.length > 0 ? (
+            <Row
+              label="Report wrong timing"
+              value={
+                reported === "done"
+                  ? "Reported"
+                  : reported === "sending"
+                    ? "Sending…"
+                    : reported === "failed"
+                      ? "Could not send"
+                      : ""
+              }
+              disabled={reported === "sending" || reported === "done"}
+              onClick={() => {
+                setReported("sending");
+                void Promise.all(
+                  reportableSkips.map((id) => bridge.media.reportSkip(id)),
+                )
+                  .then((results) => {
+                    setReported(results.some(Boolean) ? "done" : "failed");
+                  })
+                  .catch(() => setReported("failed"));
+              }}
+            />
+          ) : null}
 
           {/* Everything above is scoped to what is playing. Theme, accent and
               library folders are not, and live on a page this window is
