@@ -229,6 +229,11 @@ export interface MpvTrack {
   external: boolean;
 }
 
+export interface MpvChapter {
+  title: string | null;
+  startSeconds: number;
+}
+
 export interface MpvState {
   running: boolean;
   idle: boolean;
@@ -242,6 +247,8 @@ export interface MpvState {
   subtitleScale: number;
   ended: boolean;
   tracks: MpvTrack[];
+  /** Chapters muxed into the file, in order. Usually empty. */
+  chapters: MpvChapter[];
   subtitleVisible: boolean;
   error: string | null;
 }

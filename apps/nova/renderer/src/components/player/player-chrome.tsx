@@ -55,6 +55,7 @@ const EMPTY: MpvState = {
   subtitleScale: 1,
   ended: false,
   tracks: [],
+  chapters: [],
   subtitleVisible: true,
   error: null,
 };
