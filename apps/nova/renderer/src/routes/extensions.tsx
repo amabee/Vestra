@@ -6,7 +6,7 @@ import {
   healthOf,
   isPinnedRef,
 } from "@vestra/provider-sdk/marketplace";
-import { AlertTriangle, Loader2, Plus, ShieldCheck, Trash2, X } from "lucide-react";
+import { AlertTriangle, FolderOpen, Loader2, Plus, ShieldCheck, Trash2, X } from "lucide-react";
 import { useState } from "react";
 
 import { Notice, Page, PageHeader, SectionRule } from "@/components/layout/page";
@@ -16,6 +16,15 @@ import {
   type InstallCandidate,
   type InstallPlan,
 } from "@/lib/bridge";
+
+/** Matches the marker the main process puts on a folder install. */
+const LOCAL_UNPACKED = "local:unpacked";
+
+/** The folder a manifest path sits in, for either path separator. */
+function folderOf(manifestPath: string): string {
+  const cut = Math.max(manifestPath.lastIndexOf("\\"), manifestPath.lastIndexOf("/"));
+  return cut > 0 ? manifestPath.slice(0, cut) : manifestPath;
+}
 
 /**
  * Extensions.
@@ -84,6 +93,27 @@ export function ExtensionsRoute() {
     },
   });
 
+  /*
+    Loading from a folder goes through the same review screen as a registry
+    install. The consent is the part that matters, and a second prompt for the
+    local case would be free to drift from the first.
+  */
+  const pickUnpacked = useMutation({
+    mutationFn: () => bridge.extensions.pickUnpacked(),
+    onSuccess: (plan) => {
+      if (plan) setReviewing(plan);
+    },
+  });
+
+  const installUnpacked = useMutation({
+    mutationFn: (input: { folder: string; granted: string[] }) =>
+      bridge.extensions.installUnpacked(input),
+    onSuccess: () => {
+      setReviewing(null);
+      refresh();
+    },
+  });
+
   const uninstall = useMutation({
     mutationFn: (id: string) => bridge.extensions.uninstall(id),
     onSuccess: refresh,
@@ -108,7 +138,32 @@ export function ExtensionsRoute() {
       />
 
       <section className="mt-10">
-        <SectionRule label="Installed" count={installed.data?.length} />
+        <SectionRule
+          label="Installed"
+          count={installed.data?.length}
+          trailing={
+            <button
+              type="button"
+              disabled={pickUnpacked.isPending}
+              onClick={() => pickUnpacked.mutate()}
+              title="Review an extension from a folder on this machine"
+              className="flex items-center gap-1.5 rounded-field border rule px-2.5 py-1 text-xs transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-40"
+            >
+              {pickUnpacked.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <FolderOpen className="size-3.5" />
+              )}
+              Load unpacked
+            </button>
+          }
+        />
+
+        {pickUnpacked.error ? (
+          <p className="mt-3 text-xs text-error">
+            {(pickUnpacked.error as Error).message}
+          </p>
+        ) : null}
 
         {(installed.data ?? []).length === 0 ? (
           <Notice
@@ -235,12 +290,22 @@ export function ExtensionsRoute() {
       {reviewing ? (
         <ReviewDialog
           plan={reviewing}
-          busy={install.isPending}
-          error={install.error as Error | null}
+          busy={install.isPending || installUnpacked.isPending}
+          error={(install.error ?? installUnpacked.error) as Error | null}
           onCancel={() => setReviewing(null)}
-          onInstall={(granted) =>
-            install.mutate({ candidate: reviewing.candidate, granted })
-          }
+          onInstall={(granted) => {
+            // Local plans carry a folder path where a registry plan carries a
+            // URL, and the two install paths are not interchangeable.
+            if (reviewing.candidate.registryUrl === LOCAL_UNPACKED) {
+              installUnpacked.mutate({
+                folder: folderOf(reviewing.candidate.manifestURI),
+                granted,
+              });
+              return;
+            }
+
+            install.mutate({ candidate: reviewing.candidate, granted });
+          }}
         />
       ) : null}
     </Page>

@@ -121,6 +121,8 @@ interface RawBridge {
     prepare: (candidate: unknown) => Promise<unknown>;
     install: (request: unknown) => Promise<unknown>;
     uninstall: (id: string) => Promise<unknown>;
+    pickUnpacked: () => Promise<unknown>;
+    installUnpacked: (request: unknown) => Promise<unknown>;
   };
   mpv: {
     status: () => Promise<unknown>;
@@ -526,6 +528,16 @@ export const bridge = {
 
     uninstall: async (id: string): Promise<InstalledExtension[]> =>
       (await raw().extensions.uninstall(id)) as InstalledExtension[],
+
+    /** Opens the OS folder picker. Null when the user cancels. */
+    pickUnpacked: async (): Promise<InstallPlan | null> =>
+      (await raw().extensions.pickUnpacked()) as InstallPlan | null,
+
+    installUnpacked: async (request: {
+      folder: string;
+      granted: string[];
+    }): Promise<InstalledExtension> =>
+      (await raw().extensions.installUnpacked(request)) as InstalledExtension,
   },
 
   mpv: {
