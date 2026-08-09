@@ -18,7 +18,7 @@ import {
   stopExtensionWorker,
 } from "./extensions";
 import { registerDataIpc } from "./ipc";
-import { attachExtensionProvider } from "./extension-providers";
+import { attachExtensionProvider, attachStreamSourceProvider } from "./extension-providers";
 import { backfillMediaInfo, pruneThumbnails } from "./media-info";
 import { registerMpvIpc, shutdownMpv } from "./mpv/ipc";
 import {
@@ -366,9 +366,12 @@ if (!gotLock) {
         }
 
         // Anything that searches becomes a provider, so its results appear
-        // alongside the built-in ones rather than nowhere.
+        // alongside the built-in ones rather than nowhere. Stream sources go
+        // to their own registry; each call ignores records that are not its
+        // role, so both run over the same list.
         for (const record of report.records) {
           attachExtensionProvider(record, report.methods[record.id] ?? []);
+          attachStreamSourceProvider(record, report.methods[record.id] ?? []);
         }
       },
       (error: unknown) => {

@@ -26,6 +26,16 @@ export interface BrokeredRequest {
   method?: "GET" | "POST";
   headers?: Record<string, string>;
   body?: string;
+  /**
+   * Accepted and inert.
+   *
+   * Other applications' fetch shims perform anti-bot circumvention by default
+   * and expose this to opt out of it. Vestra never circumvents an access
+   * control, so the flag is already satisfied however it is set — it exists
+   * here so an extension written against that convention parses and behaves
+   * identically, and so nobody later reads the missing field as a TODO.
+   */
+  noCloudflareBypass?: boolean;
 }
 
 export interface BrokeredResponse {
@@ -69,6 +79,85 @@ export class NetworkDeniedError extends Error {
     super(reason);
     this.name = "NetworkDeniedError";
   }
+}
+
+/**
+ * The site answered with an anti-bot challenge rather than content.
+ *
+ * Distinct from `NetworkDeniedError`, which means Vestra refused the request.
+ * This means the far end refused it, and the difference matters to the user:
+ * one is a permission they can change, the other is a site that does not want
+ * automated access.
+ *
+ * Raised rather than returned so a challenge page can never be parsed as
+ * content. A scraper handed a 403 body full of JavaScript will happily match
+ * zero results and report an empty catalogue, which is indistinguishable from
+ * a broken extension — the failure this class exists to make legible.
+ *
+ * Vestra does not solve these. Doing so means impersonating a browser to
+ * defeat a control the site deliberately deployed; a site that challenges us
+ * is a site telling us not to, and the honest response is to say so.
+ */
+export class SourceChallengedError extends Error {
+  readonly hostname: string;
+
+  constructor(hostname: string) {
+    super(
+      `${hostname} is challenging automated access, so this source cannot be read.`,
+    );
+    this.name = "SourceChallengedError";
+    this.hostname = hostname;
+  }
+}
+
+/** Only the head of the body is scanned — challenge markers are in the first tag. */
+const CHALLENGE_SCAN_BYTES = 4096;
+
+/**
+ * Body markers, checked only alongside a challenge status and a matching
+ * server header. On their own these strings appear in ordinary pages that
+ * merely discuss Cloudflare, so they are corroboration rather than evidence.
+ */
+const CHALLENGE_BODY_MARKERS = [
+  "cf-browser-verification",
+  "challenge-platform",
+  "__cf_chl",
+  "cf_chl_opt",
+  "just a moment",
+];
+
+/**
+ * Whether a response is a challenge rather than content.
+ *
+ * `cf-mitigated: challenge` is Cloudflare's own signal and is trusted alone.
+ * Everything else needs the status, the server header and a body marker to
+ * agree, because a bare 403 is ordinary and misreporting it as a challenge
+ * would send the user looking for the wrong problem.
+ */
+export function isChallengeResponse(response: {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+}): boolean {
+  const headers: Record<string, string> = {};
+  for (const [key, value] of Object.entries(response.headers)) {
+    headers[key.toLowerCase()] = value.toLowerCase();
+  }
+
+  if (headers["cf-mitigated"] === "challenge") return true;
+
+  if (response.status !== 403 && response.status !== 503) return false;
+
+  const server = headers["server"] ?? "";
+  const challengeIssuer =
+    server.includes("cloudflare") ||
+    server.includes("ddos-guard") ||
+    "cf-ray" in headers;
+
+  if (!challengeIssuer) return false;
+
+  const head = response.body.slice(0, CHALLENGE_SCAN_BYTES).toLowerCase();
+  return CHALLENGE_BODY_MARKERS.some((marker) => head.includes(marker));
 }
 
 /** Exact hostname match. A subdomain is a different host and needs its own grant. */
@@ -140,7 +229,7 @@ export function createBrokeredFetch(
       headers[name] = value;
     }
 
-    return transport.request({
+    const response = await transport.request({
       url: url.toString(),
       method,
       headers,
@@ -148,5 +237,14 @@ export function createBrokeredFetch(
       timeoutMs: limits.timeoutMs,
       maxBytes: limits.maxResponseBytes,
     });
+
+    // Checked here rather than left to the extension: every extension would
+    // otherwise have to recognise a challenge page itself, and the ones that
+    // forgot would report "no results" for a site that is simply refusing us.
+    if (isChallengeResponse(response)) {
+      throw new SourceChallengedError(url.hostname);
+    }
+
+    return response;
   };
 }

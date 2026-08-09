@@ -1,0 +1,59 @@
+{
+  "kind": "vestra-source-recipe",
+  "recipeVersion": 1,
+  "id": "example-kitsu-recipe",
+  "name": "Kitsu (recipe)",
+  "version": "1.0.0",
+  "author": "Vestra",
+  "description": "The same source as examples/kitsu, written without any code. Useful as a side-by-side: identical results, nothing to sandbox.",
+  "kinds": ["anime"],
+  "maxLimit": 20,
+
+  "search": {
+    "url": "https://kitsu.io/api/edge/anime",
+    "headers": { "accept": "application/vnd.api+json" },
+    "query": {
+      "filter[text]": "{query}",
+      "page[limit]": "{limit}",
+      "fields[anime]": "canonicalTitle,startDate,synopsis,posterImage,subtype"
+    },
+    "itemsAt": "data",
+    "fields": {
+      "id": { "from": ["id"], "as": "text" },
+      "title": { "from": ["attributes.canonicalTitle", "attributes.titles.en"], "as": "text" },
+      "year": { "from": ["attributes.startDate"], "as": "year" },
+      "poster": {
+        "from": [
+          "attributes.posterImage.medium",
+          "attributes.posterImage.small",
+          "attributes.posterImage.original"
+        ],
+        "as": "httpsUrl"
+      },
+      "description": { "from": ["attributes.synopsis"], "as": "text", "fallback": "" },
+      "isSeries": { "from": ["attributes.subtype"], "as": "notEquals", "value": "movie" }
+    }
+  },
+
+  "details": {
+    "url": "https://kitsu.io/api/edge/anime/{id}",
+    "headers": { "accept": "application/vnd.api+json" },
+    "query": {
+      "fields[anime]": "canonicalTitle,startDate,synopsis,posterImage,subtype,episodeCount,averageRating"
+    },
+    "itemsAt": "data",
+    "fields": {
+      "id": { "from": ["id"], "as": "text" },
+      "title": { "from": ["attributes.canonicalTitle"], "as": "text" },
+      "year": { "from": ["attributes.startDate"], "as": "year" },
+      "poster": {
+        "from": ["attributes.posterImage.medium", "attributes.posterImage.original"],
+        "as": "httpsUrl"
+      },
+      "description": { "from": ["attributes.synopsis"], "as": "text", "fallback": "" },
+      "isSeries": { "from": ["attributes.subtype"], "as": "notEquals", "value": "movie" },
+      "episodeCount": { "from": ["attributes.episodeCount"], "as": "number" },
+      "rating": { "from": ["attributes.averageRating"], "as": "number" }
+    }
+  }
+}

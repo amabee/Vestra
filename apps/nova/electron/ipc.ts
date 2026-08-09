@@ -54,7 +54,12 @@ import {
   unloadExtension,
 } from "./extensions";
 import { buildLibraryEntries } from "./library-entries";
-import { attachExtensionProvider, detachExtensionProvider } from "./extension-providers";
+import {
+  attachExtensionProvider,
+  attachStreamSourceProvider,
+  detachExtensionProvider,
+  detachStreamSourceProvider,
+} from "./extension-providers";
 import { completeUnpacked, prepareUnpacked } from "./extension-unpacked";
 import { probeMedia, resolveFfprobe, skipPointsFrom } from "./media-probe";
 import { safeFetch } from "./safe-fetch";
@@ -639,6 +644,7 @@ export function registerDataIpc(): void {
     });
 
     attachExtensionProvider(record, methods);
+    attachStreamSourceProvider(record, methods);
 
     return record;
   });
@@ -647,6 +653,7 @@ export function registerDataIpc(): void {
     const id = parse(z.string().min(1).max(200), raw, "extension id");
 
     detachExtensionProvider(id);
+    detachStreamSourceProvider(id);
     await unloadExtension(id);
     await removeInstalled(getDriver(), id);
 
@@ -698,6 +705,7 @@ export function registerDataIpc(): void {
     });
 
     attachExtensionProvider(record, methods);
+    attachStreamSourceProvider(record, methods);
 
     return record;
   });

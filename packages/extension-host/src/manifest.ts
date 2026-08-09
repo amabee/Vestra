@@ -28,6 +28,22 @@ export const extensionPermissionSchema = z.enum([
   "progress:read",
 ]);
 
+/**
+ * What an extension is *for*, as opposed to what media it covers.
+ *
+ * Orthogonal to `kinds`, which answers "what media type" — a scraper and a
+ * catalogue can both declare `kinds: ["anime"]` while being entirely different
+ * things. Without this the two are indistinguishable at load time and a stream
+ * source would be registered as a search provider, appearing in the catalogue
+ * as a source that returns titles nobody can open.
+ *
+ * Defaults to `metadata` so every extension installed before this existed
+ * keeps working unchanged.
+ */
+export const extensionRoleSchema = z.enum(["metadata", "stream-source"]);
+
+export type ExtensionRole = z.infer<typeof extensionRoleSchema>;
+
 export const extensionManifestSchema = z
   .object({
     id: z
@@ -58,6 +74,13 @@ export const extensionManifestSchema = z
      * extension need not be a provider at all.
      */
     kinds: z.array(mediaKindSchema).max(6).default([]),
+    /**
+     * What the extension is for. See `extensionRoleSchema`.
+     *
+     * Absent means `metadata`: extensions predate this field, and silently
+     * re-roling an installed extension would change what the user consented to.
+     */
+    role: extensionRoleSchema.default("metadata"),
     author: z.string().max(120).optional(),
     homepage: z.string().url().optional(),
     description: z.string().max(2000).optional(),

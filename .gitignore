@@ -29,6 +29,12 @@ build/
 !.tools/*.ps1
 !.tools/*.cjs
 
+# Third-party clones kept locally for reference only. Someone else's code under
+# someone else's terms: read to understand a format, never vendored into ours.
+# seanime-denshi ships no licence at all, so it must not land in an MIT repo.
+Seanime-Providers/
+seanime/
+
 # Electron
 apps/nova/release/
 apps/nova/dist-electron/

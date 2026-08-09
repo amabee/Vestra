@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { StreamSourceRegistry } from "@vestra/extension-host";
 import { createRegistries, type Registries } from "@vestra/providers";
 import { NodeDriver, type StorageDriver } from "@vestra/storage";
 import { app } from "electron";
@@ -15,6 +16,7 @@ import { app } from "electron";
 
 let driver: StorageDriver | null = null;
 let registries: Registries | null = null;
+let streamSources: StreamSourceRegistry | null = null;
 
 /**
  * Where Vestra persists watchlist, progress, settings and the library index.
@@ -58,4 +60,16 @@ export function getProviderRegistry() {
 
 export function getAdapterRegistry() {
   return getRegistries().adapters;
+}
+
+/**
+ * Community stream sources.
+ *
+ * Held apart from `getRegistries()` on purpose: these answer "where can this
+ * play from", never "what is this", so they must not reach catalogue search.
+ * Only extensions register here — there is no first-party equivalent.
+ */
+export function getStreamSourceRegistry(): StreamSourceRegistry {
+  streamSources ??= new StreamSourceRegistry();
+  return streamSources;
 }
