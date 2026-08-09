@@ -54,6 +54,8 @@ import {
   unloadExtension,
 } from "./extensions";
 import { buildLibraryEntries } from "./library-entries";
+import { attachExtensionProvider, detachExtensionProvider } from "./extension-providers";
+import { completeUnpacked, prepareUnpacked } from "./extension-unpacked";
 import { probeMedia, resolveFfprobe, skipPointsFrom } from "./media-probe";
 import { safeFetch } from "./safe-fetch";
 import { getAdapterRegistry, getDriver, getProviderRegistry, resolveDataDir } from "./services";
@@ -144,6 +146,11 @@ const installCandidateSchema = z.object({
 
 const installRequestSchema = z.object({
   candidate: installCandidateSchema,
+  granted: z.array(z.string().max(100)).max(20).default([]),
+});
+
+const unpackedRequestSchema = z.object({
+  folder: z.string().min(1).max(4000),
   granted: z.array(z.string().max(100)).max(20).default([]),
 });
 
@@ -625,7 +632,13 @@ export function registerDataIpc(): void {
     const { record, source } = await completeInstall(plan, granted, transport);
 
     await saveInstalled(getDriver(), record, source);
-    await loadExtension({ extensionId: record.id, source, grant: record.grant });
+    const methods = await loadExtension({
+      extensionId: record.id,
+      source,
+      grant: record.grant,
+    });
+
+    attachExtensionProvider(record, methods);
 
     return record;
   });
@@ -633,10 +646,60 @@ export function registerDataIpc(): void {
   handle("extensions:uninstall", async (raw: unknown) => {
     const id = parse(z.string().min(1).max(200), raw, "extension id");
 
+    detachExtensionProvider(id);
     await unloadExtension(id);
     await removeInstalled(getDriver(), id);
 
     return listInstalled(getDriver());
+  });
+
+  /**
+   * Review a folder on disk as an extension.
+   *
+   * The folder comes from the OS picker rather than a path the renderer sends,
+   * so this cannot be pointed at somewhere the user did not choose. Returns
+   * null when they cancel.
+   */
+  handle("extensions:pick-unpacked", async () => {
+    const result = await dialog.showOpenDialog({
+      title: "Choose an extension folder",
+      properties: ["openDirectory"],
+    });
+
+    const folder = result.filePaths[0];
+    if (result.canceled || !folder) return null;
+
+    return prepareUnpacked(folder);
+  });
+
+  /**
+   * Install what was reviewed.
+   *
+   * The plan is rebuilt from the folder rather than trusted from the renderer:
+   * a plan that crossed a process boundary and came back is an assertion, and
+   * the permissions being granted have to be checked against the manifest that
+   * is actually on disk.
+   */
+  handle("extensions:install-unpacked", async (raw: unknown) => {
+    const input = parse(unpackedRequestSchema, raw, "install request");
+
+    const plan = await prepareUnpacked(input.folder);
+    const granted = plan.manifest.permissions.filter((permission) =>
+      input.granted.includes(permission),
+    );
+
+    const { record, source } = await completeUnpacked(plan, granted);
+
+    await saveInstalled(getDriver(), record, source);
+    const methods = await loadExtension({
+      extensionId: record.id,
+      source,
+      grant: record.grant,
+    });
+
+    attachExtensionProvider(record, methods);
+
+    return record;
   });
 
   /* --------------------------------------------------------------------- *

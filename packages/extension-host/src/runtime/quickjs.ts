@@ -197,6 +197,28 @@ export function createQuickJSRuntime(): ExtensionRuntime {
     return {
       id: input.extensionId,
 
+      async listMethods(signal) {
+        if (instance.disposed) {
+          throw new ExtensionExecutionError(
+            input.extensionId,
+            "Extension has been unloaded.",
+          );
+        }
+
+        const raw = await callBootstrap(
+          instance,
+          input.extensionId,
+          "methods",
+          [],
+          "activate",
+          limits.timeoutMs,
+          signal,
+        );
+
+        const parsed: unknown = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed.filter((v) => typeof v === "string") : [];
+      },
+
       async call(method, args, signal) {
         if (instance.disposed) {
           throw new ExtensionExecutionError(input.extensionId, "Extension has been unloaded.");
@@ -363,6 +385,35 @@ async function invoke(
   timeoutMs: number,
   signal: AbortSignal,
 ): Promise<string> {
+  return callBootstrap(
+    instance,
+    extensionId,
+    "invoke",
+    [method, argsJson],
+    method,
+    timeoutMs,
+    signal,
+  );
+}
+
+/**
+ * Call one of the functions the bootstrap installed on `__vestra`.
+ *
+ * Everything crosses as strings: the guest serialises, the host parses. A
+ * handle passed either way would give one side a reference into the other's
+ * heap, which is the thing the isolate exists to prevent.
+ */
+async function callBootstrap(
+  instance: Instance,
+  extensionId: string,
+  entry: "invoke" | "methods",
+  args: readonly string[],
+  /** Named in errors, so a failure points at the guest method, not the plumbing. */
+  label: string,
+  timeoutMs: number,
+  signal: AbortSignal,
+): Promise<string> {
+  const method = label;
   const { context } = instance;
 
   // Abort collapses the deadline so the interrupt handler trips on the guest's
@@ -379,16 +430,16 @@ async function invoke(
     const vestra = context.getProp(context.global, "__vestra");
     handles.push(vestra);
 
-    const fn = context.getProp(vestra, "invoke");
+    const fn = context.getProp(vestra, entry);
     handles.push(fn);
 
-    const methodHandle = context.newString(method);
-    handles.push(methodHandle);
+    const argHandles = args.map((value) => {
+      const handle = context.newString(value);
+      handles.push(handle);
+      return handle;
+    });
 
-    const argsHandle = context.newString(argsJson);
-    handles.push(argsHandle);
-
-    const called = context.callFunction(fn, vestra, methodHandle, argsHandle);
+    const called = context.callFunction(fn, vestra, ...argHandles);
     const pending = context.unwrapResult(called);
     handles.push(pending);
 

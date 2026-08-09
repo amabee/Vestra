@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { mediaKindSchema } from "@vestra/types";
+
 /**
  * The manifest a community extension ships, and the rules it must satisfy
  * before anything is downloaded.
@@ -47,6 +49,15 @@ export const extensionManifestSchema = z
      * `network` permission — "anywhere" is not a thing to consent to.
      */
     hosts: z.array(hostSchema).max(20).default([]),
+    /**
+     * Content kinds the extension returns from `search`.
+     *
+     * Drives routing and the category pages, so an extension that declares
+     * none is loaded but never registered as a search provider — better than
+     * filing its results under a kind it never claimed. Optional because an
+     * extension need not be a provider at all.
+     */
+    kinds: z.array(mediaKindSchema).max(6).default([]),
     author: z.string().max(120).optional(),
     homepage: z.string().url().optional(),
     description: z.string().max(2000).optional(),

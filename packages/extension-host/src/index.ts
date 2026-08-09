@@ -13,5 +13,6 @@ export * from "./permissions";
 export * from "./net";
 export * from "./bridge";
 export * from "./install";
+export * from "./provider";
 export * from "./store";
 export * from "./runtime/engine";

@@ -23,7 +23,7 @@ import { assertLoadable, ExtensionRefusedError } from "./trust";
  */
 
 const MAX_MANIFEST_BYTES = 128 * 1024;
-const MAX_PAYLOAD_BYTES = 8 * 1024 * 1024;
+export const MAX_PAYLOAD_BYTES = 8 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 20_000;
 
 export interface InstallCandidate {
@@ -197,6 +197,30 @@ export async function completeInstall(
   granted: readonly ValidatedManifest["permissions"][number][],
   transport: GuardedTransport,
 ): Promise<{ record: InstalledExtension; source: string }> {
+  const source = await fetchText(
+    transport,
+    plan.candidate.payloadURI,
+    MAX_PAYLOAD_BYTES,
+    "extension code",
+  );
+
+  return buildInstallRecord(plan, granted, source);
+}
+
+/**
+ * Turn an agreed plan and some code into the record that gets stored.
+ *
+ * Split from `completeInstall` because where the code came from is the only
+ * thing that differs between installing from a registry and loading a folder
+ * during development. Everything that matters — re-asserting the type, holding
+ * the grant to what was actually requested, fingerprinting the exact bytes —
+ * has to happen identically either way, and would drift if written twice.
+ */
+export function buildInstallRecord(
+  plan: InstallPlan,
+  granted: readonly ValidatedManifest["permissions"][number][],
+  source: string,
+): { record: InstalledExtension; source: string } {
   // Re-assert: the plan may have been held across a user prompt, and this is
   // the last point before code lands on disk.
   assertLoadable(plan.candidate.id, plan.candidate.type);
@@ -209,13 +233,6 @@ export async function completeInstall(
       `Cannot grant permissions the extension did not request: ${unrequested.join(", ")}.`,
     );
   }
-
-  const source = await fetchText(
-    transport,
-    plan.candidate.payloadURI,
-    MAX_PAYLOAD_BYTES,
-    "extension code",
-  );
 
   if (source.trim().length === 0) {
     throw new InstallError("The extension code is empty.");

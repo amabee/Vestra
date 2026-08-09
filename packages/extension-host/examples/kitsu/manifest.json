@@ -1,0 +1,13 @@
+{
+  "id": "example-kitsu",
+  "name": "Kitsu",
+  "version": "1.0.0",
+  "main": "index.js",
+  "sdkVersion": "1.0.0",
+  "permissions": ["network"],
+  "hosts": ["kitsu.io"],
+  "kinds": ["anime"],
+  "author": "Vestra",
+  "description": "Reference provider extension. Searches Kitsu, a public anime catalogue with an open API and no key requirement.",
+  "homepage": "https://kitsu.docs.apiary.io/"
+}

@@ -18,6 +18,7 @@ import {
   stopExtensionWorker,
 } from "./extensions";
 import { registerDataIpc } from "./ipc";
+import { attachExtensionProvider } from "./extension-providers";
 import { backfillMediaInfo, pruneThumbnails } from "./media-info";
 import { registerMpvIpc, shutdownMpv } from "./mpv/ipc";
 import {
@@ -362,6 +363,12 @@ if (!gotLock) {
         }
         if (report.loaded.length > 0) {
           console.info(`[nova] loaded ${report.loaded.length} extension(s)`);
+        }
+
+        // Anything that searches becomes a provider, so its results appear
+        // alongside the built-in ones rather than nowhere.
+        for (const record of report.records) {
+          attachExtensionProvider(record, report.methods[record.id] ?? []);
         }
       },
       (error: unknown) => {

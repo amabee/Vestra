@@ -177,6 +177,9 @@ const api = {
     install: (request: unknown): Promise<unknown> =>
       invoke("extensions:install", request),
     uninstall: (id: string): Promise<unknown> => invoke("extensions:uninstall", id),
+    pickUnpacked: (): Promise<unknown> => invoke("extensions:pick-unpacked"),
+    installUnpacked: (request: unknown): Promise<unknown> =>
+      invoke("extensions:install-unpacked", request),
   },
 
   platform: process.platform,

@@ -93,7 +93,12 @@ async function handleLoad(message: Extract<Incoming, { kind: "load" }>): Promise
   });
 
   loaded.set(message.extensionId, instance);
-  return { loaded: true };
+
+  // Asked once, here, while the isolate is warm. The parent needs it to decide
+  // whether this extension can be offered as a search provider.
+  const methods = await instance.listMethods(AbortSignal.timeout(30_000));
+
+  return { loaded: true, methods };
 }
 
 async function handleCall(message: Extract<Incoming, { kind: "call" }>): Promise<unknown> {

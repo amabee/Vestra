@@ -6,7 +6,7 @@ import {
   healthOf,
   isPinnedRef,
 } from "@vestra/provider-sdk/marketplace";
-import { AlertTriangle, Loader2, Plus, ShieldCheck, Trash2, X } from "lucide-react";
+import { AlertTriangle, FolderOpen, Loader2, Plus, ShieldCheck, Trash2, X } from "lucide-react";
 import { useState } from "react";
 
 import { Notice, Page, PageHeader, SectionRule } from "@/components/layout/page";
@@ -16,6 +16,15 @@ import {
   type InstallCandidate,
   type InstallPlan,
 } from "@/lib/bridge";
+
+/** Matches the marker the main process puts on a folder install. */
+const LOCAL_UNPACKED = "local:unpacked";
+
+/** The folder a manifest path sits in, for either path separator. */
+function folderOf(manifestPath: string): string {
+  const cut = Math.max(manifestPath.lastIndexOf("\\"), manifestPath.lastIndexOf("/"));
+  return cut > 0 ? manifestPath.slice(0, cut) : manifestPath;
+}
 
 /**
  * Extensions.
@@ -84,6 +93,27 @@ export function ExtensionsRoute() {
     },
   });
 
+  /*
+    Loading from a folder goes through the same review screen as a registry
+    install. The consent is the part that matters, and a second prompt for the
+    local case would be free to drift from the first.
+  */
+  const pickUnpacked = useMutation({
+    mutationFn: () => bridge.extensions.pickUnpacked(),
+    onSuccess: (plan) => {
+      if (plan) setReviewing(plan);
+    },
+  });
+
+  const installUnpacked = useMutation({
+    mutationFn: (input: { folder: string; granted: string[] }) =>
+      bridge.extensions.installUnpacked(input),
+    onSuccess: () => {
+      setReviewing(null);
+      refresh();
+    },
+  });
+
   const uninstall = useMutation({
     mutationFn: (id: string) => bridge.extensions.uninstall(id),
     onSuccess: refresh,
@@ -108,7 +138,32 @@ export function ExtensionsRoute() {
       />
 
       <section className="mt-10">
-        <SectionRule label="Installed" count={installed.data?.length} />
+        <SectionRule
+          label="Installed"
+          count={installed.data?.length}
+          trailing={
+            <button
+              type="button"
+              disabled={pickUnpacked.isPending}
+              onClick={() => pickUnpacked.mutate()}
+              title="Review an extension from a folder on this machine"
+              className="flex items-center gap-1.5 rounded-field border rule px-2.5 py-1 text-xs transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-40"
+            >
+              {pickUnpacked.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <FolderOpen className="size-3.5" />
+              )}
+              Load unpacked
+            </button>
+          }
+        />
+
+        {pickUnpacked.error ? (
+          <p className="mt-3 text-xs text-error">
+            {(pickUnpacked.error as Error).message}
+          </p>
+        ) : null}
 
         {(installed.data ?? []).length === 0 ? (
           <Notice
@@ -235,12 +290,22 @@ export function ExtensionsRoute() {
       {reviewing ? (
         <ReviewDialog
           plan={reviewing}
-          busy={install.isPending}
-          error={install.error as Error | null}
+          busy={install.isPending || installUnpacked.isPending}
+          error={(install.error ?? installUnpacked.error) as Error | null}
           onCancel={() => setReviewing(null)}
-          onInstall={(granted) =>
-            install.mutate({ candidate: reviewing.candidate, granted })
-          }
+          onInstall={(granted) => {
+            // Local plans carry a folder path where a registry plan carries a
+            // URL, and the two install paths are not interchangeable.
+            if (reviewing.candidate.registryUrl === LOCAL_UNPACKED) {
+              installUnpacked.mutate({
+                folder: folderOf(reviewing.candidate.manifestURI),
+                granted,
+              });
+              return;
+            }
+
+            install.mutate({ candidate: reviewing.candidate, granted });
+          }}
         />
       ) : null}
     </Page>
@@ -344,6 +409,15 @@ function AvailableRow({
   const support = EXTENSION_TYPE_SUPPORT[entry.type];
   const health = healthOf(entry);
 
+  /*
+    Some registries put the code's URL in the manifest rather than the listing.
+    Vestra needs it up front — it is what the integrity fingerprint is taken
+    of, and what "pinned to a commit" is judged from — so a listing without one
+    cannot be installed. Better to say so on the row than to fail after a click
+    with a validation error about a URL the user never saw.
+  */
+  const installable = support.supported && entry.payloadURI.length > 0;
+
   return (
     <article className="flex items-start gap-4 rounded-box border rule bg-base-200/40 px-4 py-3">
       <div className="min-w-0 flex-1">
@@ -370,9 +444,17 @@ function AvailableRow({
         {support.supported ? null : (
           <p className="mt-2 max-w-[70ch] text-xs text-base-content/50">{support.reason}</p>
         )}
+
+        {support.supported && !installable ? (
+          <p className="mt-2 max-w-[70ch] text-xs text-base-content/50">
+            This listing does not say where its code lives, so Vestra has
+            nothing to fingerprint. That is a gap in the registry entry rather
+            than anything about the extension itself.
+          </p>
+        ) : null}
       </div>
 
-      {support.supported ? (
+      {installable ? (
         <button
           type="button"
           disabled={busy || installed}
@@ -382,7 +464,9 @@ function AvailableRow({
           {installed ? "Installed" : "Review"}
         </button>
       ) : (
-        <span className="meta shrink-0 self-center">Not installable</span>
+        <span className="meta shrink-0 self-center">
+          {support.supported ? "No code listed" : "Not installable"}
+        </span>
       )}
     </article>
   );

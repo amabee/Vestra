@@ -75,6 +75,14 @@ export interface LoadedExtension {
    * hands the guest a thread back to the host.
    */
   call(method: string, args: readonly unknown[], signal: AbortSignal): Promise<unknown>;
+  /**
+   * Which methods the extension actually exports.
+   *
+   * Asked of the guest rather than taken from the manifest: the manifest says
+   * what an author intended to provide, and the host needs to know what is
+   * really there before advertising it as a source.
+   */
+  listMethods(signal: AbortSignal): Promise<string[]>;
   dispose(): void;
 }
 
