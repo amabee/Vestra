@@ -23,6 +23,9 @@ const {
   registerDeferredPlayback,
   resolveRemotePlayback,
   remoteLoadOptions,
+  registerDeferredVariants,
+  remoteQualities,
+  streamVariants,
 } = createRequire(import.meta.url)(join(scratch, "remote.cjs"));
 after(() => rm(scratch, { recursive: true, force: true }));
 test("opaque handles preserve headers/subtitles and reject arbitrary renderer URLs", async () => {
@@ -55,6 +58,48 @@ test("opaque handles preserve headers/subtitles and reject arbitrary renderer UR
       headers: { Referer: "bad\r\nInjected: x" },
     }),
   );
+});
+
+test("quality choices hide URLs, refresh signatures and preserve the chosen rendition after reordering", async () => {
+  let token = 0;
+  let reverse = false;
+  let removed = false;
+  const locator = registerDeferredVariants(async () => {
+    token++;
+    const qualities = removed
+      ? ["720p"]
+      : reverse
+        ? ["1080p", "720p"]
+        : ["720p", "1080p"];
+    return streamVariants([
+      {
+        server: "Main",
+        headers: { Referer: "https://origin.example" },
+        videoSources: qualities.map((quality) => ({
+          quality,
+          type: "hls",
+          url: `https://cdn.example/${quality}.m3u8?token=${token}`,
+          headers: { "X-Quality": quality },
+        })),
+      },
+    ]);
+  });
+  assert.equal(token, 0);
+  const choices = await remoteQualities(locator);
+  assert.equal(token, 1);
+  assert.equal("url" in choices[0], false);
+  const full = choices.find((row) => row.label.startsWith("1080p"));
+  reverse = true;
+  const playback = await resolveRemotePlayback(full.locator);
+  assert.match(playback.url, /1080p.*token=2/);
+  assert.equal(playback.headers["X-Quality"], "1080p");
+  assert.equal(playback.headers.Referer, "https://origin.example");
+  removed = true;
+  await assert.rejects(
+    resolveRemotePlayback(full.locator),
+    /no longer available/,
+  );
+  await assert.rejects(remoteQualities("https://arbitrary.example"), /expired/);
 });
 test(
   "installed mpv loads HLS plus external subtitles with headers and resets options",

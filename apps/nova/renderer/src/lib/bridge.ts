@@ -109,6 +109,7 @@ interface RawBridge {
     save: (settings: unknown) => Promise<unknown>;
   };
   media: {
+    streamQualities: (locator: string) => Promise<unknown>;
     search: (query: unknown) => Promise<unknown>;
     trending: (kind: unknown) => Promise<unknown>;
     details: (item: unknown) => Promise<unknown>;
@@ -476,6 +477,10 @@ export const bridge = {
     details: async (item: MediaItem): Promise<MediaDetails | null> =>
       (await raw().media.details(item)) as MediaDetails | null,
 
+    streamQualities: (locator: string) =>
+      raw().media.streamQualities(locator) as Promise<
+        { locator: string; label: string }[]
+      >,
     resolvePlayback: async (item: MediaItem): Promise<PlaybackSource[]> =>
       (await raw().media.resolvePlayback(item)) as PlaybackSource[],
 

@@ -74,6 +74,7 @@ const api = {
   },
 
   media: {
+    streamQualities: (locator: string) => invoke("playback:qualities", locator),
     search: (query: unknown): Promise<unknown> => invoke("search:run", query),
     trending: (kind: unknown): Promise<unknown> =>
       invoke("media:trending", kind),

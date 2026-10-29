@@ -127,7 +127,8 @@ and provider storage are already implemented; they do not constitute a full data
 
 ## 6. Finish anime playback and download services
 
-- [ ] Add rendition/quality selection and complete subtitle language/title metadata.
+- [x] Select provider-advertised stream qualities per episode using opaque handles and refreshed URLs.
+- [ ] Forward complete subtitle language/title/default metadata to native mpv.
 - [ ] Migrate/audit playlists, player lifecycle, containers and required track behavior.
 - [ ] Implement persistent download queues, progress, cancellation and recovery.
 - [ ] Implement and verify supported torrent-client and debrid integrations.

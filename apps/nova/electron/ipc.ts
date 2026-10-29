@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { remoteQualities } from "./remote-playback";
 
 import {
   addHistoryEntry,
@@ -17,7 +18,11 @@ import {
   saveSettings,
   toggleBookmark,
 } from "@vestra/storage";
-import { resolvePlayback, searchAcrossProviders, trendingAcrossProviders } from "@vestra/provider-sdk";
+import {
+  resolvePlayback,
+  searchAcrossProviders,
+  trendingAcrossProviders,
+} from "@vestra/provider-sdk";
 import {
   extensionTypeSchema,
   parseRegistry,
@@ -42,7 +47,12 @@ import {
   watchlistStatusSchema,
   type MediaItem,
 } from "@vestra/types";
-import { getSkipTimes, matchLibrary, reportSkipTime, scanLibrary } from "@vestra/providers";
+import {
+  getSkipTimes,
+  matchLibrary,
+  reportSkipTime,
+  scanLibrary,
+} from "@vestra/providers";
 import { ipcMain, shell, dialog } from "electron";
 import { z } from "zod";
 
@@ -63,7 +73,12 @@ import {
 import { completeUnpacked, prepareUnpacked } from "./extension-unpacked";
 import { probeMedia, resolveFfprobe, skipPointsFrom } from "./media-probe";
 import { safeFetch } from "./safe-fetch";
-import { getAdapterRegistry, getDriver, getProviderRegistry, resolveDataDir } from "./services";
+import {
+  getAdapterRegistry,
+  getDriver,
+  getProviderRegistry,
+  resolveDataDir,
+} from "./services";
 
 /**
  * IPC surface.
@@ -106,7 +121,9 @@ function handle<TArgs extends unknown[], TResult>(
     } catch (error) {
       // Log the real error here; hand the renderer something safe to display.
       console.error(`[nova] ${channel} failed`, error);
-      throw new Error(error instanceof Error ? error.message : `${channel} failed.`);
+      throw new Error(
+        error instanceof Error ? error.message : `${channel} failed.`,
+      );
     }
   });
 }
@@ -115,7 +132,9 @@ function handle<TArgs extends unknown[], TResult>(
 function parse<T>(schema: z.ZodType<T>, value: unknown, what: string): T {
   const result = schema.safeParse(value);
   if (!result.success) {
-    throw new Error(`Invalid ${what}: ${result.error.issues[0]?.message ?? "bad payload"}`);
+    throw new Error(
+      `Invalid ${what}: ${result.error.issues[0]?.message ?? "bad payload"}`,
+    );
   }
   return result.data;
 }
@@ -269,6 +288,15 @@ export function registerDataIpc(): void {
       signal: AbortSignal.timeout(15_000),
     });
   });
+  handle("playback:qualities", (raw: unknown) =>
+    remoteQualities(
+      parse(
+        z.string().startsWith("vestra-stream://").max(200),
+        raw,
+        "stream locator",
+      ),
+    ),
+  );
 
   /* --------------------------------------------------------------------- *
    * Watchlist
@@ -282,7 +310,10 @@ export function registerDataIpc(): void {
   });
 
   handle("watchlist:remove", (raw: unknown) =>
-    removeFromWatchlist(getDriver(), parse(mediaRefSchema, raw, "media reference")),
+    removeFromWatchlist(
+      getDriver(),
+      parse(mediaRefSchema, raw, "media reference"),
+    ),
   );
 
   /* --------------------------------------------------------------------- *
@@ -376,14 +407,24 @@ export function registerDataIpc(): void {
    * episode, which is ordinary — the player simply offers no skip control.
    */
   handle("media:skip-times", async (raw: unknown) => {
-    const { source, sourceId, seasonNumber, episodeNumber, episodeLengthSeconds } =
-      parse(skipTimesSchema, raw, "skip request");
+    const {
+      source,
+      sourceId,
+      seasonNumber,
+      episodeNumber,
+      episodeLengthSeconds,
+    } = parse(skipTimesSchema, raw, "skip request");
 
     // Only AniList references can be mapped to a MyAnimeList id, which is what
     // AniSkip is keyed by.
     if (source !== "anilist") return [];
 
-    return getSkipTimes(sourceId, seasonNumber, episodeNumber, episodeLengthSeconds);
+    return getSkipTimes(
+      sourceId,
+      seasonNumber,
+      episodeNumber,
+      episodeLengthSeconds,
+    );
   });
 
   /**
@@ -537,7 +578,11 @@ export function registerDataIpc(): void {
     const extensionId = parse(z.string().min(1).max(200), id, "extension id");
     const methodName = parse(z.string().min(1).max(100), method, "method name");
 
-    return callExtension(extensionId, methodName, Array.isArray(args) ? args : []);
+    return callExtension(
+      extensionId,
+      methodName,
+      Array.isArray(args) ? args : [],
+    );
   });
 
   handle("extensions:installed", () => listInstalled(getDriver()));
@@ -586,18 +631,23 @@ export function registerDataIpc(): void {
       try {
         const response = await safeFetch({ url: registryUrl });
         if (response.status !== 200) {
-          errors.push({ registryUrl, message: `Returned status ${response.status}.` });
+          errors.push({
+            registryUrl,
+            message: `Returned status ${response.status}.`,
+          });
           continue;
         }
 
         const parsed = parseRegistry(JSON.parse(response.body));
         rejected += parsed.rejected;
 
-        for (const entry of parsed.entries) entries.push({ ...entry, registryUrl });
+        for (const entry of parsed.entries)
+          entries.push({ ...entry, registryUrl });
       } catch (error) {
         errors.push({
           registryUrl,
-          message: error instanceof Error ? error.message : "Could not be read.",
+          message:
+            error instanceof Error ? error.message : "Could not be read.",
         });
       }
     }
@@ -732,7 +782,9 @@ export function registerDataIpc(): void {
     return {
       dataDir: resolveDataDir(),
       providers,
-      adapters: getAdapterRegistry().all().map((adapter) => adapter.id),
+      adapters: getAdapterRegistry()
+        .all()
+        .map((adapter) => adapter.id),
       extensions: listLoadedExtensions(),
       counts: {
         watchlist: watchlist.length,
