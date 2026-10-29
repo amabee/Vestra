@@ -60,6 +60,20 @@ public sealed class ReadingProgressStore(string? directory)
             return value;
         }
     }
+    public bool SetCover(string provider, string book, ReadingCover cover)
+    {
+        ValidateCover(cover);
+        lock (gate)
+        {
+            var file = FileFor(provider, book);
+            var current = ReadFor(provider, book);
+            if (current is null) return false;
+            var updated = current with { Cover = cover };
+            if (JsonSerializer.SerializeToUtf8Bytes(updated, ProviderRuntime.JsonOptions).Length > 32768) return false;
+            Write(file, updated);
+            return true;
+        }
+    }
 
     public RecentReadings Recent(string provider)
     {

@@ -49,6 +49,8 @@ internal static class ProviderWorker
                         "download" => await DownloadAsync(transport, command),
                         "progress:get" => progress.Read(command.GetProperty("providerId").GetString()!, command.GetProperty("bookId").GetString()!),
                         "progress:recent" => progress.Recent(command.GetProperty("providerId").GetString()!),
+                        "progress:cover" => progress.SetCover(command.GetProperty("providerId").GetString()!, command.GetProperty("bookId").GetString()!,
+                            command.GetProperty("cover").Deserialize<ReadingCover>(ProviderRuntime.JsonOptions) ?? throw new ArgumentException("Missing cover.")),
                         "progress:save" => progress.Save(command.GetProperty("providerId").GetString()!, command.GetProperty("bookId").GetString()!,
                             command.GetProperty("chapterId").GetString()!, command.GetProperty("page").GetInt32(), command.GetProperty("pageCount").GetInt32(),
                             command.TryGetProperty("title", out var title) ? title.GetString() : null,

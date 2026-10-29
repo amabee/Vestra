@@ -13,6 +13,14 @@ export function csharpMangaProgress(
   providerId: string,
 ): ReadingProgressRepository {
   return {
+    async setCover(bookId, cover) {
+      await client.request({
+        kind: "progress:cover",
+        providerId,
+        bookId,
+        cover,
+      });
+    },
     async read(bookId) {
       return position
         .nullable()

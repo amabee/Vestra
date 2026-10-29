@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useCallback,
   useEffect,
@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   ArrowUpRight,
+  RefreshCw,
   BookOpen,
   Clock3,
   Search,
@@ -17,7 +18,12 @@ import {
 import { Link } from "react-router";
 import { bridge } from "@/lib/bridge";
 import { ReaderImages } from "@/lib/reader-images";
-import type { MangaBook, ReadingProgress } from "../../../../shared/manga";
+import { CoverLookups } from "@/lib/cover-lookups";
+import type {
+  MangaBook,
+  MangaRecent,
+  ReadingProgress,
+} from "../../../../shared/manga";
 
 type OpenReader = (
   provider: string,
@@ -128,14 +134,18 @@ function MangaShelf({
   const [images] = useState(
     () => new ReaderImages((handle) => bridge.manga.image(handle)),
   );
+  const [lookups] = useState(() => new CoverLookups());
   const lease = useRef(0);
   useEffect(() => {
     const current = ++lease.current;
     return () =>
       queueMicrotask(() => {
-        if (lease.current === current) images.dispose();
+        if (lease.current === current) {
+          images.dispose();
+          lookups.dispose();
+        }
       });
-  }, [images]);
+  }, [images, lookups]);
   const recent = useQuery({
     queryKey: ["manga", provider, "recent"],
     queryFn: () => bridge.manga.recent(provider),
@@ -235,6 +245,8 @@ function MangaShelf({
                     key={value.id}
                     book={value}
                     images={images}
+                    provider={provider}
+                    lookups={lookups}
                     onOpen={() => setBook(value)}
                   />
                 ))}
@@ -283,6 +295,8 @@ function MangaShelf({
                   book={entry.book}
                   progress={entry.progress}
                   images={images}
+                  provider={provider}
+                  lookups={lookups}
                   disabled={recent.isFetching}
                   onOpen={() => setBook(entry.book)}
                 />
@@ -312,53 +326,95 @@ function MangaCard({
   book,
   progress,
   images,
+  provider,
+  lookups,
   disabled,
   onOpen,
 }: {
   book: MangaBook;
   progress?: ReadingProgress;
   images: ReaderImages;
+  provider: string;
+  lookups: CoverLookups;
   disabled?: boolean;
   onOpen: () => void;
 }) {
+  const [issue, setIssue] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   return (
-    <button
-      className="group min-w-0 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4 focus-visible:ring-offset-base-100 disabled:opacity-60"
-      aria-label={`${progress ? "Continue" : "Read"} ${book.title}`}
-      disabled={disabled}
-      onClick={onOpen}
-    >
-      <div className="relative overflow-hidden rounded-xl border border-base-content/10 bg-base-200 shadow-sm transition-shadow duration-200 group-hover:shadow-xl">
-        <CoverArt book={book} images={images} />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
-        {progress && (
-          <span className="absolute bottom-3 left-3 rounded-md bg-black/65 px-2 py-1 text-[11px] font-medium text-white backdrop-blur-md">
-            Page {progress.page + 1}
-          </span>
-        )}
-        <span className="absolute bottom-3 right-3 flex size-7 translate-y-1 items-center justify-center rounded-full bg-white/90 text-black opacity-0 transition-all group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:opacity-100">
-          <ArrowUpRight className="size-4" />
-        </span>
-      </div>
-      <h3
-        className="mt-3 line-clamp-2 text-[13px] font-medium leading-snug text-base-content/85 transition-colors group-hover:text-primary"
-        title={book.title}
+    <div className="group relative min-w-0">
+      <button
+        className="group block w-full min-w-0 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4 focus-visible:ring-offset-base-100 disabled:opacity-60"
+        aria-label={`${progress ? "Continue" : "Read"} ${book.title}`}
+        disabled={disabled}
+        onClick={onOpen}
       >
-        {book.title}
-      </h3>
-      {progress && (
-        <p className="mt-1 text-[11px] text-base-content/40">
-          Last read{" "}
-          {new Date(progress.updatedAt).toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-          })}
-        </p>
+        <div className="relative overflow-hidden rounded-xl border border-base-content/10 bg-base-200 shadow-sm transition-shadow duration-200 group-hover:shadow-xl">
+          <CoverArt
+            book={book}
+            provider={provider}
+            lookups={lookups}
+            images={images}
+            attempt={attempt}
+            onIssue={setIssue}
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+          {progress && (
+            <span className="absolute bottom-3 left-3 rounded-md bg-black/65 px-2 py-1 text-[11px] font-medium text-white backdrop-blur-md">
+              Page {progress.page + 1}
+            </span>
+          )}
+          <span className="absolute bottom-3 right-3 flex size-7 translate-y-1 items-center justify-center rounded-full bg-white/90 text-black opacity-0 transition-all group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:opacity-100">
+            <ArrowUpRight className="size-4" />
+          </span>
+        </div>
+        <h3
+          className="mt-3 line-clamp-2 text-[13px] font-medium leading-snug text-base-content/85 transition-colors group-hover:text-primary"
+          title={book.title}
+        >
+          {book.title}
+        </h3>
+        {progress && (
+          <p className="mt-1 text-[11px] text-base-content/40">
+            Last read{" "}
+            {new Date(progress.updatedAt).toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+            })}
+          </p>
+        )}
+      </button>
+      {issue && (
+        <button
+          className="btn btn-sm btn-square absolute right-2 top-2 z-10 bg-base-100/90"
+          aria-label={`Retry cover for ${book.title}`}
+          title="Retry loading cover"
+          onClick={() => {
+            setIssue(false);
+            setAttempt((old) => old + 1);
+          }}
+        >
+          <RefreshCw className="size-4" />
+        </button>
       )}
-    </button>
+    </div>
   );
 }
-function CoverArt({ book, images }: { book: MangaBook; images: ReaderImages }) {
+function CoverArt({
+  book,
+  provider,
+  lookups,
+  images,
+  attempt,
+  onIssue,
+}: {
+  book: MangaBook;
+  provider: string;
+  lookups: CoverLookups;
+  images: ReaderImages;
+  attempt: number;
+  onIssue: (issue: boolean) => void;
+}) {
   const element = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -372,12 +428,55 @@ function CoverArt({ book, images }: { book: MangaBook; images: ReaderImages }) {
     observer.observe(element.current);
     return () => observer.disconnect();
   }, []);
+  const metadata = useQuery({
+    queryKey: ["manga-cover-book", provider, book.id, attempt],
+    queryFn: ({ signal }) =>
+      lookups.run(
+        () => bridge.manga.cover(provider, book.id, attempt > 0),
+        signal,
+      ),
+    enabled: visible && (!book.cover || attempt > 0),
+    staleTime: Infinity,
+    gcTime: 300_000,
+    retry: false,
+    retryOnMount: false,
+  });
+  const handle = metadata.data?.cover ?? book.cover;
+  const cache = useQueryClient();
+  useEffect(() => {
+    const resolved = metadata.data;
+    if (!resolved?.cover || resolved.cover === book.cover) return;
+    cache.setQueriesData<MangaBook[]>(
+      { queryKey: ["manga", provider, "search"] },
+      (rows) => rows?.map((row) => (row.id === book.id ? resolved : row)),
+    );
+    cache.setQueryData<MangaRecent>(["manga", provider, "recent"], (recent) =>
+      recent
+        ? {
+            ...recent,
+            entries: recent.entries.map((entry) =>
+              entry.book.id === book.id ? { ...entry, book: resolved } : entry,
+            ),
+          }
+        : recent,
+    );
+  }, [metadata.data, book.id, book.cover, provider, cache]);
+  useEffect(() => setFailed(false), [handle, attempt]);
+  const issue = failed || !!metadata.error || (metadata.isSuccess && !handle);
+  useEffect(() => onIssue(issue), [issue, onIssue]);
+  const loading =
+    !issue && (!!handle || metadata.isPending || metadata.isFetching);
   return (
     <div ref={element} className="relative aspect-[2/3] overflow-hidden">
-      <CoverFallback title={book.title} loading={!!book.cover && !failed} />
-      {book.cover && visible && !failed && (
+      <CoverFallback
+        title={book.title}
+        loading={loading}
+        failed={failed || !!metadata.error}
+      />
+      {handle && visible && !failed && (
         <CoverImage
-          handle={book.cover}
+          key={handle}
+          handle={handle}
           title={book.title}
           images={images}
           onFailed={fail}
@@ -421,9 +520,11 @@ function CoverImage({
 function CoverFallback({
   title,
   loading,
+  failed,
 }: {
   title: string;
   loading: boolean;
+  failed: boolean;
 }) {
   const tones = [
     "from-slate-800 via-slate-900 to-neutral-950",
@@ -446,7 +547,11 @@ function CoverFallback({
         </span>
       )}
       <span className="text-[10px] uppercase tracking-widest text-white/25">
-        {loading ? "Loading cover…" : "No cover available"}
+        {loading
+          ? "Loading cover…"
+          : failed
+            ? "Cover could not load"
+            : "No cover available"}
       </span>
     </div>
   );

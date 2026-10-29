@@ -14,6 +14,7 @@ export interface MangaArtwork {
   headers: Record<string, string>;
 }
 export interface ReadingProgressRepository {
+  setCover?(book: string, cover: MangaArtwork): Promise<void>;
   read(book: string): Promise<ReadingProgress | null>;
   save(
     book: string,
@@ -83,6 +84,7 @@ export class MangaService {
   >();
   private counts = new Map<string, number>();
   private writes: Promise<void> = Promise.resolve();
+  private coverLookups = new Map<string, Promise<MangaBook>>();
   constructor(private readonly driver: StorageDriver) {}
   register(
     id: string,
@@ -193,6 +195,62 @@ export class MangaService {
       this.chaptersByBook.delete(this.chaptersByBook.keys().next().value!);
     this.chaptersByBook.set(key, rows);
     return rows;
+  }
+  cover(id: string, book: string, refresh = false): Promise<MangaBook> {
+    const key = this.book(id, book);
+    const known = this.books.get(key)!;
+    const provider = this.provider(id);
+    if (!refresh && known.cover && this.covers.has(known.cover))
+      return Promise.resolve(known);
+    const pending = this.coverLookups.get(key);
+    if (pending) return pending;
+    if (this.coverLookups.size >= 24)
+      return Promise.reject(
+        new Error("Cover lookups are busy. Retry shortly."),
+      );
+    const lookup = (async () => {
+      const rows = z
+        .array(searchBookSchema)
+        .max(2000)
+        .parse(
+          await provider.call("search", [{ query: known.title, year: 0 }]),
+        );
+      if (this.providers.get(id) !== provider)
+        throw new Error("Manga source changed. Reopen the library.");
+      // Match the provider's own exact ID; a similar title is not evidence of identity.
+      const row = rows.find((result) => result.id === book);
+      if (!row?.image) return known;
+      const uri = new URL(row.image);
+      if (uri.protocol !== "https:" || uri.username || uri.password)
+        throw new Error("Source returned an invalid cover URL.");
+      const artwork = { url: row.image, headers: row.imageHeaders ?? {} };
+      if (refresh && known.cover) this.covers.delete(known.cover);
+      const managed = this.remember(id, known, artwork);
+      // Artwork enrichment preserves the reading timestamp/page and creates no history entry.
+      if (provider.progress.setCover) {
+        const write = this.writes.then(() =>
+          provider.progress.setCover!(book, artwork),
+        );
+        this.writes = write.catch(() => undefined);
+        await write.catch((error: unknown) =>
+          console.warn(
+            "[manga] Cover metadata could not be saved:",
+            error instanceof Error ? error.message : String(error),
+          ),
+        );
+      }
+      if (this.providers.get(id) !== provider)
+        throw new Error("Manga source changed. Reopen the library.");
+      return managed;
+    })();
+    this.coverLookups.set(key, lookup);
+    void lookup
+      .finally(() => {
+        if (this.coverLookups.get(key) === lookup)
+          this.coverLookups.delete(key);
+      })
+      .catch(() => undefined);
+    return lookup;
   }
   async pages(id: string, book: string, chapter: string): Promise<MangaPage[]> {
     const key = this.book(id, book);

@@ -33,6 +33,19 @@ public sealed class ReadingProgressTests : IDisposable
         Assert.Equal(1, recent.Progress.Page);
         Assert.Empty(restarted.Recent("other").Entries);
     }
+    [Fact]
+    public void ArtworkBackfillPreservesPositionTimestampAndDoesNotCreateHistory()
+    {
+        var store = new ReadingProgressStore(directory);
+        var position = store.Save("source", "book", "chapter", 1, 2, "Manga");
+        var cover = new ReadingCover("https://images.example/cover.jpg");
+        Assert.True(store.SetCover("source", "book", cover));
+        Assert.Equal(position, store.Read("source", "book"));
+        Assert.Equal(cover.Url, Assert.Single(new ReadingProgressStore(directory).Recent("source").Entries).Cover!.Url);
+        Assert.False(store.SetCover("source", "unread", cover));
+        Assert.Null(store.Read("source", "unread"));
+        Assert.Single(store.Recent("source").Entries);
+    }
 
     [Theory]
     [InlineData("http://images.example/cover.jpg")]

@@ -23,6 +23,9 @@ export function registerMangaIpc(): void {
   ipcMain.handle("manga:image", (_e, h) =>
     api.image(z.string().uuid().parse(h)),
   );
+  ipcMain.handle("manga:cover", (_e, p, b, refresh) =>
+    api.cover(text.parse(p), text.parse(b), z.boolean().parse(refresh)),
+  );
   ipcMain.handle("manga:progress", (_e, p, b) =>
     api.progress(text.parse(p), text.parse(b)),
   );

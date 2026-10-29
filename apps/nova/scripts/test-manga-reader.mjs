@@ -198,6 +198,124 @@ test("covers use opaque image handles with headers and restore from C# recent re
   next.unregister("manga");
   await assert.rejects(next.image(recent.entries[0].book.cover), /expired/);
 });
+test("old reading entries backfill exact-ID covers without moving progress and survive a worker restart", async () => {
+  const directory = join(scratch, "csharp-cover-backfill");
+  let backend = session(directory),
+    withArtwork = false,
+    searches = 0;
+  const call = async (method) => {
+    if (method === "search") {
+      searches++;
+      return withArtwork
+        ? [
+            {
+              id: "wrong",
+              title: "Fixture",
+              image: "https://images.example/wrong.jpg",
+            },
+            {
+              id: "book",
+              title: "Fixture",
+              image: "https://images.example/correct.jpg",
+            },
+          ]
+        : [{ id: "book", title: "Fixture" }];
+    }
+    return {
+      findChapters: [
+        { id: "chapter", title: "Chapter 1", chapter: "1", index: 0 },
+      ],
+      findChapterPages: [{ url: "https://images.example/page.jpg", index: 0 }],
+    }[method];
+  };
+  const registerBackfill = (service) =>
+    service.register(
+      "manga",
+      "Fixture",
+      call,
+      async () => ({ mimeType: "image/png", data: "AAE=" }),
+      csharpMangaProgress(backend, "manga"),
+    );
+  const service = new MangaService(new NodeDriver(join(scratch, "backfill")));
+  registerBackfill(service);
+  await service.search("manga", "x");
+  await service.chapters("manga", "book");
+  await service.pages("manga", "book", "chapter");
+  await service.save("manga", "book", "chapter", 0);
+  const before = await service.progress("manga", "book");
+  assert.equal(
+    (await service.recent("manga")).entries[0].book.cover,
+    undefined,
+  );
+  withArtwork = true;
+  const first = service.cover("manga", "book"),
+    second = service.cover("manga", "book");
+  assert.equal(first, second);
+  const resolved = await first;
+  assert.ok(resolved.cover);
+  assert.equal(searches, 2);
+  assert.deepEqual(await service.progress("manga", "book"), before);
+  const refreshed = await service.cover("manga", "book", true);
+  assert.notEqual(refreshed.cover, resolved.cover);
+  backend.stop();
+  backend = session(directory);
+  const restarted = new MangaService(new NodeDriver(join(scratch, "backfill")));
+  registerBackfill(restarted);
+  const recent = await restarted.recent("manga");
+  assert.ok(recent.entries[0].book.cover);
+  assert.deepEqual(recent.entries[0].progress, before);
+});
+test("cover backfill cannot substitute a similarly named result with another ID", async () => {
+  const service = new MangaService(
+    new NodeDriver(join(scratch, "cover-identity")),
+  );
+  service.register(
+    "manga",
+    "Fixture",
+    async () => [
+      {
+        id: "different",
+        title: "Known manga",
+        image: "https://images.example/wrong.jpg",
+      },
+    ],
+    async () => ({}),
+    {
+      async recent() {
+        return {
+          entries: [
+            {
+              book: { id: "known", title: "Known manga" },
+              progress: {
+                chapterId: "one",
+                page: 0,
+                updatedAt: "2026-01-01T00:00:00Z",
+              },
+            },
+          ],
+          unreadable: 0,
+          truncated: false,
+        };
+      },
+      async setCover() {
+        throw new Error("Must not persist a guessed cover");
+      },
+      async read() {
+        return null;
+      },
+      async save() {},
+      async import(_book, value) {
+        return value;
+      },
+    },
+  );
+  await service.recent("manga");
+  assert.equal((await service.cover("manga", "known")).cover, undefined);
+  assert.throws(() => service.cover("manga", "arbitrary"), /Search/);
+  const pending = service.cover("manga", "known", true);
+  service.unregister("manga");
+  await assert.rejects(pending, /source changed/);
+});
 test("disabling or replacing a source rejects its pending image downloads", async () => {
   for (const action of ["disable", "replace"]) {
     const service = new MangaService(new NodeDriver(join(scratch, action)));

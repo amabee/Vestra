@@ -103,13 +103,19 @@ try {
     join(scratch, "index.html"),
     `<!doctype html><html data-theme="vestra-dark"><head><style>${css}</style></head><body style="margin:0;height:100vh"><div id="root"></div><script>
     window.readerFixture = { calls: [], saves: [], fail: true, exited:false, bridge: { manga: {
+      cover: async (_provider,id,refresh) => {
+        if(id==='recent-b')return {id,title:'City of Lanterns',cover:'cover-backfilled'};
+        if(id==='recent-c'&&refresh)return {id,title:'After the Rain',cover:'cover-refreshed'};
+        if(id==='result-3'&&refresh)return {id,title:'After the Rain',cover:'cover-search-refreshed'};
+        return {id,title:'City of Lanterns'};
+      },
       sources: async () => [{id:'fixture',name:'Manga source'},{id:'second',name:'Second source'}],
       search: async (provider,query) => { const f=window.readerFixture; f.searches??=[]; f.searches.push({provider,query}); if(query==='none')return []; return Array.from({length:9},(_,index)=>({id:'result-'+index,title:['A Quiet Journey','The Last Horizon','City of Lanterns','After the Rain','Moonlit Garden','A New Beginning','Paper Worlds','Beyond the Clouds','Small Adventures'][index],...(index===2?{}:{cover:provider+'-cover-'+index})})); },
       recent: async () => ({entries:[{book:{id:'recent-a',title:'A Quiet Journey',cover:'cover-recent'},progress:{chapterId:'one',page:13,updatedAt:'2026-10-29T16:00:00Z'}},{book:{id:'recent-b',title:'City of Lanterns'},progress:{chapterId:'one',page:3,updatedAt:'2026-10-29T12:00:00Z'}},{book:{id:'recent-c',title:'After the Rain',cover:'cover-broken'},progress:{chapterId:'one',page:0,updatedAt:'2026-10-28T16:00:00Z'}}],unreadable:0,truncated:false}),
       chapters: async () => [{id:'one',title:'Chapter 1',chapter:'1',index:0},{id:'two',title:'Chapter 2',chapter:'2',index:1}],
       progress: async () => null,
       pages: async (_p,_b,c) => Array.from({length:40},(_,index)=>({handle:c+'-'+index,index})),
-      image: async (handle) => { const f=window.readerFixture; f.calls.push(handle); if(handle==='cover-broken')return 'data:image/png;base64,AAE='; if(f.slow===handle) await new Promise(resolve=>{f.releaseSlow=resolve;}); if(f.fail && handle==='one-5') throw new Error('Fixture image failure'); return ${JSON.stringify("data:image/png;base64," + png.toString("base64"))}; },
+      image: async (handle) => { const f=window.readerFixture; f.calls.push(handle); if(handle==='cover-broken'||handle==='fixture-cover-3')return 'data:image/png;base64,AAE='; if(f.slow===handle) await new Promise(resolve=>{f.releaseSlow=resolve;}); if(f.fail && handle==='one-5') throw new Error('Fixture image failure'); return ${JSON.stringify("data:image/png;base64," + png.toString("base64"))}; },
       save: async (_p,b,c,page) => { window.readerFixture.saves.push({book:b,chapter:c,page}); },
     }}};
   </script><script src="fixture.js"></script></body></html>`,
@@ -216,21 +222,30 @@ try {
         await run('window.readerFixture.choose("__library__")');
         await until('document.querySelector("[data-manga-library]")');
         await until('[...document.querySelectorAll("img")].some(e=>e.alt==="Cover of A Quiet Journey" && e.complete && e.naturalWidth>0)');
-        assert.equal(await run('document.querySelectorAll("section[aria-label^=Continue] button").length'),3);
-        await until('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Continue After the Rain").textContent.includes("No cover available")');
-        assert.ok(await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Continue City of Lanterns").textContent.includes("No cover available")'));
-        console.log('PASS cover shelf renders real decoded artwork and clean missing/broken-cover fallbacks');
+        assert.equal(await run('[...document.querySelectorAll("section[aria-label^=Continue] button")].filter(e=>e.getAttribute("aria-label")?.startsWith("Continue ")).length'),3);
+        await until('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Continue After the Rain").textContent.includes("Cover could not load")');
+        await until('[...document.querySelectorAll("img")].some(e=>e.alt==="Cover of City of Lanterns" && e.complete && e.naturalWidth>0)');
+        await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Retry cover for After the Rain").click()');
+        await until('[...document.querySelectorAll("img")].some(e=>e.alt==="Cover of After the Rain" && e.complete && e.naturalWidth>0)');
+        assert.equal(await run('!!document.querySelector("[data-reader-title]")'),false);
+        console.log('PASS legacy shelf covers backfill automatically and failed covers retry without opening the reader');
         await run('(()=>{const e=document.querySelector("input[placeholder^=Search]");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(e,"quiet");e.dispatchEvent(new Event("input",{bubbles:true}));})()');
         await run('document.querySelector("input[placeholder^=Search]").closest("form").dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}))');
         await until('document.body.textContent.includes("Results for")');
         await until('[...document.querySelectorAll("button")].some(e=>e.getAttribute("aria-label")==="Read A Quiet Journey")');
         assert.equal(await run('document.querySelectorAll("section[aria-label^=Continue]").length'),0);
         await until('[...document.querySelectorAll("img")].some(e=>e.alt==="Cover of A Quiet Journey" && e.complete && e.naturalWidth>0)');
+        await until('[...document.querySelectorAll("button")].some(e=>e.getAttribute("aria-label")==="Retry cover for After the Rain")');
+        await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Retry cover for After the Rain").click()');
+        await until('[...document.querySelectorAll("img")].some(e=>e.alt==="Cover of After the Rain" && e.complete && e.naturalWidth>0)');
         if(process.env.VESTRA_LIBRARY_SCREENSHOT) require('node:fs').writeFileSync(process.env.VESTRA_LIBRARY_SCREENSHOT,(await win.webContents.capturePage()).toPNG());
         await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Read A Quiet Journey").click()');
         await until('document.querySelector("[data-reader-title]")?.textContent==="A Quiet Journey"');
         await run('[...document.querySelectorAll("button")].find(e=>e.textContent.includes("Library")).click()');
         await until('document.querySelector("[data-manga-library]") && !document.querySelector("[data-reader-title]")');
+        await until('[...document.querySelectorAll("img")].some(e=>e.alt==="Cover of After the Rain" && e.complete && e.naturalWidth>0)');
+        assert.equal(await run('[...document.querySelectorAll("button")].some(e=>e.getAttribute("aria-label")==="Retry cover for After the Rain")'),false);
+        console.log('PASS search cover retry updates cached cards and survives returning from the reader');
         await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Clear manga search").click()');
         await until('document.querySelector("section[aria-label^=Continue]")');
         console.log('PASS library search opens the reader and returns to a clean Continue Reading shelf');

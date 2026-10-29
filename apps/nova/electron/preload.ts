@@ -47,6 +47,8 @@ const api = {
     chapters: (p: string, b: string) => invoke("manga:chapters", p, b),
     pages: (p: string, b: string, c: string) => invoke("manga:pages", p, b, c),
     image: (h: string) => invoke("manga:image", h),
+    cover: (p: string, b: string, refresh: boolean) =>
+      invoke("manga:cover", p, b, refresh),
     progress: (p: string, b: string) => invoke("manga:progress", p, b),
     save: (p: string, b: string, c: string, n: number) =>
       invoke("manga:save", p, b, c, n),

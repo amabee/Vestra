@@ -91,6 +91,7 @@ interface RawBridge {
     chapters: (p: string, b: string) => Promise<unknown>;
     pages: (p: string, b: string, c: string) => Promise<unknown>;
     image: (h: string) => Promise<unknown>;
+    cover: (p: string, b: string, refresh: boolean) => Promise<unknown>;
     progress: (p: string, b: string) => Promise<unknown>;
     save: (p: string, b: string, c: string, n: number) => Promise<unknown>;
   };
@@ -440,6 +441,10 @@ export const bridge = {
         c,
       )) as import("../../../shared/manga").MangaPage[],
     image: async (h: string) => (await raw().manga.image(h)) as string,
+    cover: (p: string, b: string, refresh = false) =>
+      raw().manga.cover(p, b, refresh) as Promise<
+        import("../../../shared/manga").MangaBook
+      >,
     progress: async (p: string, b: string) =>
       (await raw().manga.progress(p, b)) as
         import("../../../shared/manga").ReadingProgress | null,

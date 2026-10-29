@@ -12,6 +12,7 @@ after(() => rm(scratch, { recursive: true, force: true }));
 await build({
   entryPoints: {
     images: join(nova, "renderer/src/lib/reader-images.ts"),
+    lookups: join(nova, "renderer/src/lib/cover-lookups.ts"),
     pool: join(nova, "electron/csharp-image-pool.ts"),
     worker: join(nova, "electron/csharp-worker.ts"),
   },
@@ -22,9 +23,46 @@ await build({
 });
 const require = createRequire(import.meta.url);
 const { ReaderImages, hoverPage } = require(join(scratch, "images.js"));
+const { CoverLookups } = require(join(scratch, "lookups.js"));
 const { CSharpImagePool } = require(join(scratch, "pool.js"));
 const { CSharpProviderWorker } = require(join(scratch, "worker.js"));
 const tick = () => new Promise((resolve) => setImmediate(resolve));
+test("cover metadata is bounded, skips cancelled work and recovers from synchronous bridge errors", async () => {
+  const lookups = new CoverLookups(),
+    signal = new AbortController(),
+    cancelled = new AbortController();
+  const pending = [];
+  let started = 0;
+  const work = () => {
+    started++;
+    return new Promise((resolve) => pending.push(resolve));
+  };
+  const first = lookups.run(work, signal.signal),
+    second = lookups.run(work, signal.signal);
+  const skipped = assert.rejects(
+    lookups.run(work, cancelled.signal),
+    /cancelled/,
+  );
+  cancelled.abort();
+  await skipped;
+  await tick();
+  assert.equal(started, 2);
+  pending[0](1);
+  pending[1](2);
+  assert.deepEqual(await Promise.all([first, second]), [1, 2]);
+  await assert.rejects(
+    lookups.run(() => {
+      throw new Error("old bridge");
+    }, signal.signal),
+    /old bridge/,
+  );
+  assert.equal(await lookups.run(async () => 3, signal.signal), 3);
+  lookups.dispose();
+  await assert.rejects(
+    lookups.run(async () => 4, signal.signal),
+    /cancelled/,
+  );
+});
 test("look-ahead reserves capacity for foreground work, de-duplicates, and prioritizes previews", async () => {
   const started = [],
     pending = new Map();

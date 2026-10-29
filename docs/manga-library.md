@@ -14,9 +14,13 @@ headers remain in main/the worker. Covers load near the viewport, through the
 bounded image loader; source removal invalidates their handles and pending results.
 
 Missing or failed artwork shows a quiet title fallback, with loading shown separately.
-There is no guessed artwork or external metadata matching. Older saved reading
-entries without cover metadata continue to work; searching and reading that title
-again supplies metadata for future saves.
+There is no guessed artwork or external metadata matching. Older saved entries
+without artwork automatically search their source by the stored title and accept
+only the exact provider book ID. Successful enrichment is persisted without
+changing the saved chapter/page or reading timestamp and creates no history entry.
+Only two metadata lookups occupy the provider lane at a time, and queued lookups
+are cancelled when their cards unmount. A failed image is labelled as a
+load failure, with a separate Retry Cover action that does not open the reader.
 
 The optional cover URL and headers are persisted with C# reading progress. Existing
 v1 files remain valid. Saves without new artwork preserve stored covers; oversized
@@ -32,4 +36,15 @@ Validation includes C# cover persistence/legacy/bounds checks, service checks fo
 opaque handles and restored cover headers, and an offscreen Electron library flow
 using actual PNG decoding. That flow covers missing/broken images, search, opening
 the reader and returning to the shelf under React StrictMode. Live provider art
-availability and a packaged installation still need manual verification.
+availability beyond the specific live check below and a packaged installation
+still need manual verification.
+
+## Cover repair verification
+
+The live MangaStash check searched Solo using the installed provider source. All
+24 returned records contained an image and received main-owned cover handles.
+Three search covers plus a backfilled saved-title cover downloaded through the
+C# image pool and decoded in offscreen Chromium (200×299, 300×428 and 300×419 JPEGs).
+The backfill check used an isolated store and preserved the saved reading position
+and timestamp. User reading files were inspected read-only, never rewritten by
+the diagnostic. The normal app backfills them when the shelf is opened.
