@@ -85,6 +85,16 @@ interface RawBridge {
     check: (id: string) => Promise<unknown>;
   };
   manga: {
+    bookmarks: () => Promise<unknown>;
+    bookmark: (
+      kind: string,
+      source: string,
+      id: string,
+      saved: boolean,
+    ) => Promise<unknown>;
+    book: (p: string, id: string, title?: string) => Promise<unknown>;
+    info: (p: string, id: string) => Promise<unknown>;
+    details: (id: number) => Promise<unknown>;
     discover: (filters: unknown) => Promise<unknown>;
     catalogueCover: (id: number) => Promise<unknown>;
     sources: () => Promise<unknown>;
@@ -420,6 +430,30 @@ export const bridge = {
     check: (id: string) => raw().sources.check(id),
   },
   manga: {
+    bookmarks: () =>
+      raw().manga.bookmarks() as Promise<
+        import("../../../shared/manga").MangaBookmark[]
+      >,
+    bookmark: async (
+      kind: "source" | "catalogue",
+      source: string,
+      id: string,
+      saved: boolean,
+    ) => {
+      await raw().manga.bookmark(kind, source, id, saved);
+    },
+    book: (p: string, id: string, title?: string) =>
+      raw().manga.book(p, id, title) as Promise<
+        import("../../../shared/manga").MangaBook
+      >,
+    info: (p: string, id: string) =>
+      raw().manga.info(p, id) as Promise<
+        import("../../../shared/manga").MangaInformation | null
+      >,
+    details: (id: number) =>
+      raw().manga.details(id) as Promise<
+        import("../../../shared/manga").MangaInformation | null
+      >,
     catalogueCover: (id: number) =>
       raw().manga.catalogueCover(id) as Promise<string>,
     discover: (filters: import("../../../shared/manga").MangaDiscoveryQuery) =>

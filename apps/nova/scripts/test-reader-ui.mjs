@@ -91,18 +91,29 @@ try {
       },
     ],
   });
-  const cssName = (await readdir(join(nova, "dist-renderer/assets"))).find(
-    (name) => name.endsWith(".css"),
-  );
-  if (!cssName) throw new Error("Build the renderer before this UI fixture.");
-  const css = await readFile(
-    join(nova, "dist-renderer/assets", cssName),
-    "utf8",
-  );
+  const cssNames = (await readdir(join(nova, "dist-renderer/assets")))
+    .filter((name) => name.endsWith(".css"))
+    .sort(
+      (a, b) => Number(b.startsWith("theme")) - Number(a.startsWith("theme")),
+    );
+  if (!cssNames.length)
+    throw new Error("Build the renderer before this UI fixture.");
+  const css = (
+    await Promise.all(
+      cssNames.map((name) =>
+        readFile(join(nova, "dist-renderer/assets", name), "utf8"),
+      ),
+    )
+  ).join("\n");
   await writeFile(
     join(scratch, "index.html"),
     `<!doctype html><html data-theme="vestra-dark"><head><style>${css}</style></head><body style="margin:0;height:100vh"><div id="root"></div><script>
     window.readerFixture = { calls: [], saves: [], fail: true, exited:false, bridge: { manga: {
+      bookmarks: async () => window.readerFixture.saved??[],
+      bookmark: async (kind,source,id,saved) => {const f=window.readerFixture;f.saved??=[];f.saved=f.saved.filter(entry=>!(entry.kind===kind&&entry.source===source&&entry.book.id===id));if(saved)f.saved.push({kind,source,book:{id,title:kind==='catalogue'?(id==='102'?'Popular Korean Tale':'Popular Adventure'):'A Quiet Journey',cover:kind==='catalogue'?'catalogue-'+id:'fixture-cover-0'},savedAt:'2026-10-30T00:00:00Z'});},
+      book: async (_p,id,title) => ({id,title:title||'A Quiet Journey',cover:'fixture-cover-0'}),
+      info: async () => ({id:101,title:'A Quiet Journey',cover:'catalogue-info',genres:['Action','Fantasy'],origin:'JP',status:'RELEASING',score:85,description:'A catalogue synopsis supplied by the metadata service.',chapters:2,volumes:1,year:2025,titles:['A Quiet Journey']}),
+      details: async (id) => ({id,title:id===102?'Popular Korean Tale':'Popular Adventure',cover:'catalogue-'+id,genres:['Action','Fantasy'],origin:id===102?'KR':'JP',status:'FINISHED',score:85,description:'A catalogue synopsis supplied by the metadata service.',chapters:2,volumes:1,year:2025,titles:['Popular Adventure']}),
       catalogueCover: async (id) => 'catalogue-refreshed-'+id,
       discover: async (filters) => {
         const f=window.readerFixture;f.discoveries??=[];f.discoveries.push(filters);
@@ -227,8 +238,8 @@ try {
         await run('window.readerFixture.choose("__library__")');
         await until('document.querySelector("[data-manga-library]")');
         await until('[...document.querySelectorAll("img")].some(e=>e.alt==="Cover of A Quiet Journey" && e.complete && e.naturalWidth>0)');
-        assert.equal(await run('[...document.querySelectorAll("section[aria-label^=Continue] button")].filter(e=>e.getAttribute("aria-label")?.startsWith("Continue ")).length'),3);
-        await until('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Continue After the Rain").textContent.includes("Cover could not load")');
+        assert.equal(await run('[...document.querySelectorAll("section[aria-label^=Continue] button")].filter(e=>e.getAttribute("aria-label")?.startsWith("Details for ")).length'),3);
+        await until('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Details for After the Rain").textContent.includes("Cover could not load")');
         await until('[...document.querySelectorAll("img")].some(e=>e.alt==="Cover of City of Lanterns" && e.complete && e.naturalWidth>0)');
         await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Retry cover for After the Rain").click()');
         await until('[...document.querySelectorAll("img")].some(e=>e.alt==="Cover of After the Rain" && e.complete && e.naturalWidth>0)');
@@ -237,16 +248,37 @@ try {
         await run('(()=>{const e=document.querySelector("input[placeholder^=Search]");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(e,"quiet");e.dispatchEvent(new Event("input",{bubbles:true}));})()');
         await run('document.querySelector("input[placeholder^=Search]").closest("form").dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}))');
         await until('document.body.textContent.includes("Results for")');
-        await until('[...document.querySelectorAll("button")].some(e=>e.getAttribute("aria-label")==="Read A Quiet Journey")');
+        await until('[...document.querySelectorAll("button")].some(e=>e.getAttribute("aria-label")==="Details for A Quiet Journey")');
         assert.equal(await run('document.querySelectorAll("section[aria-label^=Continue]").length'),0);
         await until('[...document.querySelectorAll("img")].some(e=>e.alt==="Cover of A Quiet Journey" && e.complete && e.naturalWidth>0)');
         await until('[...document.querySelectorAll("button")].some(e=>e.getAttribute("aria-label")==="Retry cover for After the Rain")');
         await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Retry cover for After the Rain").click()');
         await until('[...document.querySelectorAll("img")].some(e=>e.alt==="Cover of After the Rain" && e.complete && e.naturalWidth>0)');
         if(process.env.VESTRA_LIBRARY_SCREENSHOT) require('node:fs').writeFileSync(process.env.VESTRA_LIBRARY_SCREENSHOT,(await win.webContents.capturePage()).toPNG());
-        await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Read A Quiet Journey").click()');
+        await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Details for A Quiet Journey").click()');
+        await until('document.querySelector("[data-manga-details]")');
+        const beforeDetails=await run('JSON.stringify(window.readerFixture.saves)');
+        await until('document.querySelector("[data-manga-details]").textContent.includes("catalogue synopsis")');
+        assert.equal(await run('!!document.querySelector("[data-reader-title]")'),false);
+        await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Bookmark A Quiet Journey").click()');
+        await until('window.readerFixture.saved?.some(entry=>entry.kind==="source"&&entry.book.id==="result-0")');
+        assert.equal(await run('JSON.stringify(window.readerFixture.saves)'),beforeDetails);
+        await until('[...document.querySelectorAll("button")].some(e=>e.getAttribute("aria-label")==="Remove bookmark for A Quiet Journey")');
+        await pause(150);
+        assert.equal(await run('(()=>{const r=document.querySelector(".manga-info__art").getBoundingClientRect();return Math.abs(r.width/r.height-2/3)<0.01})()'),true);
+        if(process.env.VESTRA_DETAILS_SCREENSHOT) {
+          for (const width of [1440,375]) {
+            win.setSize(width,1000); await pause(200);
+            assert.equal(await run('document.documentElement.scrollWidth<=window.innerWidth'),true);
+            require('node:fs').writeFileSync(process.env.VESTRA_DETAILS_SCREENSHOT.replace('.png','-'+width+'.png'),(await win.webContents.capturePage()).toPNG());
+          }
+          win.setSize(1100,850); await pause(100);
+        }
+        await run('[...document.querySelectorAll("button")].find(e=>e.textContent.trim()==="Start reading").click()');
         await until('document.querySelector("[data-reader-title]")?.textContent==="A Quiet Journey"');
-        await run('[...document.querySelectorAll("button")].find(e=>e.textContent.includes("Library")).click()');
+        await run('[...document.querySelectorAll("button")].find(e=>e.textContent.includes("Details")).click()');
+        await until('document.querySelector("[data-manga-details]")');
+        await run('[...document.querySelectorAll("[data-manga-details] button")].find(e=>e.textContent.trim()==="Library").click()');
         await until('document.querySelector("[data-manga-library]") && !document.querySelector("[data-reader-title]")');
         await until('[...document.querySelectorAll("img")].some(e=>e.alt==="Cover of After the Rain" && e.complete && e.naturalWidth>0)');
         assert.equal(await run('[...document.querySelectorAll("button")].some(e=>e.getAttribute("aria-label")==="Retry cover for After the Rain")'),false);
@@ -254,7 +286,7 @@ try {
         await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Clear manga search").click()');
         await until('document.querySelector("section[aria-label^=Continue]")');
         console.log('PASS library search opens the reader and returns to a clean Continue Reading shelf');
-        await until('[...document.querySelectorAll("button")].some(e=>e.getAttribute("aria-label")==="Search Popular Adventure in source")');
+        await until('[...document.querySelectorAll("button")].some(e=>e.getAttribute("aria-label")==="Details for Popular Adventure")');
         const selectFilter=(label,value)=>run('(()=>{const e=[...document.querySelectorAll("select")].find(e=>e.getAttribute("aria-label")==='+JSON.stringify(label)+');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,"value").set.call(e,'+JSON.stringify(value)+');e.dispatchEvent(new Event("change",{bubbles:true}));})()');
         await selectFilter('Manga origin','KR');
         await until('window.readerFixture.discoveries.at(-1).origin==="KR"');
@@ -269,11 +301,23 @@ try {
         await until('window.readerFixture.discoveries.at(-1).page===2');
         await selectFilter('Manga genre','Fantasy');
         await until('window.readerFixture.discoveries.at(-1).genre==="Fantasy" && window.readerFixture.discoveries.at(-1).page===1');
-        await until('[...document.querySelectorAll("button")].some(e=>e.getAttribute("aria-label")==="Search Popular Korean Tale in source")');
-        await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Search Popular Korean Tale in source").click()');
+        await until('[...document.querySelectorAll("button")].some(e=>e.getAttribute("aria-label")==="Details for Popular Korean Tale")');
+        await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Details for Popular Korean Tale").click()');
+        await until('document.querySelector("[data-manga-details]")');
+        await until('document.querySelector("[data-manga-details]").textContent.includes("Popular Korean Tale")');
+        await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Bookmark Popular Korean Tale").click()');
+        await until('window.readerFixture.saved?.some(entry=>entry.kind==="catalogue"&&entry.book.id==="102")');
+        await run('[...document.querySelectorAll("button")].find(e=>e.textContent.trim().startsWith("Find in ")).click()');
         await until('window.readerFixture.searches.at(-1).query==="Popular Korean Tale"');
         assert.equal(await run('!!document.querySelector("[data-reader-title]")'),false);
         console.log('PASS discovery filters/pagination reset correctly and selecting a catalogue title searches its source');
+        await run('[...document.querySelectorAll("button")].find(e=>e.textContent.trim().startsWith("Bookmarks")).click()');
+        await until('document.querySelector("section[aria-label$=bookmarks]")');
+        assert.ok(await run('document.body.textContent.includes("Popular Korean Tale") && document.body.textContent.includes("A Quiet Journey")'));
+        await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Remove bookmark for A Quiet Journey").click()');
+        await until('!window.readerFixture.saved.some(entry=>entry.kind==="source"&&entry.book.id==="result-0")');
+        console.log('PASS source/catalogue details precede reading, bookmarks do not mark read, and the saved shelf removes bookmarks');
+
 
         win.destroy(); app.exit(0);
       } catch(error) {console.error(error);win.destroy();app.exit(1);}

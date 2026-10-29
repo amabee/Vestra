@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useCallback,
   useEffect,
@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   ArrowUpRight,
+  Bookmark,
   RefreshCw,
   BookOpen,
   Clock3,
@@ -15,13 +16,16 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { bridge } from "@/lib/bridge";
 import { ReaderImages } from "@/lib/reader-images";
 import { CoverLookups } from "@/lib/cover-lookups";
-import { MangaDiscoveryShelf } from "./manga-discovery";
+import { MangaDiscoveryShelf, DiscoveryCard } from "./manga-discovery";
+import { MangaDetailsPage } from "./manga-details";
 import type {
   MangaBook,
+  MangaBookmark,
+  MangaDiscoveryTitle,
   MangaRecent,
   ReadingProgress,
 } from "../../../../shared/manga";
@@ -30,6 +34,7 @@ type OpenReader = (
   provider: string,
   book: MangaBook,
   onBack: () => void,
+  chapter?: string,
 ) => ReactNode;
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -42,34 +47,36 @@ export function MangaLibrary({ renderReader }: { renderReader: OpenReader }) {
     queryFn: bridge.manga.sources,
     refetchInterval: (q) => (q.state.data?.length ? false : 2000),
   });
+  const [params, setParams] = useSearchParams();
   const [selected, setSelected] = useState("");
-  const id = sources.data?.some((source) => source.id === selected)
-    ? selected
-    : sources.data?.[0]?.id || "";
+  const id =
+    params.get("source") ||
+    (sources.data?.some((source) => source.id === selected)
+      ? selected
+      : sources.data?.[0]?.id || "");
   return (
     <div
       className="mx-auto max-w-[1480px] px-6 py-8 lg:px-10"
       data-manga-library
     >
-      <header className="mb-7 flex items-end justify-between gap-4">
-        <div>
-          <p className="mb-1 text-xs uppercase tracking-[0.18em] text-base-content/40">
-            Library
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight">Manga</h1>
-          <p className="mt-2 text-sm text-base-content/50">
-            Pick up where you left off, or find a new series.
-          </p>
-        </div>
-        <Link
-          to="/sources"
-          title="Manage manga sources"
-          aria-label="Manage manga sources"
-          className="btn btn-ghost btn-sm btn-square"
-        >
-          <SlidersHorizontal className="size-4" />
-        </Link>
-      </header>
+      {!params.has("book") && !params.has("catalogue") && (
+        <header className="mb-7 flex items-end justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight">Manga</h1>
+            <p className="mt-2 text-sm text-base-content/50">
+              Pick up where you left off, or find a new series.
+            </p>
+          </div>
+          <Link
+            to="/sources"
+            title="Manage manga sources"
+            aria-label="Manage manga sources"
+            className="btn btn-ghost btn-sm btn-square"
+          >
+            <SlidersHorizontal className="size-4" />
+          </Link>
+        </header>
+      )}
       {sources.error && (
         <p role="alert" className="mb-4 text-sm">
           Could not load sources: {errorText(sources.error)}
@@ -82,36 +89,43 @@ export function MangaLibrary({ renderReader }: { renderReader: OpenReader }) {
         >
           Loading your sources…
         </p>
-      ) : !id ? (
-        <EmptyShelf
-          title="A new shelf awaits"
-          description="Connect a manga source to search for manga and webtoons."
-        >
-          <Link className="btn btn-primary btn-sm mt-5" to="/sources">
-            Add a source
-          </Link>
-        </EmptyShelf>
       ) : (
         <MangaShelf
           key={id}
           provider={id}
+          sourceName={
+            sources.data?.find((source) => source.id === id)?.name ||
+            "Source unavailable"
+          }
           renderReader={renderReader}
           sourceControl={
-            <label className="flex shrink-0 items-center gap-2 border-b border-base-content/10 px-3 py-2 sm:border-b-0 sm:border-r">
-              <BookOpen className="size-4 text-base-content/45" />
-              <select
-                aria-label="Manga source"
-                className="select select-ghost select-sm min-w-0 max-w-52 bg-transparent text-sm focus:outline-none"
-                value={id}
-                onChange={(event) => setSelected(event.target.value)}
-              >
-                {sources.data?.map((source) => (
-                  <option key={source.id} value={source.id}>
-                    {source.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            !sources.data?.length ? (
+              <Link className="btn btn-ghost m-2" to="/sources">
+                Add a manga source
+              </Link>
+            ) : (
+              <label className="flex shrink-0 items-center gap-2 border-b border-base-content/10 px-3 py-2 sm:border-b-0 sm:border-r">
+                <BookOpen className="size-4 text-base-content/45" />
+                <select
+                  aria-label="Manga source"
+                  className="select select-ghost select-sm min-w-0 max-w-52 bg-transparent text-sm focus:outline-none"
+                  value={id}
+                  onChange={(event) => {
+                    setSelected(event.target.value);
+                    setParams({ source: event.target.value });
+                  }}
+                >
+                  {id && !sources.data?.some((source) => source.id === id) && (
+                    <option value={id}>Source unavailable</option>
+                  )}
+                  {sources.data?.map((source) => (
+                    <option key={source.id} value={source.id}>
+                      {source.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )
           }
         />
       )}
@@ -122,17 +136,108 @@ export function MangaLibrary({ renderReader }: { renderReader: OpenReader }) {
 function MangaShelf({
   provider,
   sourceControl,
+  sourceName,
   renderReader,
 }: {
   provider: string;
   sourceControl: ReactNode;
+  sourceName: string;
   renderReader: OpenReader;
 }) {
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(48);
   const toolbar = useRef<HTMLDivElement>(null);
+  const [params, setParams] = useSearchParams();
   const [book, setBook] = useState<MangaBook | null>(null);
+  const cache = useQueryClient();
+  const bookId = params.get("book"),
+    catalogueId = Number(params.get("catalogue") || 0);
+  const reading = params.get("read") === "1";
+  const pane = params.get("view") === "bookmarks" ? "bookmarks" : "browse";
+  const change = (values: Record<string, string | null>, replace = false) => {
+    const next = new URLSearchParams(params);
+    for (const [key, value] of Object.entries(values))
+      if (value === null) next.delete(key);
+      else next.set(key, value);
+    setParams(next, { replace });
+  };
+  const openBook = (value: MangaBook, origin = provider) => {
+    setBook(value);
+    change({
+      source: origin,
+      book: value.id,
+      title: value.title.slice(0, 500),
+      catalogue: null,
+      read: null,
+      chapter: null,
+    });
+  };
+  const openCatalogue = (value: MangaDiscoveryTitle) =>
+    change({
+      catalogue: String(value.id),
+      book: null,
+      title: null,
+      read: null,
+      chapter: null,
+    });
+  const saved = useQuery({
+    queryKey: ["manga-bookmarks"],
+    queryFn: bridge.manga.bookmarks,
+  });
+  const bookmark = useMutation({
+    mutationFn: ({
+      kind,
+      source,
+      id,
+      value,
+    }: {
+      kind: "source" | "catalogue";
+      source: string;
+      id: string;
+      value: boolean;
+    }) => bridge.manga.bookmark(kind, source, id, value),
+    onSuccess: () => cache.invalidateQueries({ queryKey: ["manga-bookmarks"] }),
+  });
+  const isSaved = (kind: "source" | "catalogue", source: string, id: string) =>
+    !!saved.data?.some(
+      (entry) =>
+        entry.kind === kind && entry.source === source && entry.book.id === id,
+    );
+  const saveButton = (
+    kind: "source" | "catalogue",
+    source: string,
+    value: MangaBook,
+  ) => {
+    const checked = isSaved(kind, source, value.id);
+    return (
+      <button
+        className="manga-bookmark"
+        aria-label={
+          checked
+            ? `Remove bookmark for ${value.title}`
+            : `Bookmark ${value.title}`
+        }
+        aria-pressed={checked}
+        disabled={saved.isPending || bookmark.isPending}
+        title={checked ? "Remove bookmark" : "Bookmark manga"}
+        onClick={() =>
+          bookmark.mutate({ kind, source, id: value.id, value: !checked })
+        }
+      >
+        <Bookmark className="size-4" fill={checked ? "currentColor" : "none"} />
+      </button>
+    );
+  };
+  const activeBook = useQuery({
+    queryKey: ["manga", provider, "book", bookId],
+    queryFn: () =>
+      bridge.manga.book(provider, bookId!, params.get("title") || undefined),
+    enabled: !!bookId,
+    initialData: book?.id === bookId ? book : undefined,
+    staleTime: Infinity,
+    retry: false,
+  });
   const [images] = useState(
     () => new ReaderImages((handle) => bridge.manga.image(handle)),
   );
@@ -151,18 +256,86 @@ function MangaShelf({
   const recent = useQuery({
     queryKey: ["manga", provider, "recent"],
     queryFn: () => bridge.manga.recent(provider),
-    enabled: book === null,
+    enabled: !bookId && !catalogueId && !!provider,
   });
   const results = useQuery({
     queryKey: ["manga", provider, "search", query],
     queryFn: () => bridge.manga.search(provider, query),
-    enabled: !!query,
+    enabled: !!query && !!provider,
   });
-  if (book)
-    return renderReader(provider, book, () => {
-      setBook(null);
-      void recent.refetch();
-    });
+  if (bookId || catalogueId) {
+    const back = () =>
+      change(
+        { book: null, catalogue: null, title: null, read: null, chapter: null },
+        true,
+      );
+    if (bookId && !activeBook.data)
+      return (
+        <div className="manga-info">
+          <button className="btn btn-ghost" onClick={back}>
+            Library
+          </button>
+          {activeBook.isPending ? (
+            <p role="status">Loading manga…</p>
+          ) : (
+            <div role="alert">
+              <p>{errorText(activeBook.error)}</p>
+              <button className="btn" onClick={() => void activeBook.refetch()}>
+                Retry
+              </button>
+              <Link className="btn btn-ghost" to="/sources">
+                Manage sources
+              </Link>
+            </div>
+          )}
+        </div>
+      );
+    if (reading && activeBook.data)
+      return renderReader(
+        provider,
+        activeBook.data,
+        () => change({ read: null, chapter: null }, true),
+        params.get("chapter") || undefined,
+      );
+    const kind = bookId ? "source" : "catalogue",
+      origin = bookId ? provider : "anilist",
+      id = bookId || String(catalogueId);
+    return (
+      <>
+        <MangaDetailsPage
+          key={`${provider}:${id}`}
+          provider={provider}
+          sourceName={sourceName}
+          images={images}
+          book={bookId ? activeBook.data : undefined}
+          catalogueId={bookId ? undefined : catalogueId}
+          saved={isSaved(kind, origin, id)}
+          saving={saved.isPending || bookmark.isPending}
+          onBookmark={() =>
+            bookmark.mutate({
+              kind,
+              source: origin,
+              id,
+              value: !isSaved(kind, origin, id),
+            })
+          }
+          onBack={back}
+          onRead={(chapter) => change({ read: "1", chapter: chapter || null })}
+          onSearch={(title) => {
+            setInput(title);
+            setQuery(title);
+            setLimit(48);
+            back();
+          }}
+        />
+        {bookmark.error && (
+          <p role="alert" className="manga-info">
+            Bookmark could not be saved: {errorText(bookmark.error)}
+          </p>
+        )}
+      </>
+    );
+  }
   const clear = () => {
     setInput("");
     setQuery("");
@@ -187,7 +360,10 @@ function MangaShelf({
           <input
             aria-label="Search manga"
             className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none placeholder:text-base-content/35"
-            placeholder="Search manga or webtoons"
+            placeholder={
+              provider ? "Search manga or webtoons" : "Add a source to search"
+            }
+            disabled={!provider}
             maxLength={500}
             value={input}
             onChange={(event) => setInput(event.target.value)}
@@ -204,13 +380,103 @@ function MangaShelf({
           )}
           <button
             className="btn btn-primary btn-sm"
-            disabled={!input.trim() || results.isFetching}
+            disabled={!provider || !input.trim() || results.isFetching}
           >
             Search
           </button>
         </form>
       </div>
-      {query ? (
+      <div
+        className="mb-5 flex gap-2"
+        role="group"
+        aria-label="Manga library view"
+      >
+        <button
+          className={`btn btn-sm ${pane === "browse" ? "btn-primary" : "btn-ghost"}`}
+          aria-pressed={pane === "browse"}
+          onClick={() => change({ view: null })}
+        >
+          Browse
+        </button>
+        <button
+          className={`btn btn-sm ${pane === "bookmarks" ? "btn-primary" : "btn-ghost"}`}
+          aria-pressed={pane === "bookmarks"}
+          onClick={() => change({ view: "bookmarks" })}
+        >
+          Bookmarks{saved.data?.length ? ` (${saved.data.length})` : ""}
+        </button>
+      </div>
+      {(saved.error || bookmark.error) && (
+        <p role="alert" className="mb-4 text-sm">
+          Bookmarks could not be updated.{" "}
+          <button className="link" onClick={() => void saved.refetch()}>
+            Retry
+          </button>
+        </p>
+      )}
+      {pane === "bookmarks" ? (
+        <section aria-label="Manga bookmarks">
+          <h2 className="mb-5 text-lg font-semibold">Bookmarked manga</h2>
+          {saved.isPending ? (
+            <CoverSkeletons />
+          ) : !saved.data?.length ? (
+            <EmptyShelf
+              title="Keep your next read here"
+              description="Bookmark a manga from its card or information page."
+            />
+          ) : (
+            <div className={grid}>
+              {saved.data.map((entry) =>
+                entry.kind === "catalogue" ? (
+                  <DiscoveryCard
+                    key={`catalogue:${entry.book.id}`}
+                    title={{
+                      id: Number(entry.book.id),
+                      title: entry.book.title,
+                      cover: entry.book.cover,
+                      genres: [],
+                      origin: null,
+                      status: null,
+                      score: null,
+                    }}
+                    images={images}
+                    onSelect={() =>
+                      openCatalogue({
+                        id: Number(entry.book.id),
+                        title: entry.book.title,
+                        cover: entry.book.cover,
+                        genres: [],
+                        origin: null,
+                        status: null,
+                        score: null,
+                      })
+                    }
+                    bookmarkControl={saveButton(
+                      "catalogue",
+                      "anilist",
+                      entry.book,
+                    )}
+                  />
+                ) : (
+                  <MangaCard
+                    key={`${entry.source}:${entry.book.id}`}
+                    book={entry.book}
+                    images={images}
+                    provider={entry.source}
+                    lookups={lookups}
+                    onOpen={() => openBook(entry.book, entry.source)}
+                    bookmarkControl={saveButton(
+                      "source",
+                      entry.source,
+                      entry.book,
+                    )}
+                  />
+                ),
+              )}
+            </div>
+          )}
+        </section>
+      ) : query ? (
         <section aria-label="Manga search results">
           <div className="mb-5 flex items-baseline justify-between gap-4">
             <h2 className="min-w-0 truncate text-lg font-semibold">
@@ -252,7 +518,8 @@ function MangaShelf({
                     images={images}
                     provider={provider}
                     lookups={lookups}
-                    onOpen={() => setBook(value)}
+                    onOpen={() => openBook(value)}
+                    bookmarkControl={saveButton("source", provider, value)}
                   />
                 ))}
               </div>
@@ -291,7 +558,11 @@ function MangaShelf({
                 </button>
               </div>
             )}
-            {recent.isPending ? (
+            {!provider ? (
+              <p className="text-sm text-base-content/50">
+                Connect a source to start reading.
+              </p>
+            ) : recent.isPending ? (
               <CoverSkeletons />
             ) : recent.data?.entries.length ? (
               <div className="grid auto-cols-[132px] grid-flow-col gap-4 overflow-x-auto pb-3">
@@ -304,7 +575,8 @@ function MangaShelf({
                     provider={provider}
                     lookups={lookups}
                     disabled={recent.isFetching}
-                    onOpen={() => setBook(entry.book)}
+                    onOpen={() => openBook(entry.book)}
+                    bookmarkControl={saveButton("source", provider, entry.book)}
                   />
                 ))}
               </div>
@@ -325,14 +597,14 @@ function MangaShelf({
           </section>
           <MangaDiscoveryShelf
             images={images}
-            onSelect={(title) => {
-              setInput(title);
-              setQuery(title);
-              setLimit(48);
-              queueMicrotask(() =>
-                toolbar.current?.scrollIntoView({ block: "start" }),
-              );
-            }}
+            onSelect={openCatalogue}
+            bookmarkControl={(title) =>
+              saveButton("catalogue", "anilist", {
+                id: String(title.id),
+                title: title.title,
+                cover: title.cover,
+              })
+            }
           />
         </>
       )}
@@ -348,6 +620,7 @@ function MangaCard({
   lookups,
   disabled,
   onOpen,
+  bookmarkControl,
 }: {
   book: MangaBook;
   progress?: ReadingProgress;
@@ -356,6 +629,7 @@ function MangaCard({
   lookups: CoverLookups;
   disabled?: boolean;
   onOpen: () => void;
+  bookmarkControl?: ReactNode;
 }) {
   const [issue, setIssue] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -363,7 +637,7 @@ function MangaCard({
     <div className="group relative min-w-0">
       <button
         className="group block w-full min-w-0 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4 focus-visible:ring-offset-base-100 disabled:opacity-60"
-        aria-label={`${progress ? "Continue" : "Read"} ${book.title}`}
+        aria-label={`Details for ${book.title}`}
         disabled={disabled}
         onClick={onOpen}
       >
@@ -402,6 +676,7 @@ function MangaCard({
           </p>
         )}
       </button>
+      {bookmarkControl}
       {issue && (
         <button
           className="btn btn-sm btn-square absolute right-2 top-2 z-10 bg-base-100/90"

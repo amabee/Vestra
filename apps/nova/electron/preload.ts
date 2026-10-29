@@ -41,6 +41,13 @@ const api = {
     check: (id: string) => invoke("sources:check", id),
   },
   manga: {
+    bookmarks: () => invoke("manga:bookmarks"),
+    bookmark: (kind: string, source: string, id: string, saved: boolean) =>
+      invoke("manga:bookmark", kind, source, id, saved),
+    book: (p: string, id: string, title?: string) =>
+      invoke("manga:book", p, id, title),
+    info: (p: string, id: string) => invoke("manga:info", p, id),
+    details: (id: number) => invoke("manga:details", id),
     discover: (filters: unknown) => invoke("manga:discover", filters),
     catalogueCover: (id: number) => invoke("manga:catalogue-cover", id),
     sources: () => invoke("manga:sources"),

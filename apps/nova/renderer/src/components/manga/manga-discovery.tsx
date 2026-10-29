@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   BookOpen,
   ChevronLeft,
@@ -33,9 +33,11 @@ const headings = {
 export function MangaDiscoveryShelf({
   images,
   onSelect,
+  bookmarkControl,
 }: {
   images: ReaderImages;
-  onSelect: (title: string) => void;
+  onSelect: (title: MangaDiscoveryTitle) => void;
+  bookmarkControl: (title: MangaDiscoveryTitle) => ReactNode;
 }) {
   const [filters, setFilters] = useState(defaults);
   const [requested, setRequested] = useState(defaults);
@@ -201,7 +203,8 @@ export function MangaDiscoveryShelf({
                 key={title.id}
                 title={title}
                 images={images}
-                onSelect={() => onSelect(title.title)}
+                onSelect={() => onSelect(title)}
+                bookmarkControl={bookmarkControl(title)}
               />
             ))}
           </div>
@@ -242,14 +245,16 @@ export function MangaDiscoveryShelf({
   );
 }
 
-function DiscoveryCard({
+export function DiscoveryCard({
   title,
   images,
   onSelect,
+  bookmarkControl,
 }: {
   title: MangaDiscoveryTitle;
   images: ReaderImages;
   onSelect: () => void;
+  bookmarkControl?: ReactNode;
 }) {
   const [issue, setIssue] = useState(false),
     [retrying, setRetrying] = useState(false);
@@ -287,7 +292,7 @@ function DiscoveryCard({
     <div className="group relative min-w-0">
       <button
         className="block w-full min-w-0 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4 focus-visible:ring-offset-base-100"
-        aria-label={`Search ${title.title} in source`}
+        aria-label={`Details for ${title.title}`}
         onClick={onSelect}
       >
         <div className="relative overflow-hidden rounded-xl border border-base-content/10 bg-base-200">
@@ -327,6 +332,7 @@ function DiscoveryCard({
           )}
         </div>
       </button>
+      {bookmarkControl}
       {issue && (
         <button
           className="btn btn-sm btn-square absolute right-2 top-2 bg-base-100/90"

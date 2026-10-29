@@ -24,7 +24,11 @@ const payload = z.object({
             native: z.string().max(500).nullish(),
           }),
           coverImage: z
-            .object({ medium: z.string().max(4096).nullish() })
+            .object({
+              extraLarge: z.string().max(4096).nullish(),
+              large: z.string().max(4096).nullish(),
+              medium: z.string().max(4096).nullish(),
+            })
             .nullish(),
           genres: z.array(z.string().max(50)).max(30),
           countryOfOrigin: z.string().max(3).nullable(),
@@ -42,7 +46,7 @@ export const mangaCatalogueQuery = `query MangaDiscovery($page:Int,$sort:[MediaS
   Page(page:$page,perPage:24) {
     pageInfo { hasNextPage }
     media(type:MANGA,format_in:[MANGA,ONE_SHOT],isAdult:false,sort:$sort,countryOfOrigin:$country,genre_in:$genres,status:$status) {
-      id title { english romaji native } coverImage { medium }
+      id title { english romaji native } coverImage { extraLarge large medium }
       genres countryOfOrigin status averageScore
     }
   }
@@ -52,13 +56,14 @@ class RateLimited extends Error {
     super("Discovery is temporarily rate limited. Try again shortly.");
   }
 }
-export async function fetchMangaCatalogue(
+export async function fetchMangaGraphQL(
+  query: string,
   variables: Record<string, unknown>,
 ): Promise<unknown> {
   const response = await fetch("https://graphql.anilist.co", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ query: mangaCatalogueQuery, variables }),
+    body: JSON.stringify({ query, variables }),
     signal: AbortSignal.timeout(10_000),
   });
   if (response.status === 429)
@@ -78,6 +83,8 @@ export async function fetchMangaCatalogue(
     throw new Error("AniList could not process this catalogue request.");
   return json.data;
 }
+export const fetchMangaCatalogue = (variables: Record<string, unknown>) =>
+  fetchMangaGraphQL(mangaCatalogueQuery, variables);
 
 /** Metadata catalogue only. Selecting a title searches the user's installed source. */
 export class MangaDiscovery {
@@ -107,7 +114,7 @@ export class MangaDiscovery {
               )
               .max(32),
           })
-          .parse(await this.driver.read("manga-discovery-v1"));
+          .parse(await this.driver.read("manga-discovery-v2"));
         for (const entry of stored.entries) this.cache.set(entry.key, entry);
       } catch {
         /* Metadata cache is optional. */
@@ -130,7 +137,10 @@ export class MangaDiscovery {
           row.title.romaji ||
           row.title.native ||
           "Untitled";
-        const url = row.coverImage?.medium;
+        const url =
+          row.coverImage?.extraLarge ||
+          row.coverImage?.large ||
+          row.coverImage?.medium;
         let cover: string | undefined;
         if (url) {
           try {
@@ -201,7 +211,7 @@ export class MangaDiscovery {
           this.cache.delete(this.cache.keys().next().value!);
         const snapshot = { entries: [...this.cache.values()] };
         this.writes = this.writes
-          .then(() => this.driver.write("manga-discovery-v1", snapshot))
+          .then(() => this.driver.write("manga-discovery-v2", snapshot))
           .catch(() => undefined);
         await this.writes;
         return this.page(entry, query.page);

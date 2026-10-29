@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { MangaCoverCache } from "./manga-cover-cache";
+import type { MangaBookmarkRepository } from "./manga-bookmarks";
+import type { MangaBookmark, MangaDiscoveryTitle } from "../shared/manga";
 import type { StorageDriver } from "@vestra/storage";
 import type {
   MangaBook,
@@ -93,10 +95,103 @@ export class MangaService {
     image: (request: unknown) => Promise<unknown>;
   } | null = null;
   private catalogueCovers = new Map<number, string>();
+  private catalogueTitles = new Map<number, string>();
+  private bookmarksRepository: MangaBookmarkRepository | null = null;
   constructor(
     private readonly driver: StorageDriver,
     private coverCache?: MangaCoverCache,
   ) {}
+  registerBookmarks(repository: MangaBookmarkRepository) {
+    this.bookmarksRepository = repository;
+  }
+  registerCatalogueTitle(title: MangaDiscoveryTitle) {
+    this.catalogueTitles.delete(title.id);
+    this.catalogueTitles.set(title.id, title.title);
+    if (this.catalogueTitles.size > 1000)
+      this.catalogueTitles.delete(this.catalogueTitles.keys().next().value!);
+  }
+  knownBook(provider: string, id: string): MangaBook {
+    this.provider(provider);
+    return this.books.get(this.book(provider, id))!;
+  }
+  async resolveBook(
+    provider: string,
+    id: string,
+    title?: string,
+  ): Promise<MangaBook> {
+    this.provider(provider);
+    const key = this.key(provider, id);
+    if (this.books.has(key)) return this.books.get(key)!;
+    await this.bookmarks();
+    if (this.books.has(key)) return this.books.get(key)!;
+    await this.recent(provider);
+    if (this.books.has(key)) return this.books.get(key)!;
+    if (title) {
+      const rows = await this.search(provider, title);
+      const match = rows.find((row) => row.id === id);
+      if (match) return match;
+    }
+    throw new Error(
+      "This title is no longer available in this source. Search for it again.",
+    );
+  }
+  async bookmarks(): Promise<MangaBookmark[]> {
+    if (!this.bookmarksRepository) return [];
+    await this.writes;
+    const rows = await this.bookmarksRepository.list();
+    const result = rows.map((row) => {
+      let book: MangaBook;
+      if (row.kind === "catalogue") {
+        const id = Number(row.id);
+        this.catalogueTitles.set(id, row.title);
+        const cover = row.cover
+          ? this.catalogueCover(id, row.cover.url)
+          : undefined;
+        book = { id: row.id, title: row.title, ...(cover ? { cover } : {}) };
+      } else
+        book = this.remember(
+          row.source,
+          { id: row.id, title: row.title },
+          row.cover ?? undefined,
+        );
+      return { kind: row.kind, source: row.source, book, savedAt: row.savedAt };
+    });
+    if (this.coverCache) this.warm(result.map((row) => row.book));
+    return result;
+  }
+  bookmark(
+    kind: "source" | "catalogue",
+    source: string,
+    id: string,
+    saved: boolean,
+  ): Promise<void> {
+    const repository = this.bookmarksRepository;
+    if (!repository)
+      return Promise.reject(new Error("Manga bookmarks are unavailable."));
+    let title = "",
+      cover: MangaArtwork | undefined;
+    if (saved) {
+      if (kind === "source") {
+        const book = this.knownBook(source, id);
+        title = book.title;
+        cover = this.artwork.get(this.key(source, id));
+      } else {
+        if (source !== "anilist" || !this.catalogueTitles.has(Number(id)))
+          return Promise.reject(
+            new Error("Open this catalogue title before bookmarking it."),
+          );
+        title = this.catalogueTitles.get(Number(id))!;
+        const handle = this.catalogueCovers.get(Number(id));
+        const image = handle ? this.covers.get(handle) : undefined;
+        if (image) cover = { url: image.url, headers: image.headers };
+      }
+    }
+    const write = this.writes.then(() =>
+      repository.set({ kind, source, id, title, cover }, saved),
+    );
+    this.writes = write.catch(() => undefined);
+    return write;
+  }
   registerCatalogueImages(image: (request: unknown) => Promise<unknown>) {
     this.catalogueImages = { image };
   }
@@ -205,7 +300,7 @@ export class MangaService {
       this.artwork.set(key, saved);
     }
     this.books.delete(key);
-    if (this.books.size >= 500) {
+    if (this.books.size >= 2048) {
       const oldest = this.books.keys().next().value!;
       const old = this.books.get(oldest)!;
       if (old.cover) this.covers.delete(old.cover);

@@ -13,12 +13,14 @@ const errorText = (error: unknown) =>
 export function MangaRoute() {
   return (
     <MangaLibrary
-      renderReader={(provider, book, onBack) => (
+      renderReader={(provider, book, onBack, chapter) => (
         <BookReader
           key={book.id}
           provider={provider}
           book={book}
           onBack={onBack}
+          initialChapter={chapter}
+          backLabel="Details"
         />
       )}
     />
@@ -28,10 +30,14 @@ export function BookReader({
   provider,
   book,
   onBack,
+  initialChapter,
+  backLabel = "Library",
 }: {
   provider: string;
   book: MangaBook;
   onBack: () => void;
+  initialChapter?: string;
+  backLabel?: string;
 }) {
   const chapters = useQuery({
     queryKey: ["manga", provider, book.id, "chapters"],
@@ -45,7 +51,7 @@ export function BookReader({
     staleTime: 0,
     gcTime: 0,
   });
-  const [selected, setSelected] = useState("");
+  const [selected, setSelected] = useState(initialChapter ?? "");
   const [language, setLanguage] = useState("");
   const [scanlator, setScanlator] = useState("");
   const [chaptersOpen, setChaptersOpen] = useState(false);
@@ -95,7 +101,7 @@ export function BookReader({
       >
         <div>
           <button className="btn btn-ghost btn-sm" onClick={onBack}>
-            ← Library
+            ← {backLabel}
           </button>
         </div>
         <div className="min-w-0 text-center">

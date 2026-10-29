@@ -168,7 +168,7 @@ public sealed class ReadingProgressStore(string? directory)
         }
         finally { if (File.Exists(temp)) File.Delete(temp); }
     }
-    private static void ValidateCover(ReadingCover? cover)
+    internal static void ValidateCover(ReadingCover? cover)
     {
         if (cover is null) return;
         if (cover.Url is null || cover.Url.Length > 4096 || !Uri.TryCreate(cover.Url, UriKind.Absolute, out var uri) ||

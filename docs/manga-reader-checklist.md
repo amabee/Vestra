@@ -32,7 +32,8 @@
 
 ## Later additions from the requested feature list
 
-- [ ] Persistent bookmarks and per-page notes.
+- [x] Persistent series bookmarks with a saved library shelf.
+- [ ] Page-specific bookmarks and notes.
 - [ ] Dedicated reading window and compact multi-monitor mode.
 - [ ] Optional delayed/automatic next-chapter transitions.
 - [ ] Optional reading time, streaks and completion statistics.

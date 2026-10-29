@@ -37,8 +37,8 @@ artwork metadata is omitted rather than blocking the reading-position save. Rece
 reading recreates fresh handles after restart, retaining headers needed by the image
 host. The file size limit remains 32 KiB.
 
-The host displays up to 400 source results, leaving room in its 500-title grant
-cache for recent entries. The UI initially renders 48 cards with Show More for
+The host displays up to 400 source results, leaving room in its 2048-title grant
+cache for recent entries and bookmarks. The UI initially renders 48 cards with Show More for
 larger results. This keeps artwork requests and the initial grid bounded.
 
 Validation includes C# cover persistence/legacy/bounds checks, service checks for
@@ -57,3 +57,26 @@ C# image pool and decoded in offscreen Chromium (200×299, 300×428 and 300×419
 The backfill check used an isolated store and preserved the saved reading position
 and timestamp. User reading files were inspected read-only, never rewritten by
 the diagnostic. The normal app backfills them when the shelf is opened.
+
+## Information and bookmarks
+
+Library, recent and discovery cards open information before reading. Source
+information shows its chapter index with chapter search and an explicit
+Start/Continue reading action. AniList supplies synopsis, genres and available
+publication facts; source titles only receive metadata after a unique exact
+English/Romaji/native title match. Missing catalogue metadata never blocks source
+chapters. Catalogue information offers Find in the selected reading source.
+Details, selected chapter, reading and saved-shelf state have URL parameters.
+
+The bookmark icon on each card and information page saves a series without
+creating reading progress. The Bookmarks shelf includes source and catalogue
+entries. The C# worker atomically persists up to 500 entries (1 MiB metadata) in
+`csharp-provider-store/manga-bookmarks.json`, preserving covers and original save
+timestamps. Source removal leaves bookmarks available for later removal or source
+reinstallation. Metadata stores private image requests; IPC returns opaque cover
+handles. Corrupt bookmark files surface an error and are preserved.
+
+`node apps/nova/scripts/test-manga-information.mjs --live` checks exact matching,
+metadata cache restarts, high-resolution artwork, real C# bookmark restarts,
+source isolation and independent progress. The offscreen UI fixture checks both
+information flows, card/detail bookmarks and saved-shelf removal.

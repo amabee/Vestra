@@ -11,6 +11,10 @@ import { CSharpProviderSession } from "./csharp-worker";
 import { createImagePool, type CSharpImagePool } from "./csharp-image-pool";
 import { resolveWorkerTarget } from "./worker-target";
 import { csharpMangaProgress } from "./csharp-manga-progress";
+import {
+  csharpMangaBookmarks,
+  type MangaBookmarkRepository,
+} from "./manga-bookmarks";
 import { transpileProvider } from "./provider-transpile";
 import {
   applyProviderCompatibility,
@@ -80,6 +84,13 @@ function clientForSources(): CSharpProviderSession {
 export function fetchCSharpImage(request: unknown): Promise<unknown> {
   if (shuttingDown) throw new Error("Image runtime is shutting down.");
   return (imagePool ??= createImagePool(workerTarget())).image(request);
+}
+export function getMangaBookmarks(): MangaBookmarkRepository {
+  return {
+    list: () => csharpMangaBookmarks(clientForSources()).list(),
+    set: (entry, saved) =>
+      csharpMangaBookmarks(clientForSources()).set(entry, saved),
+  };
 }
 
 export async function activateCSharpSource(

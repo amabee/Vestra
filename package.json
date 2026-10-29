@@ -9,6 +9,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
+    "build:app": "dotnet build apps/server/Vestra.Server.csproj -c Release --nologo && pnpm --filter @vestra/nova build",
     "build:server": "dotnet build apps/server/Vestra.Server.csproj -c Release --nologo",
     "test:server": "dotnet test tests/server-providers/Vestra.Providers.Tests.csproj -c Release --nologo",
     "test:server:bridge": "pnpm run build:server && node apps/nova/scripts/test-csharp-worker.mjs",

@@ -1,0 +1,30 @@
+[
+  {
+    "date": "2026-10-30",
+    "scope": "app",
+    "shape": "app screen",
+    "theme": "Vestra existing tokens",
+    "entry": "manga details and bookmarks",
+    "signature": "source chapter index with explicit reading action",
+    "prompt": "Sharper discovery covers, information before reading, library bookmarks",
+    "sweep": {
+      "static": "0 FAIL, 0 REFLEX, 0 WARN across details TSX/CSS",
+      "sloplintRender": "not run: no URL; offscreen Electron used instead",
+      "offscreen": "real production CSS; synthetic local artwork; 1440 and 375 widths, no horizontal overflow, 2:3 cover frame; reader regression passed"
+    },
+    "review": {
+      "mode": "in-thread",
+      "result": "ship",
+      "findings": [
+        {
+          "issue": "intrinsic image stretched cover frame",
+          "outcome": "resolved by positioned image within fixed aspect ratio; screenshots confirmed"
+        }
+      ],
+      "gap": "No remaining app-screen finding; catalogue facts and source availability kept distinct"
+    },
+    "limitations": [
+      "Synthetic screenshot artwork; personal provider/fullscreen verification remains on reader checklist"
+    ]
+  }
+]

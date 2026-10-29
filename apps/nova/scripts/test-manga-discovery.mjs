@@ -74,6 +74,38 @@ test("origin, genre, publication, ordering and page filters reach GraphQL as var
   assert.match(result.items[0].cover, /^[a-f\d-]{36}$/);
   assert.equal("url" in result.items[0], false);
 });
+test("discovery upgrades old thumbnail caches and chooses the largest artwork", async () => {
+  const driver = new MemoryDriver();
+  let calls = 0;
+  const request = async () => {
+    calls++;
+    return data;
+  };
+  await new MangaDiscovery(driver, () => randomUUID(), request).browse({});
+  await driver.write(
+    "manga-discovery-v1",
+    await driver.read("manga-discovery-v2"),
+  );
+  await driver.remove("manga-discovery-v2");
+  const upgraded = structuredClone(data);
+  upgraded.Page.media[0].coverImage.extraLarge =
+    "https://images.example/extraLarge.jpg";
+  upgraded.Page.media[0].coverImage.large = "https://images.example/large.jpg";
+  let selected;
+  await new MangaDiscovery(
+    driver,
+    (_id, url) => {
+      selected = url;
+      return randomUUID();
+    },
+    async () => {
+      calls++;
+      return upgraded;
+    },
+  ).browse({});
+  assert.equal(calls, 2);
+  assert.equal(selected, "https://images.example/extraLarge.jpg");
+});
 test("catalogue calls deduplicate and cached metadata survives service restart", async () => {
   const driver = new MemoryDriver();
   let calls = 0;

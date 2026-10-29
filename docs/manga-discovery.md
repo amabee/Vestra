@@ -6,14 +6,16 @@ manga / Korean manhwa / Chinese manhua origin filters, genres, ongoing/completed
 status and pagination (24 titles per page).
 
 Catalogue results describe metadata popularity, not availability in the selected
-reading source. Selecting a catalogue card searches that title in the source;
-the user chooses the provider result before opening the reader. Direct source
+reading source. Selecting a catalogue card opens its information page. Find in source searches
+the selected reading source; the user chooses a provider result and reviews its
+chapter list before opening the reader. Direct source
 search remains available above the catalogue. Filters apply to discovery, not
 to the provider's search results. This avoids treating unrelated source searches
 as though they implemented genres or rankings.
 
 The fixed AniList query runs in main and uses variables, non-adult MANGA/ONE_SHOT
-results, medium cover images and an HTTP deadline. Unset optional filters are
+results, the largest available cover images and an HTTP deadline. The v2 metadata
+cache drops old medium-only results so existing installations fetch sharper art. Unset optional filters are
 omitted: sending explicit nulls can return an empty catalogue. The genre menu is
 supplied by GenreCollection. Origin uses countryOfOrigin rather than guessing from
 title language. See [AniList query reference](https://docs.anilist.co/reference/query).

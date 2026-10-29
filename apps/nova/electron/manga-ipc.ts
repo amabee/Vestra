@@ -4,6 +4,8 @@ import { getDriver, resolveDataDir } from "./services";
 import { join } from "node:path";
 import { MangaCoverCache } from "./manga-cover-cache";
 import { MangaDiscovery } from "./manga-discovery";
+import { MangaDetails } from "./manga-details";
+import type { MangaBookmarkRepository } from "./manga-bookmarks";
 import { MangaService } from "./manga-service";
 let service: MangaService | null = null;
 export function getMangaService(): MangaService {
@@ -15,14 +17,20 @@ export function getMangaService(): MangaService {
 const text = z.string().min(1).max(4096);
 export function registerMangaIpc(
   image: (request: unknown) => Promise<unknown>,
+  bookmarks: MangaBookmarkRepository,
 ): void {
   const api = getMangaService();
   api.registerCatalogueImages(image);
+  api.registerBookmarks(bookmarks);
+  const details = new MangaDetails(getDriver(), (id, url) =>
+    api.catalogueCover(id, url),
+  );
   const discovery = new MangaDiscovery(getDriver(), (id, url) =>
     api.catalogueCover(id, url),
   );
   ipcMain.handle("manga:discover", async (_e, filters) => {
     const page = await discovery.browse(filters);
+    page.items.forEach((item) => api.registerCatalogueTitle(item));
     api.preloadArtwork(
       page.items
         .map((item) => item.cover)
@@ -31,6 +39,33 @@ export function registerMangaIpc(
     return page;
   });
   ipcMain.handle("manga:sources", () => api.list());
+  ipcMain.handle("manga:bookmarks", () => api.bookmarks());
+  ipcMain.handle("manga:bookmark", (_e, kind, source, id, saved) =>
+    api.bookmark(
+      z.enum(["source", "catalogue"]).parse(kind),
+      z.string().min(1).max(120).parse(source),
+      text.parse(id),
+      z.boolean().parse(saved),
+    ),
+  );
+  ipcMain.handle("manga:book", (_e, p, id, title) =>
+    api.resolveBook(
+      text.parse(p),
+      text.parse(id),
+      z.string().trim().max(500).optional().parse(title),
+    ),
+  );
+  ipcMain.handle("manga:info", async (_e, p, id) => {
+    const book = api.knownBook(text.parse(p), text.parse(id));
+    const info = await details.source(book.title);
+    if (info) api.registerCatalogueTitle(info);
+    return info;
+  });
+  ipcMain.handle("manga:details", async (_e, id) => {
+    const info = await details.get(z.number().int().positive().parse(id));
+    if (info) api.registerCatalogueTitle(info);
+    return info;
+  });
   ipcMain.handle("manga:catalogue-cover", (_e, id) =>
     api.refreshCatalogueCover(z.number().int().positive().parse(id)),
   );

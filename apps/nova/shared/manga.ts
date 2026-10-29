@@ -48,3 +48,16 @@ export interface MangaDiscoveryPage {
   page: number;
   stale: boolean;
 }
+export interface MangaInformation extends MangaDiscoveryTitle {
+  description: string | null;
+  chapters: number | null;
+  volumes: number | null;
+  year: number | null;
+  titles: string[];
+}
+export interface MangaBookmark {
+  kind: "source" | "catalogue";
+  source: string;
+  book: MangaBook;
+  savedAt: string;
+}
