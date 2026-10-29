@@ -17,6 +17,11 @@ const invoke = (channel: string, ...args: unknown[]): Promise<unknown> =>
   ipcRenderer.invoke(channel, ...args);
 
 const api = {
+  anime: {
+    sources: () => invoke("anime:sources"),
+    search: (id: string, query: string) => invoke("anime:search", id, query),
+    episodes: (handle: string) => invoke("anime:episodes", handle),
+  },
   sources: {
     prepareRemote: (url: string) => invoke("sources:remote-prepare", url),
     checkUpdates: (id: string) => invoke("sources:remote-check", id),

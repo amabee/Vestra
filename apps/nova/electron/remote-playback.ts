@@ -90,10 +90,12 @@ type Entry = {
   choices: Map<string, string>;
 };
 const entries = new Map<string, Entry>();
+const qualityEntries = new Map<string, Entry>();
 function register(entry: Entry): string {
   const locator = `vestra-stream://${randomUUID()}`;
-  if (entries.size >= 2000) entries.delete(entries.keys().next().value!);
-  entries.set(locator, entry);
+  const pool = entry.selected ? qualityEntries : entries;
+  if (pool.size >= 2000) pool.delete(pool.keys().next().value!);
+  pool.set(locator, entry);
   return locator;
 }
 const variantSchema = z.object({
@@ -134,12 +136,12 @@ export function registerDeferredVariants(
 export async function remoteQualities(
   locator: string,
 ): Promise<RemoteQuality[]> {
-  const entry = entries.get(locator);
+  const entry = entries.get(locator) ?? qualityEntries.get(locator);
   if (!entry) throw new Error("Stream expired. Resolve this episode again.");
   const rows = await variants(entry);
   return rows.map((row) => {
     let selected = entry.choices.get(row.key);
-    if (!selected || !entries.has(selected)) {
+    if (!selected || !qualityEntries.has(selected)) {
       selected = register({
         resolve: entry.resolve,
         choices: entry.choices,
@@ -153,7 +155,7 @@ export async function remoteQualities(
 export async function resolveRemotePlayback(
   locator: string,
 ): Promise<RemotePlayback> {
-  const entry = entries.get(locator);
+  const entry = entries.get(locator) ?? qualityEntries.get(locator);
   if (!entry) throw new Error("Stream expired. Resolve this episode again.");
   const rows = await variants(entry);
   const selected = entry.selected

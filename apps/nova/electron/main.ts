@@ -32,6 +32,7 @@ import { getDriver, resolveDataDir } from "./services";
 import { stopCSharpProviders } from "./csharp-providers";
 import { registerSourceIpc } from "./source-ipc";
 import { registerMangaIpc } from "./manga-ipc";
+import { registerAnimeIpc } from "./anime-ipc";
 
 /**
  * Vestra Nova — Electron main process.
@@ -332,6 +333,7 @@ if (!gotLock) {
     registerIpc();
     registerMediaProtocolHandler();
     registerMangaIpc();
+    registerAnimeIpc();
     registerSourceIpc();
 
     mainWindow = createWindow();

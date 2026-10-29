@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
+import { Link } from "react-router";
 import { Page, PageHeader } from "@/components/layout/page";
 import { bridge } from "@/lib/bridge";
 import {
@@ -34,6 +35,7 @@ export function SourcesRoute() {
     await Promise.all([
       cache.invalidateQueries({ queryKey: ["managed-sources"] }),
       cache.invalidateQueries({ queryKey: ["manga"] }),
+      cache.invalidateQueries({ queryKey: ["anime-sources"] }),
       cache.invalidateQueries({ queryKey: ["playback"] }),
     ]);
   };
@@ -262,6 +264,15 @@ export function SourcesRoute() {
               >
                 Check runtime
               </button>
+              {source.type === "onlinestream-provider" &&
+                source.status === "ready" && (
+                  <Link
+                    className="btn btn-sm"
+                    to={`/anime?source=${encodeURIComponent(`ext-csharp-${source.id}`)}`}
+                  >
+                    Browse anime
+                  </Link>
+                )}
               {source.remote && (
                 <button
                   className="btn btn-sm"

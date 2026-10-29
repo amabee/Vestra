@@ -18,7 +18,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 
 import { Notice, Page, SectionRule } from "@/components/layout/page";
 import { bridge } from "@/lib/bridge";
@@ -443,10 +443,21 @@ export function DetailRoute() {
               body={(sources.error as Error).message}
             />
           ) : (sources.data ?? []).length === 0 ? (
-            <Notice
-              title="No source available"
-              body="Nothing you own or have configured can play this."
-            />
+            <>
+              <Notice
+                title="No matching playback source"
+                body={
+                  kind === "anime"
+                    ? "The catalogue name may differ from your streaming provider's title, or the provider may not carry it."
+                    : "Nothing you own or have configured can play this."
+                }
+              />
+              {kind === "anime" && (
+                <Link className="btn btn-primary mt-4" to="/anime">
+                  Search your streaming sources
+                </Link>
+              )}
+            </>
           ) : (
             <div>
               {episodes.length > 0 ? (

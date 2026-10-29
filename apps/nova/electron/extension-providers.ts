@@ -83,7 +83,7 @@ function normaliseTitle(value: string): string {
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 }
 
@@ -106,14 +106,20 @@ export function createStreamSourceAdapter(
 
       if (itemTitles.length === 0) return [];
 
-      const candidates = await source.search(
-        item.title,
-        { limit: 10 },
-        context,
-      );
-      const match = candidates.find((candidate) =>
-        itemTitles.includes(normaliseTitle(candidate.title)),
-      );
+      let match;
+      for (const query of [
+        ...new Set(
+          [item.title, item.originalTitle].filter(
+            (value): value is string => !!value?.trim(),
+          ),
+        ),
+      ]) {
+        const candidates = await source.search(query, { limit: 10 }, context);
+        match = candidates.find((candidate) =>
+          itemTitles.includes(normaliseTitle(candidate.title)),
+        );
+        if (match) break;
+      }
 
       if (!match) return [];
 

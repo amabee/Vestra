@@ -108,7 +108,7 @@ export async function activateCSharpSource(
   const episodes = new Map<string, SeanimeEpisode>();
   const provider = createStreamSourceProvider({
     extensionId: id,
-    name: `${definition.name} (C# preview)`,
+    name: definition.name,
     kinds: ["anime"],
     methods: ["search", "getEpisodes", "getStreams"],
     async call(method, args, signal) {

@@ -58,6 +58,11 @@ export interface BrowseResult {
  */
 
 interface RawBridge {
+  anime: {
+    sources: () => Promise<unknown>;
+    search: (id: string, query: string) => Promise<unknown>;
+    episodes: (handle: string) => Promise<unknown>;
+  };
   sources: {
     prepareRemote: (url: string) => Promise<unknown>;
     checkUpdates: (id: string) => Promise<unknown>;
@@ -375,6 +380,18 @@ export interface SurfaceRect {
 }
 
 export const bridge = {
+  anime: {
+    sources: () =>
+      raw().anime.sources() as Promise<{ id: string; name: string }[]>,
+    search: (id: string, query: string) =>
+      raw().anime.search(id, query) as Promise<
+        import("../../../shared/anime").AnimeSourceTitle[]
+      >,
+    episodes: (handle: string) =>
+      raw().anime.episodes(handle) as Promise<
+        import("../../../shared/anime").AnimeSourceEpisodes
+      >,
+  },
   sources: {
     prepareRemote: (url: string) =>
       raw().sources.prepareRemote(url) as Promise<
