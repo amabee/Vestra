@@ -246,3 +246,14 @@ saves progress only after all visible images decode, and image/save failures can
 be retried independently. Interactive checking and installer refresh are deferred
 at the user's request; [desktop-verification.md](desktop-verification.md) records
 the earlier limited packaged observations.
+
+## Local source replacement pass
+
+Added reviewed local JS/TS script replacement through staged chooser tokens.
+Source content fingerprints reject stale replacement requests. Existing IDs,
+settings, host grants and data namespaces are retained. Enabled candidates must
+load and pass settings/server validation before the new registry record is saved;
+failures attempt to restore the previous runtime. Disabled replacements do not
+execute. Eleven management tests pass, including actual worker replacement and
+rollback checks. Remote updates/version history, visual verification and installer
+refresh remain pending. See [source-management.md](source-management.md).

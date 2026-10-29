@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { basename } from "node:path";
 import { dialog, ipcMain } from "electron";
@@ -53,7 +53,12 @@ export function registerSourceIpc(): void {
     const token = randomUUID();
     const filename = basename(path);
     pending.set(token, { source, filename, expires: Date.now() + 600000 });
-    return { token, filename, bytes };
+    return {
+      token,
+      filename,
+      bytes,
+      sha256: createHash("sha256").update(source).digest("hex"),
+    };
   });
   ipcMain.handle("sources:install", async (_e, token, options) => {
     await ready;
@@ -72,6 +77,22 @@ export function registerSourceIpc(): void {
   ipcMain.handle("sources:update", async (_e, id, options) => {
     await ready;
     await manager.update(sourceId.parse(id), options);
+  });
+  ipcMain.handle("sources:replace", async (_e, id, token, expectedHash) => {
+    await ready;
+    const key = z.string().uuid().parse(token);
+    const script = pending.get(key);
+    if (!script || script.expires < Date.now())
+      throw new Error("Import expired. Choose the script again.");
+    await manager.replace(
+      sourceId.parse(id),
+      { source: script.source, filename: script.filename },
+      z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .parse(expectedHash),
+    );
+    pending.delete(key);
   });
   ipcMain.handle("sources:remove", async (_e, id) => {
     await ready;

@@ -1,4 +1,5 @@
 import { isIP } from "node:net";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { StorageDriver } from "@vestra/storage";
 import type { SourceSummary } from "../shared/sources";
@@ -56,6 +57,8 @@ interface Runtime {
   check(id: string): Promise<unknown>;
 }
 const registryKey = "csharp-managed-sources";
+const sourceHash = (source: string) =>
+  createHash("sha256").update(source).digest("hex");
 export class SourceManager {
   private entries: ManagedSource[] = [];
   private states = new Map<
@@ -116,9 +119,72 @@ export class SourceManager {
     return this.entries.map(
       ({ source: _source, filename: _filename, ...row }) => ({
         ...row,
+        sourceHash: sourceHash(_source),
         ...(this.states.get(row.id) ?? { status: "disabled" as const }),
       }),
     );
+  }
+  replace(id: string, script: unknown, expectedHash: string): Promise<void> {
+    return this.serial(async () => {
+      const old = this.entries.find((row) => row.id === id);
+      if (!old) throw new Error("Source is not installed.");
+      if (
+        !/^[a-f0-9]{64}$/.test(expectedHash) ||
+        sourceHash(old.source) !== expectedHash
+      )
+        throw new Error(
+          "This source changed while the update was being prepared. Reopen the replacement review.",
+        );
+      const replacement = managedSource
+        .pick({ source: true, filename: true })
+        .parse(script);
+      const next = managedSource.parse({ ...old, ...replacement });
+      if (old.source === next.source && old.filename === next.filename) return;
+      const rows = this.entries.map((row) => (row.id === id ? next : row));
+      if (!old.enabled) {
+        // Replacing a disabled source must not execute its script.
+        await this.driver.write(registryKey, rows);
+        this.entries = rows;
+        this.states.set(id, { status: "disabled" });
+        return;
+      }
+      const previousState = this.states.get(id);
+      try {
+        await this.runtime.deactivate(id);
+        await this.runtime.activate(next);
+        const settings = await this.settingsFor(next);
+        await this.driver.write(registryKey, rows);
+        this.entries = rows;
+        this.states.set(id, {
+          status: "ready",
+          checkedAt: new Date().toISOString(),
+          servers: settings.episodeServers,
+        });
+      } catch (error) {
+        // The persisted entry is still old. Remove any partial candidate and restore it.
+        await this.start(old);
+        const restored = this.states.get(id)?.status === "ready";
+        if (restored && previousState) this.states.set(id, previousState);
+        const detail = error instanceof Error ? error.message : String(error);
+        const recovery = this.states.get(id)?.error;
+        throw new Error(
+          restored
+            ? `Script replacement failed; the previous script was restored. ${detail}`
+            : `Script replacement failed; the previous script remains saved, but could not be restarted. ${detail} ${recovery ?? ""}`,
+        );
+      }
+    });
+  }
+  private async settingsFor(row: ManagedSource) {
+    const settings = z
+      .object({ episodeServers: z.array(z.string()).optional() })
+      .parse(await this.runtime.check(row.id));
+    if (
+      row.preferredServer &&
+      !settings.episodeServers?.includes(row.preferredServer)
+    )
+      throw new Error("The selected server is not advertised by this source.");
+    return settings;
   }
   install(input: unknown): Promise<void> {
     return this.serial(async () => {

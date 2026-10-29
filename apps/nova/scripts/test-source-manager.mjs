@@ -147,6 +147,131 @@ test("a failed disk write leaves the running and persisted configuration intact"
   assert.equal(host.active.size, 0);
 });
 
+test("script replacement preserves settings, identity and its persisted copy", async () => {
+  const driver = new NodeDriver(join(scratch, "replace"));
+  const host = runtime();
+  const manager = new SourceManager(driver, host);
+  const original = {
+    ...row(),
+    preferences: { language: "en" },
+    preferredServer: "two",
+  };
+  await manager.initialize(async () => [original]);
+  const before = (await manager.list())[0];
+  const replacement = script + "\n// updated";
+  await manager.replace(
+    "fixture",
+    {
+      source: replacement,
+      filename: "updated.js",
+      hosts: ["unwanted.example"],
+      preferences: {},
+      id: "other",
+    },
+    before.sourceHash,
+  );
+  const after = (await manager.list())[0];
+  assert.notEqual(after.sourceHash, before.sourceHash);
+  assert.equal(after.id, before.id);
+  assert.deepEqual(after.hosts, before.hosts);
+  assert.deepEqual(after.preferences, before.preferences);
+  assert.equal(after.preferredServer, "two");
+  assert.equal(host.active.get("fixture").source, replacement);
+  const restartedHost = runtime();
+  const restarted = new SourceManager(driver, restartedHost);
+  await restarted.initialize(async () => []);
+  assert.equal(restartedHost.active.get("fixture").source, replacement);
+});
+
+test("a failed candidate activation restores the old registration and disk copy", async () => {
+  const driver = new MemoryDriver();
+  const host = runtime();
+  const activate = host.activate.bind(host);
+  host.activate = async (entry) => {
+    await activate(entry);
+    if (entry.source === "broken") throw new Error("Guest syntax failed");
+  };
+  const manager = new SourceManager(driver, host);
+  await manager.initialize(async () => [row()]);
+  const before = (await manager.list())[0];
+  await assert.rejects(
+    manager.replace(
+      "fixture",
+      { source: "broken", filename: "broken.js" },
+      before.sourceHash,
+    ),
+    /previous script was restored/,
+  );
+  assert.equal(host.active.get("fixture").source, script);
+  assert.equal((await manager.list())[0].sourceHash, before.sourceHash);
+  assert.equal((await driver.read("csharp-managed-sources"))[0].source, script);
+});
+
+test("replacement write failures restore the running script without changing saved state", async () => {
+  const driver = new MemoryDriver();
+  const host = runtime();
+  const manager = new SourceManager(driver, host);
+  await manager.initialize(async () => [row()]);
+  const before = (await manager.list())[0];
+  driver.write = async () => {
+    throw new Error("Disk full");
+  };
+  await assert.rejects(
+    manager.replace(
+      "fixture",
+      { source: script + "\n// new", filename: "new.js" },
+      before.sourceHash,
+    ),
+    /Disk full/,
+  );
+  assert.equal(host.active.get("fixture").source, script);
+  assert.equal((await driver.read("csharp-managed-sources"))[0].source, script);
+});
+
+test("disabled replacement never executes and stale reviews cannot replace newer code", async () => {
+  const host = runtime();
+  const manager = new SourceManager(new MemoryDriver(), host);
+  await manager.initialize(async () => [{ ...row(), enabled: false }]);
+  const before = (await manager.list())[0];
+  await manager.replace(
+    "fixture",
+    { source: "not executed", filename: "new.js" },
+    before.sourceHash,
+  );
+  assert.equal(host.active.size, 0);
+  assert.equal((await manager.list())[0].status, "disabled");
+  await assert.rejects(
+    manager.replace(
+      "fixture",
+      { source: script, filename: "other.js" },
+      before.sourceHash,
+    ),
+    /source changed/,
+  );
+  assert.equal(host.active.size, 0);
+});
+
+test("failed restoration stays visible while the previous source remains saved", async () => {
+  const driver = new MemoryDriver();
+  const host = runtime();
+  const manager = new SourceManager(driver, host);
+  await manager.initialize(async () => [row()]);
+  const hash = (await manager.list())[0].sourceHash;
+  host.activate = async () => {
+    throw new Error("Worker unavailable");
+  };
+  await assert.rejects(
+    manager.replace(
+      "fixture",
+      { source: script + "\n// new", filename: "new.js" },
+      hash,
+    ),
+    /could not be restarted/,
+  );
+  assert.equal((await manager.list())[0].status, "error");
+  assert.equal((await driver.read("csharp-managed-sources"))[0].source, script);
+});
+
 test("C# source lifecycle handles configuration, checks, disable and reload", async () => {
   const client = new CSharpProviderSession(
     join(root, "apps/server/bin/Release/net10.0/Vestra.Server.dll"),
@@ -188,6 +313,43 @@ test("C# source lifecycle handles configuration, checks, disable and reload", as
     await manager.update("fixture", { ...row(), preferredServer: "two" });
     await manager.check("fixture");
     assert.equal((await manager.list())[0].status, "ready");
+    const originalHash = (await manager.list())[0].sourceHash;
+    await assert.rejects(
+      manager.replace(
+        "fixture",
+        { source: "class Provider {}", filename: "broken.js" },
+        originalHash,
+      ),
+      /previous script was restored/,
+    );
+    assert.deepEqual((await runtime.check("fixture")).episodeServers, [
+      "one",
+      "two",
+    ]);
+    await assert.rejects(
+      manager.replace(
+        "fixture",
+        {
+          source: script.replace("'one','two'", "'other'"),
+          filename: "wrong-server.js",
+        },
+        originalHash,
+      ),
+      /not advertised/,
+    );
+    await manager.replace(
+      "fixture",
+      {
+        source: script.replace("'one','two'", "'one','two','three'"),
+        filename: "updated.js",
+      },
+      originalHash,
+    );
+    assert.deepEqual((await runtime.check("fixture")).episodeServers, [
+      "one",
+      "two",
+      "three",
+    ]);
     await manager.remove("fixture");
     assert.deepEqual(await client.request({ kind: "list" }), []);
   } finally {

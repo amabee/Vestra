@@ -8,6 +8,7 @@ export interface SourceOptions {
   preferredServer?: string;
 }
 export interface SourceSummary extends SourceOptions {
+  sourceHash: string;
   enabled: boolean;
   status: "ready" | "disabled" | "error";
   error?: string;
@@ -18,4 +19,5 @@ export interface PickedSource {
   token: string;
   filename: string;
   bytes: number;
+  sha256: string;
 }

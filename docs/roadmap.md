@@ -35,8 +35,8 @@ selected Seanime host APIs implemented in C#. No speed advantage has been measur
 - [x] Live metadata/manifest checks for selected anime providers and single-image checks for two manga providers, recorded with source hashes.
 
 Latest recorded verification: 76 .NET cases, five reader-service tests and five
-reader-navigation tests; the earlier five worker-process and six source-management
-checks also passed. Nova type checks and builds
+reader-navigation tests, plus eleven source-management cases; the earlier five
+worker-process checks also passed. Nova type checks and builds
 pass. Native mpv passed a controlled local HLS/header/subtitle fixture. Live checks
 are source-specific observations and can become stale. Visual end-to-end checks
 remain unchecked below.
@@ -98,7 +98,8 @@ baselines before the broader service migrations so later comparisons remain usef
 - [ ] Fill required HTML, crypto, Buffer/URL and response API gaps using failing fixtures.
 - [ ] Implement required request cancellation, cookie semantics and concurrent IO scheduling.
 - [ ] Define module/import support and the remaining TypeScript packaging/runtime policy.
-- [ ] Add source-code replacement, remote installation and update/version handling.
+- [x] Replace local source scripts while preserving identity/settings, with rollback on failed enabled-source updates.
+- [ ] Add remote installation and automatic update/version handling.
 - [ ] Add website-health diagnostics separately from the existing runtime check.
 - [ ] Complete source preference metadata, editing and lifecycle behavior.
 - [ ] Audit and implement remaining extension types, hooks and plugins.

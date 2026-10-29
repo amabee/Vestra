@@ -61,6 +61,11 @@ interface RawBridge {
   sources: {
     list: () => Promise<unknown>;
     pick: () => Promise<unknown>;
+    replace: (
+      id: string,
+      token: string,
+      expectedHash: string,
+    ) => Promise<unknown>;
     install: (token: string, options: unknown) => Promise<unknown>;
     update: (id: string, options: unknown) => Promise<unknown>;
     remove: (id: string) => Promise<unknown>;
@@ -363,6 +368,8 @@ export const bridge = {
   sources: {
     list: () => raw().sources.list() as Promise<SourceSummary[]>,
     pick: () => raw().sources.pick() as Promise<PickedSource | null>,
+    replace: (id: string, token: string, expectedHash: string) =>
+      raw().sources.replace(id, token, expectedHash),
     install: (token: string, options: SourceOptions) =>
       raw().sources.install(token, options),
     update: (id: string, options: SourceOptions & { enabled: boolean }) =>

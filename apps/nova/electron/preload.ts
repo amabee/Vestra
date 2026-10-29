@@ -20,6 +20,8 @@ const api = {
   sources: {
     list: () => invoke("sources:list"),
     pick: () => invoke("sources:pick"),
+    replace: (id: string, token: string, expectedHash: string) =>
+      invoke("sources:replace", id, token, expectedHash),
     install: (token: string, options: unknown) =>
       invoke("sources:install", token, options),
     update: (id: string, options: unknown) =>

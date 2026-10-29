@@ -17,6 +17,7 @@ export function SourcesRoute() {
   });
   const [picked, setPicked] = useState<PickedSource | null>(null);
   const [editing, setEditing] = useState<SourceSummary | null>(null);
+  const [replacing, setReplacing] = useState<SourceSummary | null>(null);
   const refresh = async () => {
     await Promise.all([
       cache.invalidateQueries({ queryKey: ["managed-sources"] }),
@@ -29,10 +30,16 @@ export function SourcesRoute() {
     onSettled: refresh,
   });
   const pick = useMutation({
-    mutationFn: bridge.sources.pick,
-    onSuccess: (value) => {
-      setPicked(value);
+    mutationFn: async (target: SourceSummary | null) => ({
+      file: await bridge.sources.pick(),
+      target,
+    }),
+    onSuccess: ({ file, target }) => {
+      if (!file) return;
+      setPicked(file);
+      setReplacing(target);
       setEditing(null);
+      action.reset();
     },
   });
   return (
@@ -49,7 +56,7 @@ export function SourcesRoute() {
         <button
           className="btn btn-primary"
           disabled={pick.isPending || action.isPending}
-          onClick={() => pick.mutate()}
+          onClick={() => pick.mutate(null)}
         >
           Import script
         </button>
@@ -61,7 +68,57 @@ export function SourcesRoute() {
           {message(pick.error || action.error)}
         </p>
       )}
-      {(picked || editing) && (
+      {picked && replacing && (
+        <section className="grid gap-3 rounded-xl border rule p-5">
+          <h2 className="text-lg font-semibold">
+            Replace {replacing.name} script
+          </h2>
+          <p className="text-sm">
+            Use {picked.filename} ({Math.ceil(picked.bytes / 1024)} KiB) for
+            this source. Its ID, settings and reading progress are retained.
+          </p>
+          <p className="text-sm text-base-content/60">
+            {replacing.enabled
+              ? "The update is loaded and checked before it is saved. A failed update attempts to restore the previous script."
+              : "This source stays disabled. Its script will be checked when you enable it."}
+          </p>
+          <details className="text-xs text-base-content/60">
+            <summary className="cursor-pointer">Script fingerprints</summary>
+            <p className="break-all pt-2">Current: {replacing.sourceHash}</p>
+            <p className="break-all">Selected: {picked.sha256}</p>
+          </details>
+          <div className="flex gap-2">
+            <button
+              className="btn btn-primary"
+              disabled={action.isPending || pick.isPending}
+              onClick={() =>
+                action.mutate(async () => {
+                  await bridge.sources.replace(
+                    replacing.id,
+                    picked.token,
+                    replacing.sourceHash,
+                  );
+                  setPicked(null);
+                  setReplacing(null);
+                })
+              }
+            >
+              {action.isPending ? "Replacing…" : "Replace script"}
+            </button>
+            <button
+              className="btn btn-ghost"
+              disabled={action.isPending}
+              onClick={() => {
+                setPicked(null);
+                setReplacing(null);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </section>
+      )}
+      {(picked || editing) && !replacing && (
         <SourceForm
           key={picked?.token ?? editing!.id}
           picked={picked}
@@ -70,6 +127,7 @@ export function SourcesRoute() {
           onCancel={() => {
             setPicked(null);
             setEditing(null);
+            setReplacing(null);
           }}
           onSave={(options) =>
             action.mutate(async () => {
@@ -149,10 +207,18 @@ export function SourcesRoute() {
                 onClick={() => {
                   setEditing(source);
                   setPicked(null);
+                  setReplacing(null);
                   action.reset();
                 }}
               >
                 Configure
+              </button>
+              <button
+                className="btn btn-sm"
+                disabled={action.isPending || pick.isPending}
+                onClick={() => pick.mutate(source)}
+              >
+                Replace script
               </button>
               <button
                 className="btn btn-sm"
