@@ -6,6 +6,7 @@ import { app, type BrowserWindow } from "electron";
 
 import { MpvConnection, type MpvEvent } from "./connection";
 import { remoteLoadOptions, type RemotePlayback } from "../remote-playback";
+import { ExternalSubtitleLoader } from "./subtitles";
 
 /**
  * An mpv process bound to a window.
@@ -139,6 +140,7 @@ export interface MpvState {
   subtitleVisible: boolean;
   /** Set when mpv reports a problem loading the file. */
   error: string | null;
+  subtitleError: string | null;
 }
 
 const INITIAL_STATE: MpvState = {
@@ -157,6 +159,7 @@ const INITIAL_STATE: MpvState = {
   chapters: [],
   subtitleVisible: true,
   error: null,
+  subtitleError: null,
 };
 
 /** Observed property ids. Values are arbitrary but must be stable. */
@@ -187,6 +190,13 @@ export class MpvSession {
   #state: MpvState = { ...INITIAL_STATE };
   #listeners = new Set<(state: MpvState) => void>();
   #starting: Promise<void> | null = null;
+  #subtitles = new ExternalSubtitleLoader();
+  #mediaLane: Promise<unknown> = Promise.resolve();
+  #media<T>(task: () => Promise<T>): Promise<T> {
+    const result = this.#mediaLane.then(task);
+    this.#mediaLane = result.catch(() => undefined);
+    return result;
+  }
   /** Offsets gathered from rapid seek presses, applied together. */
   #pendingSeek = 0;
   #seekTimer: ReturnType<typeof setTimeout> | null = null;
@@ -389,6 +399,21 @@ export class MpvSession {
     switch (event.event) {
       case "file-loaded":
         this.#emit({ idle: false, ended: false, error: null });
+        {
+          const revision = this.#subtitles.revision;
+          void this.#media(() => this.#subtitles.attach(this.#require())).then(
+            (errors) => {
+              if (this.#subtitles.current(revision) && errors.length)
+                this.#emit({ subtitleError: errors.join(" ") });
+            },
+            () => {
+              if (this.#subtitles.current(revision))
+                this.#emit({
+                  subtitleError: "External subtitles could not be loaded.",
+                });
+            },
+          );
+        }
         break;
       case "end-file":
         // "eof" is a normal finish; anything else is a real failure worth
@@ -418,13 +443,23 @@ export class MpvSession {
     startSeconds = 0,
     remote?: RemotePlayback,
   ): Promise<void> {
-    const connection = this.#require();
-    this.#emit({ ended: false, error: null, position: 0, duration: 0 });
+    const revision = this.#subtitles.begin(filePath, remote?.subtitles);
+    return this.#media(async () => {
+      if (!this.#subtitles.current(revision)) return;
+      const connection = this.#require();
+      this.#emit({
+        ended: false,
+        error: null,
+        subtitleError: null,
+        tracks: [],
+        position: 0,
+        duration: 0,
+      });
 
-    // A queued seek belongs to the file being replaced.
-    this.#cancelPendingSeek();
+      // A queued seek belongs to the file being replaced.
+      this.#cancelPendingSeek();
 
-    /*
+      /*
       Resume is set through the option rather than as a loadfile argument.
 
       mpv 0.38 redefined loadfile's third parameter from a list of options to
@@ -435,15 +470,19 @@ export class MpvSession {
       "none", because it would otherwise persist and silently skip into the
       following episode.
     */
-    await connection.setProperty(
-      "options/start",
-      startSeconds > 0 ? String(startSeconds) : "none",
-    );
-    const options = remoteLoadOptions(remote);
-    // Reset on every load so remote credentials/subtitles cannot leak into the next file.
-    await connection.setProperty("options/http-header-fields", options.headers);
-    await connection.setProperty("options/sub-files", options.subtitles);
-    await connection.command("loadfile", filePath, "replace");
+      await connection.setProperty(
+        "options/start",
+        startSeconds > 0 ? String(startSeconds) : "none",
+      );
+      const options = remoteLoadOptions(remote);
+      // Reset on every load so remote credentials/subtitles cannot leak into the next file.
+      await connection.setProperty(
+        "options/http-header-fields",
+        options.headers,
+      );
+      await connection.setProperty("options/sub-files", []);
+      await connection.command("loadfile", filePath, "replace");
+    });
   }
 
   async play(): Promise<void> {
@@ -574,10 +613,21 @@ export class MpvSession {
   }
 
   async stop(): Promise<void> {
+    this.#subtitles.cancel();
     if (!this.#connection) return;
     this.#cancelPendingSeek();
-    await this.#connection.command("stop").catch(() => undefined);
-    this.#emit({ idle: true, position: 0, duration: 0 });
+    await this.#media(() =>
+      this.#require()
+        .command("stop")
+        .catch(() => undefined),
+    );
+    this.#emit({
+      idle: true,
+      position: 0,
+      duration: 0,
+      tracks: [],
+      subtitleError: null,
+    });
   }
 
   #cancelPendingSeek(): void {
@@ -588,6 +638,7 @@ export class MpvSession {
 
   /** Shut mpv down. Safe to call when it was never started. */
   dispose(): void {
+    this.#subtitles.cancel();
     this.#cancelPendingSeek();
     this.#connection?.close();
     this.#connection = null;

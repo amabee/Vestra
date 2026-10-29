@@ -20,6 +20,11 @@ import type {
   InstalledExtension,
 } from "@vestra/extension-host/install";
 import type { MarketplaceEntry } from "@vestra/provider-sdk/marketplace";
+import type {
+  PickedSource,
+  SourceOptions,
+  SourceSummary,
+} from "../../../shared/sources";
 
 export type {
   InstallCandidate,
@@ -53,8 +58,35 @@ export interface BrowseResult {
  */
 
 interface RawBridge {
+  anime: {
+    sources: () => Promise<unknown>;
+    search: (id: string, query: string) => Promise<unknown>;
+    episodes: (handle: string) => Promise<unknown>;
+  };
+  sources: {
+    prepareRemote: (url: string) => Promise<unknown>;
+    checkUpdates: (id: string) => Promise<unknown>;
+    applyRemote: (token: string, hosts: string[]) => Promise<unknown>;
+    rollback: (
+      id: string,
+      revision: string,
+      expectedHash: string,
+    ) => Promise<unknown>;
+    list: () => Promise<unknown>;
+    pick: () => Promise<unknown>;
+    replace: (
+      id: string,
+      token: string,
+      expectedHash: string,
+    ) => Promise<unknown>;
+    install: (token: string, options: unknown) => Promise<unknown>;
+    update: (id: string, options: unknown) => Promise<unknown>;
+    remove: (id: string) => Promise<unknown>;
+    check: (id: string) => Promise<unknown>;
+  };
   manga: {
     sources: () => Promise<unknown>;
+    recent: (p: string) => Promise<unknown>;
     search: (p: string, q: string) => Promise<unknown>;
     chapters: (p: string, b: string) => Promise<unknown>;
     pages: (p: string, b: string, c: string) => Promise<unknown>;
@@ -82,6 +114,7 @@ interface RawBridge {
     save: (settings: unknown) => Promise<unknown>;
   };
   media: {
+    streamQualities: (locator: string) => Promise<unknown>;
     search: (query: unknown) => Promise<unknown>;
     trending: (kind: unknown) => Promise<unknown>;
     details: (item: unknown) => Promise<unknown>;
@@ -298,6 +331,7 @@ export interface MpvState {
   chapters: MpvChapter[];
   subtitleVisible: boolean;
   error: string | null;
+  subtitleError: string | null;
 }
 
 export interface MpvStatus {
@@ -346,7 +380,47 @@ export interface SurfaceRect {
 }
 
 export const bridge = {
+  anime: {
+    sources: () =>
+      raw().anime.sources() as Promise<{ id: string; name: string }[]>,
+    search: (id: string, query: string) =>
+      raw().anime.search(id, query) as Promise<
+        import("../../../shared/anime").AnimeSourceTitle[]
+      >,
+    episodes: (handle: string) =>
+      raw().anime.episodes(handle) as Promise<
+        import("../../../shared/anime").AnimeSourceEpisodes
+      >,
+  },
+  sources: {
+    prepareRemote: (url: string) =>
+      raw().sources.prepareRemote(url) as Promise<
+        import("../../../shared/sources").RemoteSourcePlan
+      >,
+    checkUpdates: (id: string) =>
+      raw().sources.checkUpdates(id) as Promise<
+        import("../../../shared/sources").RemoteSourcePlan
+      >,
+    applyRemote: (token: string, hosts: string[]) =>
+      raw().sources.applyRemote(token, hosts),
+    rollback: (id: string, revision: string, expectedHash: string) =>
+      raw().sources.rollback(id, revision, expectedHash),
+    list: () => raw().sources.list() as Promise<SourceSummary[]>,
+    pick: () => raw().sources.pick() as Promise<PickedSource | null>,
+    replace: (id: string, token: string, expectedHash: string) =>
+      raw().sources.replace(id, token, expectedHash),
+    install: (token: string, options: SourceOptions) =>
+      raw().sources.install(token, options),
+    update: (id: string, options: SourceOptions & { enabled: boolean }) =>
+      raw().sources.update(id, options),
+    remove: (id: string) => raw().sources.remove(id),
+    check: (id: string) => raw().sources.check(id),
+  },
   manga: {
+    recent: (p: string) =>
+      raw().manga.recent(p) as Promise<
+        import("../../../shared/manga").MangaRecent
+      >,
     sources: async () =>
       (await raw().manga.sources()) as { id: string; name: string }[],
     search: async (p: string, q: string) =>
@@ -421,6 +495,10 @@ export const bridge = {
     details: async (item: MediaItem): Promise<MediaDetails | null> =>
       (await raw().media.details(item)) as MediaDetails | null,
 
+    streamQualities: (locator: string) =>
+      raw().media.streamQualities(locator) as Promise<
+        { locator: string; label: string }[]
+      >,
     resolvePlayback: async (item: MediaItem): Promise<PlaybackSource[]> =>
       (await raw().media.resolvePlayback(item)) as PlaybackSource[],
 

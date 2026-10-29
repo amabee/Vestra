@@ -62,13 +62,14 @@ export function PlayerOverlay() {
   const surfaceRef = useRef<HTMLDivElement>(null);
 
   const fileId = useFileId(source?.locator);
+  const renditionOverrides = usePlayer((state) => state.renditionOverrides);
   const streamLocator = source?.locator.startsWith("vestra-stream://")
-    ? source.locator
+    ? (renditionOverrides[source.locator] ?? source.locator)
     : undefined;
   const decision = useEngineDecision(fileId, Boolean(streamLocator));
 
   const [override, setOverride] = useState<"builtin" | "mpv" | null>(null);
-  const engine = streamLocator ? "mpv" : override ?? decision.engine;
+  const engine = streamLocator ? "mpv" : (override ?? decision.engine);
   const usingMpv = engine === "mpv" && Boolean(item) && Boolean(source);
 
   const mpv = useMpvState(usingMpv);
@@ -500,7 +501,14 @@ export function PlayerOverlay() {
     return () => {
       cancelled = true;
     };
-  }, [usingMpv, fileId, streamLocator, decision.ready, decision.needsMpv]);
+  }, [
+    usingMpv,
+    fileId,
+    streamLocator,
+    decision.ready,
+    decision.needsMpv,
+    sessionId,
+  ]);
 
   // Leaving the player packs both extra windows away; mpv itself keeps running
   // so the next episode does not pay for another process launch.

@@ -23,7 +23,10 @@ import { fileURLToPath } from "node:url";
  * window still rendering — a silent break.
  */
 
-const novaRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const novaRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+);
 const repoRoot = path.resolve(novaRoot, "../..");
 const outDir = path.join(novaRoot, "dist-electron");
 
@@ -104,7 +107,9 @@ const requireFromHost = createRequire(
   path.join(repoRoot, "packages/extension-host/package.json"),
 );
 
-const quickjsDir = path.dirname(requireFromHost.resolve("quickjs-emscripten/package.json"));
+const quickjsDir = path.dirname(
+  requireFromHost.resolve("quickjs-emscripten/package.json"),
+);
 const variantDir = path.dirname(
   createRequire(path.join(quickjsDir, "package.json")).resolve(
     "@jitl/quickjs-wasmfile-release-sync/package.json",
@@ -118,3 +123,13 @@ await copyFile(
 );
 
 console.info("[build-electron] copied emscripten-module.wasm");
+
+// The compiler is a standalone CJS asset; installed apps have no node_modules.
+const requireFromNova = createRequire(path.join(novaRoot, "package.json"));
+const compiler = requireFromNova.resolve("typescript");
+await copyFile(compiler, path.join(outDir, "provider-typescript.cjs"));
+await copyFile(
+  path.join(path.dirname(compiler), "../LICENSE.txt"),
+  path.join(outDir, "typescript-LICENSE.txt"),
+);
+console.info("[build-electron] copied provider compiler and license");

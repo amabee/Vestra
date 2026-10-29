@@ -31,8 +31,13 @@ public static class ProviderResults
                 Require(type is "mp4" or "m3u8" or "hls" or "unknown", "Unsupported video source type.");
                 if (source.TryGetProperty("subtitles", out var subs))
                 {
-                    Require(subs.ValueKind == JsonValueKind.Array && subs.GetArrayLength() <= 100, "Invalid subtitle list.");
-                    foreach (var sub in subs.EnumerateArray()) { Url(sub, "url"); Text(sub, "language"); }
+                    Require(subs.ValueKind == JsonValueKind.Array && subs.GetArrayLength() <= 50, "Invalid subtitle list.");
+                    foreach (var sub in subs.EnumerateArray()) {
+                        Url(sub, "url");
+                        Require(Text(sub, "language").Length <= 100, "Invalid subtitle language.");
+                        Require(Text(sub, "title", true).Length <= 200, "Invalid subtitle title.");
+                        if (sub.TryGetProperty("isDefault", out var flag)) Require(flag.ValueKind is JsonValueKind.True or JsonValueKind.False, "Invalid subtitle default flag.");
+                    }
                 }
             }
         }

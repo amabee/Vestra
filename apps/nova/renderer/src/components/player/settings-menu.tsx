@@ -426,7 +426,10 @@ function Chevron({ className }: { className?: string }) {
 /** A readable name for a track, falling back through what the file provides. */
 function describe(track: MpvTrack | undefined): string {
   if (!track) return "None";
-  if (track.title) return track.title;
+  if (track.title) {
+    return track.language && track.title.toLowerCase() !== track.language.toLowerCase()
+      ? `${track.title} · ${track.language}` : track.title;
+  }
   if (track.language) return track.language.toUpperCase();
   return `Track ${track.id}`;
 }

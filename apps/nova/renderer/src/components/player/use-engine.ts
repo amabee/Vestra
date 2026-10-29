@@ -189,6 +189,7 @@ const EMPTY_STATE: MpvState = {
   chapters: [],
   subtitleVisible: true,
   error: null,
+  subtitleError: null,
 };
 
 /** Subscribe to mpv's pushed state for as long as the player is open. */

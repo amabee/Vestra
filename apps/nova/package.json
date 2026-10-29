@@ -11,10 +11,13 @@
     "start": "electron .",
     "start:debug": "cross-env VESTRA_DEBUG_PORT=9222 electron .",
     "fetch:mpv": "node scripts/fetch-mpv.mjs",
+    "publish:worker": "node scripts/publish-worker.mjs",
+    "test:packaged-worker": "node scripts/test-packaged-worker.mjs",
     "dev:renderer": "vite --config renderer/vite.config.ts",
     "dev:electron": "pnpm run build:electron && wait-on -t 60000 tcp:127.0.0.1:5273 && cross-env NODE_ENV=development electron .",
     "dev": "concurrently -k -n renderer,electron -c magenta,cyan \"pnpm run dev:renderer\" \"pnpm run dev:electron\"",
-    "package": "pnpm run fetch:mpv && pnpm run build && electron-builder",
+    "package": "pnpm run fetch:mpv && pnpm run publish:worker && pnpm run build && electron-builder --win --x64",
+    "package:dir": "pnpm run publish:worker && pnpm run build && electron-builder --win --x64 --dir",
     "typecheck": "tsc --noEmit -p tsconfig.electron.json && tsc --noEmit -p renderer/tsconfig.json",
     "clean": "rimraf dist-electron dist-renderer release .turbo"
   },
@@ -66,6 +69,7 @@
       "buildResources": "build"
     },
     "icon": "build/icon.png",
+    "beforePack": "scripts/verify-worker-package.cjs",
     "files": [
       "dist-electron/**/*",
       "dist-renderer/**/*",
@@ -73,6 +77,10 @@
       "!node_modules"
     ],
     "extraResources": [
+      {
+        "from": "vendor/server",
+        "to": "server"
+      },
       {
         "from": "vendor/mpv",
         "to": "mpv"

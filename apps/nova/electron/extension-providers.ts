@@ -10,7 +10,7 @@ import type { SourceAdapter } from "@vestra/provider-sdk";
 import type { MediaItem, PlaybackSource } from "@vestra/types";
 
 import { callExtension } from "./extensions";
-import { registerDeferredPlayback } from "./remote-playback";
+import { registerDeferredVariants, streamVariants } from "./remote-playback";
 import {
   getAdapterRegistry,
   getProviderRegistry,
@@ -83,7 +83,7 @@ function normaliseTitle(value: string): string {
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 }
 
@@ -106,14 +106,20 @@ export function createStreamSourceAdapter(
 
       if (itemTitles.length === 0) return [];
 
-      const candidates = await source.search(
-        item.title,
-        { limit: 10 },
-        context,
-      );
-      const match = candidates.find((candidate) =>
-        itemTitles.includes(normaliseTitle(candidate.title)),
-      );
+      let match;
+      for (const query of [
+        ...new Set(
+          [item.title, item.originalTitle].filter(
+            (value): value is string => !!value?.trim(),
+          ),
+        ),
+      ]) {
+        const candidates = await source.search(query, { limit: 10 }, context);
+        match = candidates.find((candidate) =>
+          itemTitles.includes(normaliseTitle(candidate.title)),
+        );
+        if (match) break;
+      }
 
       if (!match) return [];
 
@@ -121,20 +127,15 @@ export function createStreamSourceAdapter(
       const playable: PlaybackSource[] = [];
 
       for (const episode of episodes.slice(0, MAX_EXTENSION_EPISODES)) {
-        const locator = registerDeferredPlayback(async () => {
+        const locator = registerDeferredVariants(async () => {
           const results = await source.getStreams(episode.id, {
             ...context,
             signal: AbortSignal.timeout(context?.timeoutMs ?? 10_000),
           });
-          const result = results.find((row) => row.videoSources.length > 0);
-          const video = result?.videoSources[0];
-          if (!result || !video)
+          const variants = streamVariants(results);
+          if (!variants.length)
             throw new Error("This episode has no playable stream.");
-          return {
-            url: video.url,
-            headers: { ...result.headers, ...video.headers },
-            subtitles: video.subtitles ?? [],
-          };
+          return variants;
         });
         playable.push({
           kind: "stream",

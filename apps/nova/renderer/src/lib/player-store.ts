@@ -27,6 +27,7 @@ interface PlayerState {
    * episode should do.
    */
   startAt: number | null;
+  renditionOverrides: Record<string, string>;
   /**
    * Which playback this is, counting up.
    *
@@ -41,6 +42,7 @@ interface PlayerState {
     queue: PlaybackSource[],
     index?: number,
     startAt?: number | null,
+    renditionOverrides?: Record<string, string>,
   ) => void;
   /** Jump to a position in the queue, ignoring anything out of range. */
   playAt: (index: number) => void;
@@ -54,14 +56,16 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   queue: [],
   index: 0,
   startAt: null,
+  renditionOverrides: {},
   sessionId: 0,
 
-  open: (item, queue, index = 0, startAt = null) =>
+  open: (item, queue, index = 0, startAt = null, renditionOverrides = {}) =>
     set((state) => ({
       item,
       queue,
       index: clamp(index, queue.length),
       startAt,
+      renditionOverrides,
       sessionId: state.sessionId + 1,
     })),
 
@@ -93,7 +97,14 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     }
   },
 
-  close: () => set({ item: null, queue: [], index: 0, startAt: null }),
+  close: () =>
+    set({
+      item: null,
+      queue: [],
+      index: 0,
+      startAt: null,
+      renditionOverrides: {},
+    }),
 }));
 
 function clamp(index: number, length: number): number {

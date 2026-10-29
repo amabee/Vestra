@@ -1,7 +1,13 @@
 import { mediaKey, type MediaKind } from "@vestra/types";
 
-import { EntryList, Page, PageHeader, SectionRule } from "@/components/layout/page";
+import {
+  EntryList,
+  Page,
+  PageHeader,
+  SectionRule,
+} from "@/components/layout/page";
 import { useLibrary, useTrending } from "@/lib/queries";
+import { AnimeSources } from "@/components/media/anime-sources";
 
 /**
  * Browse a single kind.
@@ -24,7 +30,9 @@ export function BrowseRoute({
   const { data: files = [] } = useLibrary();
 
   const owned = new Set(
-    files.flatMap((file) => (file.matchedRef ? [mediaKey(file.matchedRef)] : [])),
+    files.flatMap((file) =>
+      file.matchedRef ? [mediaKey(file.matchedRef)] : [],
+    ),
   );
 
   const groups = trending.data ?? [];
@@ -32,6 +40,7 @@ export function BrowseRoute({
   return (
     <Page>
       <PageHeader eyebrow="Browse" title={title} lead={lead} />
+      {kind === "anime" && <AnimeSources />}
 
       {trending.isPending || groups.length === 0 ? (
         <section className="mt-10">
@@ -53,7 +62,9 @@ export function BrowseRoute({
               label={group.providerName}
               count={group.items.length}
               trailing={
-                group.error ? <span className="meta text-error">unavailable</span> : null
+                group.error ? (
+                  <span className="meta text-error">unavailable</span>
+                ) : null
               }
             />
             <EntryList

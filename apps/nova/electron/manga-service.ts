@@ -5,9 +5,22 @@ import type {
   MangaBook,
   MangaChapter,
   MangaPage,
+  MangaRecent,
   ReadingProgress,
 } from "../shared/manga";
 type Call = (method: string, args: unknown[]) => Promise<unknown>;
+export interface ReadingProgressRepository {
+  read(book: string): Promise<ReadingProgress | null>;
+  save(
+    book: string,
+    chapter: string,
+    page: number,
+    pageCount: number,
+    title: string,
+  ): Promise<void>;
+  recent(): Promise<MangaRecent>;
+  import(book: string, progress: ReadingProgress): Promise<ReadingProgress>;
+}
 const bookSchema = z.object({
   id: z.string().min(1).max(4096),
   title: z.string().min(1).max(4096),
@@ -29,16 +42,21 @@ const pageSchema = z.object({
   headers: z.record(z.string(), z.string()).nullish(),
 });
 const progressSchema = z.object({
-  chapterId: z.string(),
-  page: z.number().int().nonnegative(),
+  chapterId: z.string().min(1).max(4096),
+  page: z.number().int().min(0).max(1999),
   updatedAt: z.string().datetime(),
 });
 export class MangaService {
   private providers = new Map<
     string,
-    { name: string; call: Call; image: (r: unknown) => Promise<unknown> }
+    {
+      name: string;
+      call: Call;
+      image: (r: unknown) => Promise<unknown>;
+      progress: ReadingProgressRepository;
+    }
   >();
-  private books = new Set<string>();
+  private books = new Map<string, MangaBook>();
   private chaptersByBook = new Map<string, MangaChapter[]>();
   private handles = new Map<
     string,
@@ -52,8 +70,9 @@ export class MangaService {
     name: string,
     call: Call,
     image: (r: unknown) => Promise<unknown>,
+    progress: ReadingProgressRepository,
   ) {
-    this.providers.set(id, { name, call, image });
+    this.providers.set(id, { name, call, image, progress });
   }
   unregister(id: string) {
     this.providers.delete(id);
@@ -76,15 +95,27 @@ export class MangaService {
     if (!this.books.has(key)) throw new Error("Search for this manga again.");
     return key;
   }
+  private remember(provider: string, book: MangaBook) {
+    const key = this.key(provider, book.id);
+    this.books.delete(key);
+    if (this.books.size >= 500)
+      this.books.delete(this.books.keys().next().value!);
+    this.books.set(key, book);
+  }
+  async recent(id: string): Promise<MangaRecent> {
+    await this.writes;
+    const result = await this.provider(id).progress.recent();
+    for (const entry of result.entries)
+      this.remember(id, bookSchema.parse(entry.book));
+    return result;
+  }
   async search(id: string, query: string): Promise<MangaBook[]> {
     const rows = z
       .array(bookSchema)
       .max(2000)
       .parse(await this.provider(id).call("search", [{ query, year: 0 }]));
     for (const row of rows) {
-      if (this.books.size >= 500)
-        this.books.delete(this.books.values().next().value!);
-      this.books.add(this.key(id, row.id));
+      this.remember(id, row);
     }
     return rows;
   }
@@ -158,8 +189,14 @@ export class MangaService {
   async progress(p: string, b: string): Promise<ReadingProgress | null> {
     this.book(p, b);
     await this.writes;
+    const repository = this.provider(p).progress;
+    const current = await repository.read(b);
+    if (current !== null) return current;
+    // Keep the legacy file as a recovery copy. Import never overwrites C# state.
     const raw = await this.driver.read(this.progressKey(p, b));
-    return raw === null ? null : progressSchema.parse(raw);
+    return raw === null
+      ? null
+      : repository.import(b, progressSchema.parse(raw));
   }
   save(p: string, b: string, chapterId: string, page: number): Promise<void> {
     this.book(p, b);
@@ -171,13 +208,10 @@ export class MangaService {
       page >= count
     )
       return Promise.reject(new Error("Invalid reading position."));
-    const value: ReadingProgress = {
-      chapterId,
-      page,
-      updatedAt: new Date().toISOString(),
-    };
+    const repository = this.provider(p).progress;
+    const title = this.books.get(this.key(p, b))!.title;
     const result = this.writes.then(() =>
-      this.driver.write(this.progressKey(p, b), value),
+      repository.save(b, chapterId, page, count, title),
     );
     this.writes = result.catch(() => undefined);
     return result;

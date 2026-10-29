@@ -1,6 +1,9 @@
 # Vestra C# server and provider worker
 
-Requires the .NET 10 SDK. From the repository root:
+Development builds require the .NET 10 SDK. Windows x64 desktop packages now bundle
+a self-contained worker and TypeScript compiler; installed execution does not use
+the development DLL or SDK. See [worker-packaging.md](../../docs/worker-packaging.md)
+for packaging commands and verification limits. From the repository root:
 
 ```powershell
 pnpm build:server
@@ -54,6 +57,12 @@ jar or anti-bot bypass is provided. Fetch IO currently blocks its dedicated
 execution lane; concurrent fetch scheduling remains pending.
 
 ## Nova development preview
+
+Nova's **Sources** screen can now import local JavaScript/TypeScript providers,
+configure websites/preferences/servers, enable or disable sources and check the
+runtime. Build the worker, start Nova, and use **Import script**. The environment
+config below is an optional first-run seed; after that Nova uses its persisted
+managed copies. See [source-management.md](../../docs/source-management.md).
 
 ```powershell
 pnpm build:server
@@ -219,7 +228,10 @@ findChapterPages and getSettings instead of the online-stream contract. The
 capabilities command lists supported extension types. Nova's preview now accepts
 manga sources into a separate reader registry. Choose Manga to search, select
 chapters and read one page at a time. Progress persists after successful image
-decode. Images pass through opaque handles and the C# guarded transport, with
+decode in the C# worker's versioned, atomic reading-progress store. Existing Vestra
+progress imports once without replacing newer C# positions; old files remain as
+recovery copies. Set `VESTRA_PROVIDER_DATA_DIR` for standalone worker persistence;
+Nova supplies its app-data subdirectory automatically. Images pass through opaque handles and the C# guarded transport, with
 raster MIME checks and a 2 MiB cap. The example config includes MangaStash.
 The UI was built and service-tested, but visual QA remains unverified because
 the desktop helper could not activate the test window.

@@ -11,6 +11,7 @@ internal static class ProviderWorker
     {
         using var transport = new ProviderHttpTransport();
         var runtime = new ProviderRuntime(transport, store: new ProviderStore(Environment.GetEnvironmentVariable("VESTRA_PROVIDER_DATA_DIR")));
+        var progress = new ReadingProgressStore(Environment.GetEnvironmentVariable("VESTRA_PROVIDER_DATA_DIR"));
         using var input = Console.OpenStandardInput();
         using var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
         await output.WriteLineAsync("{\"kind\":\"ready\",\"protocol\":1,\"engine\":\"jint\",\"compatibility\":\"seanime-onlinestream-subset\"}");
@@ -45,6 +46,14 @@ internal static class ProviderWorker
                         "list" => runtime.List(),
                         "capabilities" => ProviderCapabilities.Describe(),
                         "image" => await ImageAsync(transport,command),
+                        "download" => await DownloadAsync(transport, command),
+                        "progress:get" => progress.Read(command.GetProperty("providerId").GetString()!, command.GetProperty("bookId").GetString()!),
+                        "progress:recent" => progress.Recent(command.GetProperty("providerId").GetString()!),
+                        "progress:save" => progress.Save(command.GetProperty("providerId").GetString()!, command.GetProperty("bookId").GetString()!,
+                            command.GetProperty("chapterId").GetString()!, command.GetProperty("page").GetInt32(), command.GetProperty("pageCount").GetInt32(),
+                            command.TryGetProperty("title", out var title) ? title.GetString() : null),
+                        "progress:import" => progress.Import(command.GetProperty("providerId").GetString()!, command.GetProperty("bookId").GetString()!,
+                            command.GetProperty("progress").Deserialize<ReadingPosition>(ProviderRuntime.JsonOptions) ?? throw new ArgumentException("Missing reading position.")),
                         _ => throw new ArgumentException("Unknown worker command.")
                     };
                     await output.WriteLineAsync(JsonSerializer.Serialize(new { id, ok = true, value = result }, ProviderRuntime.JsonOptions));
@@ -57,6 +66,15 @@ internal static class ProviderWorker
                 finally { line.SetLength(0); }
             }
         }
+    }
+    private static async Task<object> DownloadAsync(ProviderHttpTransport transport, JsonElement command)
+    {
+        var url = command.GetProperty("url").GetString()!;
+        var uri = new Uri(url, UriKind.Absolute);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var response = await transport.FetchBinaryAsync(new FetchRequest(url), new HashSet<string>(StringComparer.OrdinalIgnoreCase) { uri.IdnHost }, deadline.Token);
+        if (response.Status is < 200 or >= 300) throw new InvalidOperationException($"Source download returned HTTP {response.Status}.");
+        return new { data = Convert.ToBase64String(response.Body) };
     }
     private static async Task<object> ImageAsync(ProviderHttpTransport transport,JsonElement command)
     {

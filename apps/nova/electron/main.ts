@@ -29,8 +29,10 @@ import {
   registerMediaProtocolScheme,
 } from "./media-protocol";
 import { getDriver, resolveDataDir } from "./services";
-import { loadCSharpProviders, stopCSharpProviders } from "./csharp-providers";
+import { stopCSharpProviders } from "./csharp-providers";
+import { registerSourceIpc } from "./source-ipc";
 import { registerMangaIpc } from "./manga-ipc";
+import { registerAnimeIpc } from "./anime-ipc";
 
 /**
  * Vestra Nova — Electron main process.
@@ -331,13 +333,12 @@ if (!gotLock) {
     registerIpc();
     registerMediaProtocolHandler();
     registerMangaIpc();
+    registerAnimeIpc();
+    registerSourceIpc();
 
     mainWindow = createWindow();
     createTray();
     initAutoUpdate();
-    void loadCSharpProviders().catch((error: unknown) => {
-      console.error("[nova] could not start C# providers", error);
-    });
 
     /*
       Fill in runtimes and stills for anything indexed without them.

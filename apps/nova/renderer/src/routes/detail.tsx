@@ -18,12 +18,19 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 
 import { Notice, Page, SectionRule } from "@/components/layout/page";
 import { bridge } from "@/lib/bridge";
+import { StreamQuality } from "@/components/player/stream-quality";
 import { usePlayer } from "@/lib/player-store";
-import { keys, useBookmarks, useLibrary, useLibraryUpdates, useProgress } from "@/lib/queries";
+import {
+  keys,
+  useBookmarks,
+  useLibrary,
+  useLibraryUpdates,
+  useProgress,
+} from "@/lib/queries";
 
 /** Below this an entry is an accidental open, not somewhere to return to. */
 const MIN_PROGRESS = 0.01;
@@ -77,7 +84,9 @@ export function DetailRoute() {
   });
 
   const start = useMutation({
-    mutationFn: async (playback: PlaybackSource) => {
+    mutationFn: async (
+      playback: PlaybackSource & { qualityLocator?: string },
+    ) => {
       // Deep links belong in a browser; extension streams stay in the player.
       if (playback.kind === "external") {
         await bridge.shell.openExternal(playback.locator);
@@ -88,12 +97,18 @@ export function DetailRoute() {
       // move to the next episode without coming back here for the list. The
       // adapter already returns them ordered by season and episode.
       const playable = (sources.data ?? []).filter(isInAppPlayback);
-      const index = playable.findIndex((source) => source.locator === playback.locator);
+      const index = playable.findIndex(
+        (source) => source.locator === playback.locator,
+      );
 
       open(
         (details.data ?? ref) as MediaItem,
         playable.length > 0 ? playable : [playback],
         index < 0 ? 0 : index,
+        null,
+        playback.qualityLocator
+          ? { [playback.locator]: playback.qualityLocator }
+          : {},
       );
     },
   });
@@ -130,7 +145,10 @@ export function DetailRoute() {
     for (const season of details.data?.seasons ?? []) {
       for (const episode of season.episodes) {
         if (episode.title) {
-          titles.set(`${season.seasonNumber}:${episode.episodeNumber}`, episode.title);
+          titles.set(
+            `${season.seasonNumber}:${episode.episodeNumber}`,
+            episode.title,
+          );
         }
       }
     }
@@ -138,7 +156,9 @@ export function DetailRoute() {
     // Runtime and still come from the library record rather than the playback
     // source: they are properties of the file, are filled in long after it was
     // indexed, and only local sources have them at all.
-    const byFileId = new Map((library.data ?? []).map((file) => [file.id, file]));
+    const byFileId = new Map(
+      (library.data ?? []).map((file) => [file.id, file]),
+    );
 
     return local.map((entry, index) => {
       const key = entry.fileId ? `${baseKey}#${entry.fileId}` : baseKey;
@@ -168,9 +188,18 @@ export function DetailRoute() {
             : null,
       };
     });
-  }, [sources.data, details.data, progress.data, bookmarks.data, library.data, baseKey]);
+  }, [
+    sources.data,
+    details.data,
+    progress.data,
+    bookmarks.data,
+    library.data,
+    baseKey,
+  ]);
 
-  const externals = (sources.data ?? []).filter((entry) => entry.kind === "external");
+  const externals = (sources.data ?? []).filter(
+    (entry) => entry.kind === "external",
+  );
 
   /**
    * Where "Continue" goes.
@@ -182,26 +211,39 @@ export function DetailRoute() {
     const started = episodes
       .filter(
         (entry) =>
-          entry.watch && !entry.watch.completed && entry.watch.percent >= MIN_PROGRESS,
+          entry.watch &&
+          !entry.watch.completed &&
+          entry.watch.percent >= MIN_PROGRESS,
       )
       .sort((a, b) => (b.watch?.updatedAt ?? 0) - (a.watch?.updatedAt ?? 0));
 
-    return started[0] ?? episodes.find((entry) => !entry.watch?.completed) ?? null;
+    return (
+      started[0] ?? episodes.find((entry) => !entry.watch?.completed) ?? null
+    );
   }, [episodes]);
 
-  const playEpisode = (entry: EpisodeView, startAt: number | null) => {
+  const playEpisode = (
+    entry: EpisodeView,
+    startAt: number | null,
+    qualityLocator?: string,
+  ) => {
     open(
       (details.data ?? ref) as MediaItem,
       episodes.map((each) => each.source),
       entry.index,
       startAt,
+      qualityLocator ? { [entry.source.locator]: qualityLocator } : {},
     );
   };
 
   const toggleBookmark = useMutation({
     mutationFn: (episodeId: string | null | undefined) =>
-      bridge.bookmarks.toggle({ ref: ref as MediaRef, episodeId: episodeId ?? null }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.bookmarks }),
+      bridge.bookmarks.toggle({
+        ref: ref as MediaRef,
+        episodeId: episodeId ?? null,
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: keys.bookmarks }),
   });
 
   /**
@@ -259,14 +301,19 @@ export function DetailRoute() {
 
   // Somewhere to pick up from, as opposed to somewhere to start.
   const resumeFrom =
-    resume?.watch && !resume.watch.completed && resume.watch.percent >= MIN_PROGRESS
+    resume?.watch &&
+    !resume.watch.completed &&
+    resume.watch.percent >= MIN_PROGRESS
       ? resume.watch
       : null;
 
   if (!ref) {
     return (
       <Page>
-        <Notice title="Unreadable link" body="That media reference is not valid." />
+        <Notice
+          title="Unreadable link"
+          body="That media reference is not valid."
+        />
       </Page>
     );
   }
@@ -350,7 +397,6 @@ export function DetailRoute() {
       </div>
 
       <div className="px-8 pb-12 pt-8">
-
         {data?.overview ? (
           <p
             data-selectable
@@ -380,7 +426,8 @@ export function DetailRoute() {
             trailing={
               episodes.length > 1 ? (
                 <span className="meta">
-                  {episodes.filter((entry) => entry.watch?.completed).length} watched
+                  {episodes.filter((entry) => entry.watch?.completed).length}{" "}
+                  watched
                 </span>
               ) : null
             }
@@ -396,10 +443,21 @@ export function DetailRoute() {
               body={(sources.error as Error).message}
             />
           ) : (sources.data ?? []).length === 0 ? (
-            <Notice
-              title="No source available"
-              body="Nothing you own or have configured can play this."
-            />
+            <>
+              <Notice
+                title="No matching playback source"
+                body={
+                  kind === "anime"
+                    ? "The catalogue name may differ from your streaming provider's title, or the provider may not carry it."
+                    : "Nothing you own or have configured can play this."
+                }
+              />
+              {kind === "anime" && (
+                <Link className="btn btn-primary mt-4" to="/anime">
+                  Search your streaming sources
+                </Link>
+              )}
+            </>
           ) : (
             <div>
               {episodes.length > 0 ? (
@@ -410,7 +468,9 @@ export function DetailRoute() {
                       onClick={() =>
                         playEpisode(
                           resume,
-                          resumeFrom ? Math.floor(resumeFrom.positionSeconds) : 0,
+                          resumeFrom
+                            ? Math.floor(resumeFrom.positionSeconds)
+                            : 0,
                         )
                       }
                       className="flex items-center gap-2 rounded-field bg-primary px-4 py-2 text-xs font-medium text-primary-content transition-opacity hover:opacity-90"
@@ -424,7 +484,8 @@ export function DetailRoute() {
                           {formatDuration(
                             Math.max(
                               0,
-                              resumeFrom.durationSeconds - resumeFrom.positionSeconds,
+                              resumeFrom.durationSeconds -
+                                resumeFrom.positionSeconds,
                             ),
                           )}{" "}
                           left
@@ -435,20 +496,22 @@ export function DetailRoute() {
 
                   {episodes.length > 1 ? (
                     <div className="flex items-center gap-1">
-                      {(["all", "unwatched", "bookmarked"] as const).map((value) => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => setFilter(value)}
-                          className={`rounded-field border px-2.5 py-1 text-xs capitalize transition-colors ${
-                            filter === value
-                              ? "border-primary/50 bg-primary/10 text-primary"
-                              : "rule text-base-content/60 hover:bg-base-200"
-                          }`}
-                        >
-                          {value}
-                        </button>
-                      ))}
+                      {(["all", "unwatched", "bookmarked"] as const).map(
+                        (value) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => setFilter(value)}
+                            className={`rounded-field border px-2.5 py-1 text-xs capitalize transition-colors ${
+                              filter === value
+                                ? "border-primary/50 bg-primary/10 text-primary"
+                                : "rule text-base-content/60 hover:bg-base-200"
+                            }`}
+                          >
+                            {value}
+                          </button>
+                        ),
+                      )}
                     </div>
                   ) : null}
                 </div>
@@ -477,9 +540,15 @@ export function DetailRoute() {
                         key={entry.source.locator}
                         entry={entry}
                         busy={start.isPending}
-                        onPlay={(startAt) => playEpisode(entry, startAt)}
-                        onBookmark={() => toggleBookmark.mutate(entry.source.fileId)}
-                        onWatched={(watched) => setWatched.mutate({ entry, watched })}
+                        onPlay={(startAt, qualityLocator) =>
+                          playEpisode(entry, startAt, qualityLocator)
+                        }
+                        onBookmark={() =>
+                          toggleBookmark.mutate(entry.source.fileId)
+                        }
+                        onWatched={(watched) =>
+                          setWatched.mutate({ entry, watched })
+                        }
                       />
                     ))}
                   </div>
@@ -493,7 +562,9 @@ export function DetailRoute() {
                   key={`${playback.kind}-${playback.locator}`}
                   playback={playback}
                   busy={start.isPending}
-                  onPlay={() => start.mutate(playback)}
+                  onPlay={(qualityLocator) =>
+                    start.mutate({ ...playback, qualityLocator })
+                  }
                 />
               ))}
             </div>
@@ -509,7 +580,8 @@ export function DetailRoute() {
             {data.seasons.map((season) => (
               <div key={season.id} className="mt-4">
                 <p className="meta mb-1">
-                  Season {season.seasonNumber} · {season.episodes.length} episodes
+                  Season {season.seasonNumber} · {season.episodes.length}{" "}
+                  episodes
                 </p>
                 {season.episodes.map((episode) => (
                   <div
@@ -538,13 +610,27 @@ export function DetailRoute() {
   );
 }
 
-function MetaRow({ data }: { data: { year: number | null; isSeries: boolean; rating: { score: number | null }; certification: string | null; studios: string[] } | null | undefined }) {
+function MetaRow({
+  data,
+}: {
+  data:
+    | {
+        year: number | null;
+        isSeries: boolean;
+        rating: { score: number | null };
+        certification: string | null;
+        studios: string[];
+      }
+    | null
+    | undefined;
+}) {
   if (!data) return null;
 
   const parts: string[] = [];
   if (data.year) parts.push(String(data.year));
   parts.push(data.isSeries ? "Series" : "Film");
-  if (data.rating.score !== null) parts.push(`${Math.round(data.rating.score)}%`);
+  if (data.rating.score !== null)
+    parts.push(`${Math.round(data.rating.score)}%`);
   if (data.certification) parts.push(data.certification);
   if (data.studios[0]) parts.push(data.studios[0]);
 
@@ -567,14 +653,16 @@ function EpisodeCard({
 }: {
   entry: EpisodeView;
   busy: boolean;
-  onPlay: (startAt: number | null) => void;
+  onPlay: (startAt: number | null, qualityLocator?: string) => void;
   onBookmark: () => void;
   onWatched: (watched: boolean) => void;
 }) {
   const { watch } = entry;
   const watched = watch?.completed ?? false;
   const partial = Boolean(watch && !watched && watch.percent >= MIN_PROGRESS);
-  const remaining = watch ? Math.max(0, watch.durationSeconds - watch.positionSeconds) : 0;
+  const remaining = watch
+    ? Math.max(0, watch.durationSeconds - watch.positionSeconds)
+    : 0;
 
   return (
     <article
@@ -613,15 +701,21 @@ function EpisodeCard({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <p className={`truncate text-sm ${watched ? "text-base-content/50" : ""}`}>
+          <p
+            className={`truncate text-sm ${watched ? "text-base-content/50" : ""}`}
+          >
             {entry.title}
           </p>
-          {watched ? <Check className="size-3.5 shrink-0 text-success" /> : null}
+          {watched ? (
+            <Check className="size-3.5 shrink-0 text-success" />
+          ) : null}
           {entry.bookmarked ? (
             <Bookmark className="size-3.5 shrink-0 fill-current text-primary" />
           ) : null}
           {entry.runtimeSeconds ? (
-            <span className="meta shrink-0">{formatDuration(entry.runtimeSeconds)}</span>
+            <span className="meta shrink-0">
+              {formatDuration(entry.runtimeSeconds)}
+            </span>
           ) : null}
         </div>
 
@@ -639,22 +733,44 @@ function EpisodeCard({
                 style={{ width: `${Math.round((watch?.percent ?? 0) * 100)}%` }}
               />
             </div>
-            <span className="meta shrink-0">{formatDuration(remaining)} left</span>
+            <span className="meta shrink-0">
+              {formatDuration(remaining)} left
+            </span>
           </div>
         ) : null}
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
+        <StreamQuality
+          locator={entry.source.locator}
+          busy={busy}
+          onSelect={(choice) =>
+            onPlay(
+              partial ? Math.floor(watch?.positionSeconds ?? 0) : 0,
+              choice,
+            )
+          }
+        />
         <CardAction
-          label={entry.bookmarked ? `Remove bookmark from ${entry.title}` : `Bookmark ${entry.title}`}
+          label={
+            entry.bookmarked
+              ? `Remove bookmark from ${entry.title}`
+              : `Bookmark ${entry.title}`
+          }
           active={entry.bookmarked}
           onClick={onBookmark}
         >
-          <Bookmark className={`size-4 ${entry.bookmarked ? "fill-current" : ""}`} />
+          <Bookmark
+            className={`size-4 ${entry.bookmarked ? "fill-current" : ""}`}
+          />
         </CardAction>
 
         <CardAction
-          label={watched ? `Mark ${entry.title} unwatched` : `Mark ${entry.title} watched`}
+          label={
+            watched
+              ? `Mark ${entry.title} unwatched`
+              : `Mark ${entry.title} watched`
+          }
           active={watched}
           onClick={() => onWatched(!watched)}
         >
@@ -662,7 +778,10 @@ function EpisodeCard({
         </CardAction>
 
         {partial ? (
-          <CardAction label={`Start ${entry.title} over`} onClick={() => onPlay(0)}>
+          <CardAction
+            label={`Start ${entry.title} over`}
+            onClick={() => onPlay(0)}
+          >
             <RotateCcw className="size-4" />
           </CardAction>
         ) : null}
@@ -734,7 +853,7 @@ function SourceRow({
   playback: PlaybackSource;
   index?: number;
   busy: boolean;
-  onPlay: () => void;
+  onPlay: (qualityLocator?: string) => void;
 }) {
   const external = playback.locator.startsWith("http");
 
@@ -754,10 +873,11 @@ function SourceRow({
         </p>
       </div>
 
+      <StreamQuality locator={playback.locator} busy={busy} onSelect={onPlay} />
       <button
         type="button"
         disabled={busy}
-        onClick={onPlay}
+        onClick={() => onPlay()}
         className="flex items-center gap-2 rounded-field border border-primary/40 px-3 py-1.5 text-xs text-primary transition-colors hover:bg-primary hover:text-primary-content"
       >
         {busy ? (
