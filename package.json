@@ -9,6 +9,14 @@
     "node": ">=22.0.0"
   },
   "scripts": {
+    "build:server": "dotnet build apps/server/Vestra.Server.csproj -c Release --nologo",
+    "test:server": "dotnet test tests/server-providers/Vestra.Providers.Tests.csproj -c Release --nologo",
+    "test:server:bridge": "pnpm run build:server && node apps/nova/scripts/test-csharp-worker.mjs",
+    "test:playback": "node apps/nova/scripts/test-remote-playback.mjs",
+    "test:server:compat": "pnpm run build:server && node apps/nova/scripts/check-provider-compat.mjs",
+    "check:providers:live": "pnpm run build:server && node apps/nova/scripts/check-provider-compat.mjs --live --repair",
+    "check:manga:live": "pnpm run build:server && node apps/nova/scripts/check-manga-live.mjs",
+    "test:manga:reader": "node apps/nova/scripts/test-manga-reader.mjs",
     "dev": "turbo run dev",
     "dev:nova": "turbo run dev --filter=@vestra/nova",
     "build": "turbo run build",

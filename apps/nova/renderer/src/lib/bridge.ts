@@ -53,6 +53,15 @@ export interface BrowseResult {
  */
 
 interface RawBridge {
+  manga: {
+    sources: () => Promise<unknown>;
+    search: (p: string, q: string) => Promise<unknown>;
+    chapters: (p: string, b: string) => Promise<unknown>;
+    pages: (p: string, b: string, c: string) => Promise<unknown>;
+    image: (h: string) => Promise<unknown>;
+    progress: (p: string, b: string) => Promise<unknown>;
+    save: (p: string, b: string, c: string, n: number) => Promise<unknown>;
+  };
   window: {
     minimize: () => Promise<unknown>;
     toggleMaximize: () => Promise<unknown>;
@@ -113,7 +122,11 @@ interface RawBridge {
   };
   extensions: {
     list: () => Promise<unknown>;
-    call: (extensionId: string, method: string, args: unknown[]) => Promise<unknown>;
+    call: (
+      extensionId: string,
+      method: string,
+      args: unknown[],
+    ) => Promise<unknown>;
     installed: () => Promise<unknown>;
     registries: () => Promise<unknown>;
     setRegistries: (urls: unknown) => Promise<unknown>;
@@ -315,11 +328,7 @@ export interface NowPlaying {
 }
 
 export type PlayerCommand =
-  | "next"
-  | "previous"
-  | "close"
-  | "toggle-fullscreen"
-  | "open-settings";
+  "next" | "previous" | "close" | "toggle-fullscreen" | "open-settings";
 
 /** An opening or ending range, from AniSkip. */
 export interface SkipInterval {
@@ -337,6 +346,33 @@ export interface SurfaceRect {
 }
 
 export const bridge = {
+  manga: {
+    sources: async () =>
+      (await raw().manga.sources()) as { id: string; name: string }[],
+    search: async (p: string, q: string) =>
+      (await raw().manga.search(
+        p,
+        q,
+      )) as import("../../../shared/manga").MangaBook[],
+    chapters: async (p: string, b: string) =>
+      (await raw().manga.chapters(
+        p,
+        b,
+      )) as import("../../../shared/manga").MangaChapter[],
+    pages: async (p: string, b: string, c: string) =>
+      (await raw().manga.pages(
+        p,
+        b,
+        c,
+      )) as import("../../../shared/manga").MangaPage[],
+    image: async (h: string) => (await raw().manga.image(h)) as string,
+    progress: async (p: string, b: string) =>
+      (await raw().manga.progress(p, b)) as
+        import("../../../shared/manga").ReadingProgress | null,
+    save: async (p: string, b: string, c: string, n: number) => {
+      await raw().manga.save(p, b, c, n);
+    },
+  },
   platform: (): string => raw().platform,
 
   window: {
@@ -366,13 +402,17 @@ export const bridge = {
   },
 
   settings: {
-    get: async (): Promise<Settings> => (await raw().settings.get()) as Settings,
+    get: async (): Promise<Settings> =>
+      (await raw().settings.get()) as Settings,
     save: async (settings: Settings): Promise<Settings> =>
       (await raw().settings.save(settings)) as Settings,
   },
 
   media: {
-    search: async (query: string, kinds: MediaKind[] = []): Promise<SearchResponse> =>
+    search: async (
+      query: string,
+      kinds: MediaKind[] = [],
+    ): Promise<SearchResponse> =>
       (await raw().media.search({ query, kinds })) as SearchResponse,
 
     trending: async (kind: MediaKind): Promise<TrendingGroup[]> =>
@@ -387,8 +427,14 @@ export const bridge = {
     probe: async (fileId: string): Promise<ProbeResult> =>
       (await raw().media.probe(fileId)) as ProbeResult,
 
-    probeAvailable: async (): Promise<{ available: boolean; path: string | null }> =>
-      (await raw().media.probeAvailable()) as { available: boolean; path: string | null },
+    probeAvailable: async (): Promise<{
+      available: boolean;
+      path: string | null;
+    }> =>
+      (await raw().media.probeAvailable()) as {
+        available: boolean;
+        path: string | null;
+      },
 
     /** Community-sourced opening and ending timings. Empty when unknown. */
     skipTimes: async (request: {
@@ -409,7 +455,10 @@ export const bridge = {
     list: async (): Promise<WatchlistEntry[]> =>
       (await raw().watchlist.list()) as WatchlistEntry[],
 
-    add: async (item: MediaItem, status?: WatchlistStatus): Promise<WatchlistEntry[]> =>
+    add: async (
+      item: MediaItem,
+      status?: WatchlistStatus,
+    ): Promise<WatchlistEntry[]> =>
       (await raw().watchlist.add({ item, status })) as WatchlistEntry[],
 
     remove: async (ref: MediaRef): Promise<WatchlistEntry[]> =>
@@ -425,7 +474,8 @@ export const bridge = {
       episodeId?: string | null;
       positionSeconds: number;
       durationSeconds: number;
-    }): Promise<WatchProgress> => (await raw().progress.save(input)) as WatchProgress,
+    }): Promise<WatchProgress> =>
+      (await raw().progress.save(input)) as WatchProgress,
 
     clear: async (ref: MediaRef): Promise<void> => {
       await raw().progress.clear(ref);
@@ -439,7 +489,10 @@ export const bridge = {
     toggle: async (input: {
       ref: MediaRef;
       episodeId?: string | null;
-    }): Promise<{ bookmarked: boolean; entries: Record<string, EpisodeBookmark> }> =>
+    }): Promise<{
+      bookmarked: boolean;
+      entries: Record<string, EpisodeBookmark>;
+    }> =>
       (await raw().bookmarks.toggle(input)) as {
         bookmarked: boolean;
         entries: Record<string, EpisodeBookmark>;
@@ -447,14 +500,16 @@ export const bridge = {
   },
 
   history: {
-    list: async (): Promise<HistoryEntry[]> => (await raw().history.list()) as HistoryEntry[],
+    list: async (): Promise<HistoryEntry[]> =>
+      (await raw().history.list()) as HistoryEntry[],
 
     add: async (input: {
       item: MediaItem;
       episodeId?: string | null;
       positionSeconds?: number;
       completed?: boolean;
-    }): Promise<HistoryEntry[]> => (await raw().history.add(input)) as HistoryEntry[],
+    }): Promise<HistoryEntry[]> =>
+      (await raw().history.add(input)) as HistoryEntry[],
 
     clear: async (): Promise<void> => {
       await raw().history.clear();
@@ -496,13 +551,18 @@ export const bridge = {
       },
 
     /** Returns an unsubscribe function. */
-    onChanged: (listener: () => void): (() => void) => raw().library.onChanged(listener),
+    onChanged: (listener: () => void): (() => void) =>
+      raw().library.onChanged(listener),
   },
 
   extensions: {
-    list: async (): Promise<string[]> => (await raw().extensions.list()) as string[],
-    call: (extensionId: string, method: string, args: unknown[] = []): Promise<unknown> =>
-      raw().extensions.call(extensionId, method, args),
+    list: async (): Promise<string[]> =>
+      (await raw().extensions.list()) as string[],
+    call: (
+      extensionId: string,
+      method: string,
+      args: unknown[] = [],
+    ): Promise<unknown> => raw().extensions.call(extensionId, method, args),
 
     installed: async (): Promise<InstalledExtension[]> =>
       (await raw().extensions.installed()) as InstalledExtension[],
@@ -541,13 +601,16 @@ export const bridge = {
   },
 
   mpv: {
-    status: async (): Promise<MpvStatus> => (await raw().mpv.status()) as MpvStatus,
+    status: async (): Promise<MpvStatus> =>
+      (await raw().mpv.status()) as MpvStatus,
 
     /** Begin receiving state pushes and get the current state in one call. */
-    subscribe: async (): Promise<MpvState> => (await raw().mpv.subscribe()) as MpvState,
+    subscribe: async (): Promise<MpvState> =>
+      (await raw().mpv.subscribe()) as MpvState,
 
     open: async (request: {
-      fileId: string;
+      fileId?: string;
+      streamLocator?: string;
       startSeconds?: number;
       rect: SurfaceRect;
     }): Promise<MpvState> => (await raw().mpv.open(request)) as MpvState,
@@ -602,7 +665,10 @@ export const bridge = {
       await raw().mpv.setSurfaceVisible(visible);
     },
 
-    selectTrack: async (type: "audio" | "sub" | "video", id: number | null): Promise<void> => {
+    selectTrack: async (
+      type: "audio" | "sub" | "video",
+      id: number | null,
+    ): Promise<void> => {
       await raw().mpv.selectTrack({ type, id });
     },
 
@@ -649,8 +715,12 @@ export const bridge = {
       await raw().player.setInteractive(interactive);
     },
 
-    onNowPlaying: (listener: (value: NowPlaying | null) => void): (() => void) =>
-      raw().player.onNowPlaying((value) => listener(value as NowPlaying | null)),
+    onNowPlaying: (
+      listener: (value: NowPlaying | null) => void,
+    ): (() => void) =>
+      raw().player.onNowPlaying((value) =>
+        listener(value as NowPlaying | null),
+      ),
 
     onCommand: (listener: (command: PlayerCommand) => void): (() => void) =>
       raw().player.onCommand((command) => listener(command as PlayerCommand)),

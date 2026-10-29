@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { streamingAccessSchema } from "@vestra/types";
+
 /**
  * The contract between Vestra and a community extension.
  *
@@ -49,10 +51,39 @@ export const extensionMediaItemSchema = z.object({
 
 export type ExtensionMediaItem = z.infer<typeof extensionMediaItemSchema>;
 
+/**
+ * A licensed place to watch something, contributed by an extension.
+ *
+ * Deliberately narrower than the first-party `streamingLinkSchema`: an
+ * extension supplies the service and the link, while logo, region and episode
+ * title are left to the host. Those exist to be rendered as chrome, and an
+ * extension supplying its own imagery is a tracking pixel with extra steps.
+ *
+ * This is a deep link OUT to a service the user subscribes to. It is not a
+ * stream, and nothing here is playable inside Vestra — that separation is the
+ * whole reason a metadata extension may carry these while stream resolution
+ * lives behind a different capability entirely.
+ */
+export const extensionStreamingLinkSchema = z.object({
+  /** Display name, e.g. "Crunchyroll". */
+  service: z.string().min(1).max(120),
+  url: httpsUrlSchema,
+  access: streamingAccessSchema.default("unknown"),
+});
+
+export type ExtensionStreamingLink = z.infer<typeof extensionStreamingLinkSchema>;
+
 export const extensionMediaDetailsSchema = extensionMediaItemSchema.extend({
   genres: z.array(z.string().max(60)).max(30).default([]),
   episodeCount: z.number().int().nonnegative().max(100_000).nullable().default(null),
   rating: z.number().min(0).max(100).nullable().default(null),
+  /**
+   * Where the title can be watched officially.
+   *
+   * Capped low on purpose: a title has a handful of licensees, and a list
+   * longer than this is an extension padding rather than informing.
+   */
+  streaming: z.array(extensionStreamingLinkSchema).max(20).default([]),
 });
 
 export type ExtensionMediaDetails = z.infer<typeof extensionMediaDetailsSchema>;
@@ -118,7 +149,7 @@ export function parseDetails(raw: unknown): ValidationOutcome<ExtensionMediaDeta
  * Named rather than positional so the host can check what an extension
  * actually provides before advertising it as a source.
  */
-export const CUSTOM_SOURCE_METHODS = ["search", "getDetails"] as const;
+export const CUSTOM_SOURCE_METHODS = ["search", "getDetails", "getTrending"] as const;
 export type CustomSourceMethod = (typeof CUSTOM_SOURCE_METHODS)[number];
 
 /** Required for a `custom-source` extension to be usable at all. */

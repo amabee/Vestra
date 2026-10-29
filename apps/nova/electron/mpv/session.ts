@@ -5,6 +5,7 @@ import { delimiter, join } from "node:path";
 import { app, type BrowserWindow } from "electron";
 
 import { MpvConnection, type MpvEvent } from "./connection";
+import { remoteLoadOptions, type RemotePlayback } from "../remote-playback";
 
 /**
  * An mpv process bound to a window.
@@ -56,7 +57,11 @@ export function locateMpv(configuredPath?: string | null): string | null {
       if (existsSync(candidate)) return candidate;
     }
   } else {
-    for (const candidate of ["/usr/bin/mpv", "/usr/local/bin/mpv", "/opt/homebrew/bin/mpv"]) {
+    for (const candidate of [
+      "/usr/bin/mpv",
+      "/usr/local/bin/mpv",
+      "/opt/homebrew/bin/mpv",
+    ]) {
       if (existsSync(candidate)) return candidate;
     }
   }
@@ -277,7 +282,8 @@ export class MpvSession {
       this.#connection = null;
       this.#emit({
         ...INITIAL_STATE,
-        error: code === 0 || code === null ? null : `mpv exited with code ${code}.`,
+        error:
+          code === 0 || code === null ? null : `mpv exited with code ${code}.`,
       });
     });
 
@@ -331,28 +337,35 @@ export class MpvSession {
     if (event.event === "property-change") {
       switch (event.name) {
         case "time-pos":
-          if (typeof event.data === "number") this.#emit({ position: event.data });
+          if (typeof event.data === "number")
+            this.#emit({ position: event.data });
           break;
         case "duration":
-          if (typeof event.data === "number") this.#emit({ duration: event.data });
+          if (typeof event.data === "number")
+            this.#emit({ duration: event.data });
           break;
         case "pause":
-          if (typeof event.data === "boolean") this.#emit({ paused: event.data });
+          if (typeof event.data === "boolean")
+            this.#emit({ paused: event.data });
           break;
         case "volume":
-          if (typeof event.data === "number") this.#emit({ volume: event.data / 100 });
+          if (typeof event.data === "number")
+            this.#emit({ volume: event.data / 100 });
           break;
         case "mute":
-          if (typeof event.data === "boolean") this.#emit({ muted: event.data });
+          if (typeof event.data === "boolean")
+            this.#emit({ muted: event.data });
           break;
         case "speed":
           if (typeof event.data === "number") this.#emit({ speed: event.data });
           break;
         case "sub-delay":
-          if (typeof event.data === "number") this.#emit({ subtitleDelay: event.data });
+          if (typeof event.data === "number")
+            this.#emit({ subtitleDelay: event.data });
           break;
         case "sub-scale":
-          if (typeof event.data === "number") this.#emit({ subtitleScale: event.data });
+          if (typeof event.data === "number")
+            this.#emit({ subtitleScale: event.data });
           break;
         case "sub-visibility":
           if (typeof event.data === "boolean") {
@@ -360,7 +373,8 @@ export class MpvSession {
           }
           break;
         case "eof-reached":
-          if (typeof event.data === "boolean" && event.data) this.#emit({ ended: true });
+          if (typeof event.data === "boolean" && event.data)
+            this.#emit({ ended: true });
           break;
         case "track-list":
           this.#emit({ tracks: parseTracks(event.data) });
@@ -380,7 +394,10 @@ export class MpvSession {
         // "eof" is a normal finish; anything else is a real failure worth
         // showing rather than silently returning to an idle screen.
         if (event.reason && event.reason !== "eof" && event.reason !== "stop") {
-          this.#emit({ error: `Playback stopped: ${event.reason}`, idle: true });
+          this.#emit({
+            error: `Playback stopped: ${event.reason}`,
+            idle: true,
+          });
         } else {
           this.#emit({ idle: true });
         }
@@ -396,7 +413,11 @@ export class MpvSession {
     return this.#connection;
   }
 
-  async load(filePath: string, startSeconds = 0): Promise<void> {
+  async load(
+    filePath: string,
+    startSeconds = 0,
+    remote?: RemotePlayback,
+  ): Promise<void> {
     const connection = this.#require();
     this.#emit({ ended: false, error: null, position: 0, duration: 0 });
 
@@ -418,6 +439,10 @@ export class MpvSession {
       "options/start",
       startSeconds > 0 ? String(startSeconds) : "none",
     );
+    const options = remoteLoadOptions(remote);
+    // Reset on every load so remote credentials/subtitles cannot leak into the next file.
+    await connection.setProperty("options/http-header-fields", options.headers);
+    await connection.setProperty("options/sub-files", options.subtitles);
     await connection.command("loadfile", filePath, "replace");
   }
 
@@ -525,11 +550,17 @@ export class MpvSession {
    * release put there deliberately.
    */
   async setSubtitleStyleOverride(enabled: boolean): Promise<void> {
-    await this.#require().setProperty("sub-ass-override", enabled ? "force" : "scale");
+    await this.#require().setProperty(
+      "sub-ass-override",
+      enabled ? "force" : "scale",
+    );
   }
 
   /** Select a track, or pass `null` to disable it (subtitles off). */
-  async selectTrack(type: "audio" | "sub" | "video", id: number | null): Promise<void> {
+  async selectTrack(
+    type: "audio" | "sub" | "video",
+    id: number | null,
+  ): Promise<void> {
     const property = type === "sub" ? "sid" : type === "audio" ? "aid" : "vid";
     await this.#require().setProperty(property, id ?? "no");
   }
@@ -622,7 +653,8 @@ function parseChapters(data: unknown): MpvChapter[] {
   const chapters: MpvChapter[] = [];
 
   for (const entry of data as RawChapter[]) {
-    if (typeof entry.time !== "number" || !Number.isFinite(entry.time)) continue;
+    if (typeof entry.time !== "number" || !Number.isFinite(entry.time))
+      continue;
 
     chapters.push({
       title: entry.title ?? null,

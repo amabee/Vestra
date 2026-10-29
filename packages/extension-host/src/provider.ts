@@ -147,7 +147,16 @@ export function createExtensionProvider(
     studios: [],
     countries: [],
     languages: [],
-    streaming: [],
+    // Logo and region are the host's to fill; an extension supplies only the
+    // service and the link. See `extensionStreamingLinkSchema`.
+    streaming: entry.streaming.map((link) => ({
+      service: link.service,
+      url: link.url,
+      access: link.access,
+      logo: null,
+      episodeTitle: null,
+      region: null,
+    })),
     external: {},
   });
 
@@ -158,7 +167,7 @@ export function createExtensionProvider(
     capabilities: {
       search: options.methods.includes("search"),
       details: options.methods.includes("getDetails"),
-      trending: false,
+      trending: options.methods.includes("getTrending"),
     },
     // Extensions are desktop-only: the sandbox and the installer both need a
     // filesystem, and a thin host has none.
@@ -200,6 +209,18 @@ export function createExtensionProvider(
       for (const error of errors) warn(`getDetails: ${error}`);
 
       return value ? toDetails(value, ref) : null;
+    },
+
+    async getTrending(
+      requestedKind: MediaKind,
+      context: ProviderContext,
+    ): Promise<MediaItem[]> {
+      const raw = await invoke("getTrending", [requestedKind, { limit: 20 }], context);
+
+      const { value, errors } = parseSearchResults(raw);
+      for (const error of errors) warn(`getTrending: ${error}`);
+
+      return (value ?? []).map((entry) => toItem(entry, [requestedKind]));
     },
   };
 }

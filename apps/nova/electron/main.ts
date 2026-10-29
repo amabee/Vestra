@@ -18,7 +18,10 @@ import {
   stopExtensionWorker,
 } from "./extensions";
 import { registerDataIpc } from "./ipc";
-import { attachExtensionProvider, attachStreamSourceProvider } from "./extension-providers";
+import {
+  attachExtensionProvider,
+  attachStreamSourceProvider,
+} from "./extension-providers";
 import { backfillMediaInfo, pruneThumbnails } from "./media-info";
 import { registerMpvIpc, shutdownMpv } from "./mpv/ipc";
 import {
@@ -26,6 +29,8 @@ import {
   registerMediaProtocolScheme,
 } from "./media-protocol";
 import { getDriver, resolveDataDir } from "./services";
+import { loadCSharpProviders, stopCSharpProviders } from "./csharp-providers";
+import { registerMangaIpc } from "./manga-ipc";
 
 /**
  * Vestra Nova — Electron main process.
@@ -96,7 +101,9 @@ if (!app.isPackaged && Number.isInteger(debugPort) && debugPort > 0) {
       "Development only — this endpoint is unauthenticated.",
   );
 } else if (app.isPackaged && process.env.VESTRA_DEBUG_PORT) {
-  console.warn("[nova] VESTRA_DEBUG_PORT ignored: refused in a packaged build.");
+  console.warn(
+    "[nova] VESTRA_DEBUG_PORT ignored: refused in a packaged build.",
+  );
 }
 
 // Privileged schemes must be declared before the app is ready.
@@ -281,7 +288,10 @@ function registerIpc(): void {
     return mainWindow.isFullScreen();
   });
 
-  ipcMain.handle("window:is-fullscreen", () => mainWindow?.isFullScreen() ?? false);
+  ipcMain.handle(
+    "window:is-fullscreen",
+    () => mainWindow?.isFullScreen() ?? false,
+  );
 
   ipcMain.handle("app:version", () => app.getVersion());
 
@@ -320,10 +330,14 @@ if (!gotLock) {
   void app.whenReady().then(() => {
     registerIpc();
     registerMediaProtocolHandler();
+    registerMangaIpc();
 
     mainWindow = createWindow();
     createTray();
     initAutoUpdate();
+    void loadCSharpProviders().catch((error: unknown) => {
+      console.error("[nova] could not start C# providers", error);
+    });
 
     /*
       Fill in runtimes and stills for anything indexed without them.
@@ -359,7 +373,9 @@ if (!gotLock) {
     void loadInstalledExtensions(resolveDataDir()).then(
       (report) => {
         for (const skipped of report.skipped) {
-          console.warn(`[nova] skipped extension ${skipped.id}: ${skipped.reason}`);
+          console.warn(
+            `[nova] skipped extension ${skipped.id}: ${skipped.reason}`,
+          );
         }
         if (report.loaded.length > 0) {
           console.info(`[nova] loaded ${report.loaded.length} extension(s)`);
@@ -388,6 +404,7 @@ if (!gotLock) {
 
   // Killing the worker disposes every isolate with it.
   app.on("will-quit", stopExtensionWorker);
+  app.on("will-quit", stopCSharpProviders);
 
   // mpv is a child process holding a window handle; leaving it running would
   // orphan a decoder with no interface attached to it.

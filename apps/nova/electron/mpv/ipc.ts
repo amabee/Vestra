@@ -6,6 +6,7 @@ import { getDriver } from "../services";
 import { MpvOverlay } from "./overlay";
 import { MpvSession, locateMpv, type MpvState } from "./session";
 import { MpvSurface } from "./surface";
+import { resolveRemotePlayback } from "../remote-playback";
 
 /**
  * Playback channels for the mpv engine.
@@ -71,11 +72,21 @@ const rectSchema = z.object({
   height: z.number().finite().min(0),
 });
 
-const openSchema = z.object({
-  fileId: z.string().min(1).max(200),
-  startSeconds: z.number().min(0).max(360_000).default(0),
-  rect: rectSchema,
-});
+const openSchema = z
+  .object({
+    fileId: z.string().min(1).max(200).optional(),
+    streamLocator: z
+      .string()
+      .startsWith("vestra-stream://")
+      .max(200)
+      .optional(),
+    startSeconds: z.number().min(0).max(360_000).default(0),
+    rect: rectSchema,
+  })
+  .refine(
+    (v) => Boolean(v.fileId) !== Boolean(v.streamLocator),
+    "Specify one local file or registered stream.",
+  );
 
 const trackSchema = z.object({
   type: z.enum(["audio", "sub", "video"]),
@@ -85,14 +96,19 @@ const trackSchema = z.object({
 function parse<T>(schema: z.ZodType<T>, value: unknown, what: string): T {
   const result = schema.safeParse(value);
   if (!result.success) {
-    throw new Error(`Invalid ${what}: ${result.error.issues[0]?.message ?? "bad payload"}`);
+    throw new Error(
+      `Invalid ${what}: ${result.error.issues[0]?.message ?? "bad payload"}`,
+    );
   }
   return result.data;
 }
 
 function handle<TResult>(
   channel: string,
-  handler: (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => Promise<TResult> | TResult,
+  handler: (
+    event: Electron.IpcMainInvokeEvent,
+    ...args: unknown[]
+  ) => Promise<TResult> | TResult,
 ): void {
   ipcMain.handle(channel, async (event, ...args: unknown[]) => {
     try {
@@ -100,7 +116,9 @@ function handle<TResult>(
       return JSON.parse(JSON.stringify(result ?? null)) as TResult;
     } catch (error) {
       console.error(`[nova] ${channel} failed`, error);
-      throw new Error(error instanceof Error ? error.message : `${channel} failed.`);
+      throw new Error(
+        error instanceof Error ? error.message : `${channel} failed.`,
+      );
     }
   });
 }
@@ -138,12 +156,19 @@ export function registerMpvIpc(): void {
   });
 
   handle("mpv:open", async (event, raw) => {
-    const { fileId, startSeconds, rect } = parse(openSchema, raw, "open request");
+    const { fileId, streamLocator, startSeconds, rect } = parse(
+      openSchema,
+      raw,
+      "open request",
+    );
 
     const window = BrowserWindow.fromWebContents(event.sender);
     if (!window) throw new Error("No window is associated with this request.");
 
-    const filePath = await pathForFileId(fileId);
+    const remote = streamLocator
+      ? await resolveRemotePlayback(streamLocator)
+      : undefined;
+    const filePath = remote?.url ?? (await pathForFileId(fileId!));
     const settings = await getSettings(getDriver());
 
     // Position the surface before mpv attaches, so the first frame lands in
@@ -163,7 +188,7 @@ export function registerMpvIpc(): void {
       volume: settings.playback.defaultVolume,
     });
 
-    await session.load(filePath, startSeconds);
+    await session.load(filePath, startSeconds, remote);
     return session.state;
   });
 

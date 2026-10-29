@@ -44,9 +44,8 @@ export function EntryActions({ item }: { item: MediaItem }) {
         return;
       }
 
-      // Web destinations open where they can actually play; anything Vestra
-      // serves itself goes to the in-app player.
-      if (best.locator.startsWith("http")) {
+      // Deep links open in the browser; extension streams stay in the player.
+      if (best.kind === "external") {
         await bridge.shell.openExternal(best.locator);
         return;
       }

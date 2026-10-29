@@ -1,0 +1,33 @@
+{
+  "providers": [
+    {
+      "id": "animesaturnmirror",
+      "name": "AnimeSaturn",
+      "sourcePath": "../../Seanime-Providers/src/anime/animesaturnmirror/provider.js",
+      "compatibility": "animesaturn-nested-player-v1",
+      "hosts": ["animesaturn.ro", "cdn2.megaplay.su"],
+      "preferences": {}
+    },
+    {
+      "id": "donghuastream",
+      "name": "DonghuaStream",
+      "sourcePath": "../../Seanime-Providers/src/anime/donghuastream/provider.js",
+      "preferredServer": "Server 2",
+      "hosts": [
+        "donghuastream.org",
+        "geo.dailymotion.com",
+        "www.dailymotion.com",
+        "rumble.com"
+      ],
+      "preferences": {}
+    },
+    {
+      "id": "mangastash",
+      "type": "manga-provider",
+      "name": "MangaStash",
+      "sourcePath": "../../Seanime-Providers/src/manga/mangastash/provider.js",
+      "hosts": ["mangastash.org"],
+      "preferences": {}
+    }
+  ]
+}

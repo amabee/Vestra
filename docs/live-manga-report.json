@@ -1,0 +1,58 @@
+{
+  "checkedAt": "2026-10-29T06:13:16.254Z",
+  "scope": "Manga metadata and one image per provider; no bulk chapter download",
+  "providers": [
+    {
+      "id": "mangastash",
+      "query": "Solo",
+      "steps": [
+        {
+          "stage": "search",
+          "count": 24
+        },
+        {
+          "stage": "chapters",
+          "count": 21
+        },
+        {
+          "stage": "pages",
+          "count": 71
+        },
+        {
+          "stage": "image",
+          "mimeType": "image/jpeg",
+          "bytes": 373818
+        }
+      ],
+      "sourceSha256": "63dfe065012b116f45f2a39f724ff172e2d5716c24a2baceb9df9253f02c617b",
+      "status": "image-fetched",
+      "elapsedMs": 7049
+    },
+    {
+      "id": "manganato",
+      "query": "Solo",
+      "steps": [
+        {
+          "stage": "search",
+          "count": 20
+        },
+        {
+          "stage": "chapters",
+          "count": 2
+        },
+        {
+          "stage": "pages",
+          "count": 68
+        },
+        {
+          "stage": "image",
+          "mimeType": "image/webp",
+          "bytes": 338412
+        }
+      ],
+      "sourceSha256": "6ca2dc18b75e514f4edeeddb28ce373e27c4ba440a9f4e1ac3bdd2373fb300f7",
+      "status": "image-fetched",
+      "elapsedMs": 3334
+    }
+  ]
+}

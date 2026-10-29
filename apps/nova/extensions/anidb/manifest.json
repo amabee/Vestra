@@ -1,0 +1,14 @@
+{
+  "id": "anidb-nova",
+  "name": "AniDB",
+  "version": "1.0.0",
+  "main": "index.js",
+  "sdkVersion": "1.0.0",
+  "permissions": ["network"],
+  "hosts": ["anidb.app"],
+  "kinds": ["anime"],
+  "role": "stream-source",
+  "author": "Vestra",
+  "description": "AniDB anime catalogue search translated to the Vestra extension contract.",
+  "homepage": "https://anidb.app/"
+}

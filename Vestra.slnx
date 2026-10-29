@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/apps/" />
+  <Folder Name="/apps/server/">
+    <Project Path="apps/server/Vestra.Server.csproj" />
+  </Folder>
+  <Folder Name="/packages/" />
+  <Folder Name="/packages/server-providers/">
+    <Project Path="packages/server-providers/Vestra.Providers.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/server-providers/">
+    <Project Path="tests/server-providers/Vestra.Providers.Tests.csproj" />
+  </Folder>
+</Solution>

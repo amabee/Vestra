@@ -141,6 +141,38 @@ describe("an extension as a provider", () => {
     expect(provider.capabilities.trending).toBe(false);
   });
 
+  it("routes an optional trending method", async () => {
+    const provider = createExtensionProvider({
+      extensionId: "trending-source",
+      name: "Trending Source",
+      kinds: ["anime"],
+      methods: ["search", "getTrending"],
+      call: async (method) =>
+        method === "getTrending"
+          ? [
+              {
+                id: "title-1",
+                title: "Example Anime",
+                year: null,
+                poster: null,
+                description: "",
+                isSeries: true,
+              },
+            ]
+          : [],
+    });
+
+    expect(provider.capabilities.trending).toBe(true);
+
+    const items = await provider.getTrending!("anime", {
+      signal: AbortSignal.timeout(10_000),
+      timeoutMs: 10_000,
+    });
+
+    expect(items).toHaveLength(1);
+    expect(items[0]?.source).toBe("ext-trending-source");
+  });
+
   it("will not act as a provider without a search method", () => {
     expect(canActAsProvider([])).toBe(false);
     expect(canActAsProvider(["getDetails"])).toBe(false);

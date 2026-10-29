@@ -6,6 +6,7 @@ import {
   HardDrive,
   History,
   Bookmark,
+  BookOpen,
   Settings,
   Sparkles,
   Tv,
@@ -26,6 +27,7 @@ const SECTIONS = [
     items: [
       { to: "/", label: "Home", icon: Compass },
       { to: "/anime", label: "Anime", icon: Sparkles },
+      { to: "/manga", label: "Manga", icon: BookOpen },
       { to: "/films", label: "Films", icon: Clapperboard },
       { to: "/series", label: "Series", icon: Tv },
     ],

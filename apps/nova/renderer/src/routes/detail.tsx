@@ -28,6 +28,10 @@ import { keys, useBookmarks, useLibrary, useLibraryUpdates, useProgress } from "
 /** Below this an entry is an accidental open, not somewhere to return to. */
 const MIN_PROGRESS = 0.01;
 
+function isInAppPlayback(source: PlaybackSource): boolean {
+  return source.kind === "file" || source.kind === "stream";
+}
+
 type EpisodeFilter = "all" | "unwatched" | "bookmarked";
 
 interface EpisodeView {
@@ -74,24 +78,21 @@ export function DetailRoute() {
 
   const start = useMutation({
     mutationFn: async (playback: PlaybackSource) => {
-      // Anything web-hosted belongs in a browser; only files Vestra can serve
-      // itself go to the in-app player.
-      if (playback.locator.startsWith("https://") || playback.locator.startsWith("http://")) {
+      // Deep links belong in a browser; extension streams stay in the player.
+      if (playback.kind === "external") {
         await bridge.shell.openExternal(playback.locator);
         return;
       }
 
-      // Hand the player every local source, not just the chosen one, so it can
+      // Hand the player every in-app source, not just the chosen one, so it can
       // move to the next episode without coming back here for the list. The
       // adapter already returns them ordered by season and episode.
-      const local = (sources.data ?? []).filter(
-        (source) => !source.locator.startsWith("http"),
-      );
-      const index = local.findIndex((source) => source.locator === playback.locator);
+      const playable = (sources.data ?? []).filter(isInAppPlayback);
+      const index = playable.findIndex((source) => source.locator === playback.locator);
 
       open(
         (details.data ?? ref) as MediaItem,
-        local.length > 0 ? local : [playback],
+        playable.length > 0 ? playable : [playback],
         index < 0 ? 0 : index,
       );
     },
@@ -120,9 +121,7 @@ export function DetailRoute() {
    * up together rather than threaded separately through the card.
    */
   const episodes = useMemo<EpisodeView[]>(() => {
-    const local = (sources.data ?? []).filter(
-      (entry) => !entry.locator.startsWith("http"),
-    );
+    const local = (sources.data ?? []).filter(isInAppPlayback);
 
     // Real episode titles, where the provider has them. TMDb does; AniList
     // returns no per-episode data at all, so for anime this stays empty and
@@ -171,9 +170,7 @@ export function DetailRoute() {
     });
   }, [sources.data, details.data, progress.data, bookmarks.data, library.data, baseKey]);
 
-  const externals = (sources.data ?? []).filter((entry) =>
-    entry.locator.startsWith("http"),
-  );
+  const externals = (sources.data ?? []).filter((entry) => entry.kind === "external");
 
   /**
    * Where "Continue" goes.

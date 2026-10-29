@@ -2,7 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import type { PlaybackEngine } from "@vestra/types";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { bridge, type MpvState, type ProbeResult, type SurfaceRect } from "@/lib/bridge";
+import {
+  bridge,
+  type MpvState,
+  type ProbeResult,
+  type SurfaceRect,
+} from "@/lib/bridge";
 import { useSettings } from "@/lib/queries";
 
 /**
@@ -29,7 +34,10 @@ export interface EngineDecision {
   ready: boolean;
 }
 
-export function useEngineDecision(fileId: string | null): EngineDecision {
+export function useEngineDecision(
+  fileId: string | null,
+  nativeStream = false,
+): EngineDecision {
   const settings = useSettings();
   const preference: PlaybackEngine = settings.data?.playback.engine ?? "auto";
 
@@ -49,7 +57,7 @@ export function useEngineDecision(fileId: string | null): EngineDecision {
   });
 
   return useMemo(() => {
-    if (preference === "mpv") {
+    if (preference === "mpv" || nativeStream) {
       return {
         engine: "mpv" as const,
         reasons: [],
@@ -79,9 +87,19 @@ export function useEngineDecision(fileId: string | null): EngineDecision {
       reasons,
       probe: probe.data,
       needsMpv: useMpv && mpv.data ? !mpv.data.available : false,
-      ready: (probe.isFetched || probe.isError || fileId === null) && mpv.isFetched,
+      ready:
+        (probe.isFetched || probe.isError || fileId === null) && mpv.isFetched,
     };
-  }, [preference, probe.data, probe.isFetched, probe.isError, mpv.data, mpv.isFetched, fileId]);
+  }, [
+    preference,
+    probe.data,
+    probe.isFetched,
+    probe.isError,
+    mpv.data,
+    mpv.isFetched,
+    fileId,
+    nativeStream,
+  ]);
 }
 
 /**

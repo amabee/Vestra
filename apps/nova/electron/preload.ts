@@ -17,6 +17,16 @@ const invoke = (channel: string, ...args: unknown[]): Promise<unknown> =>
   ipcRenderer.invoke(channel, ...args);
 
 const api = {
+  manga: {
+    sources: () => invoke("manga:sources"),
+    search: (p: string, q: string) => invoke("manga:search", p, q),
+    chapters: (p: string, b: string) => invoke("manga:chapters", p, b),
+    pages: (p: string, b: string, c: string) => invoke("manga:pages", p, b, c),
+    image: (h: string) => invoke("manga:image", h),
+    progress: (p: string, b: string) => invoke("manga:progress", p, b),
+    save: (p: string, b: string, c: string, n: number) =>
+      invoke("manga:save", p, b, c, n),
+  },
   window: {
     minimize: () => invoke("window:minimize"),
     toggleMaximize: () => invoke("window:toggle-maximize"),
@@ -34,23 +44,29 @@ const api = {
   },
 
   shell: {
-    openExternal: (url: string): Promise<unknown> => invoke("shell:open-external", url),
+    openExternal: (url: string): Promise<unknown> =>
+      invoke("shell:open-external", url),
   },
 
   settings: {
     get: (): Promise<unknown> => invoke("settings:get"),
-    save: (settings: unknown): Promise<unknown> => invoke("settings:save", settings),
+    save: (settings: unknown): Promise<unknown> =>
+      invoke("settings:save", settings),
   },
 
   media: {
     search: (query: unknown): Promise<unknown> => invoke("search:run", query),
-    trending: (kind: unknown): Promise<unknown> => invoke("media:trending", kind),
+    trending: (kind: unknown): Promise<unknown> =>
+      invoke("media:trending", kind),
     details: (item: unknown): Promise<unknown> => invoke("media:details", item),
-    resolvePlayback: (item: unknown): Promise<unknown> => invoke("playback:resolve", item),
+    resolvePlayback: (item: unknown): Promise<unknown> =>
+      invoke("playback:resolve", item),
     probe: (fileId: string): Promise<unknown> => invoke("media:probe", fileId),
     probeAvailable: (): Promise<unknown> => invoke("media:probe-available"),
-    skipTimes: (request: unknown): Promise<unknown> => invoke("media:skip-times", request),
-    reportSkip: (skipId: string): Promise<unknown> => invoke("media:report-skip", skipId),
+    skipTimes: (request: unknown): Promise<unknown> =>
+      invoke("media:skip-times", request),
+    reportSkip: (skipId: string): Promise<unknown> =>
+      invoke("media:report-skip", skipId),
   },
 
   /**
@@ -70,9 +86,12 @@ const api = {
     pause: (): Promise<unknown> => invoke("mpv:pause"),
     seek: (seconds: number): Promise<unknown> => invoke("mpv:seek", seconds),
     seekBy: (delta: number): Promise<unknown> => invoke("mpv:seek-by", delta),
-    setVolume: (volume: number): Promise<unknown> => invoke("mpv:set-volume", volume),
-    setMuted: (muted: boolean): Promise<unknown> => invoke("mpv:set-muted", muted),
-    setSpeed: (speed: number): Promise<unknown> => invoke("mpv:set-speed", speed),
+    setVolume: (volume: number): Promise<unknown> =>
+      invoke("mpv:set-volume", volume),
+    setMuted: (muted: boolean): Promise<unknown> =>
+      invoke("mpv:set-muted", muted),
+    setSpeed: (speed: number): Promise<unknown> =>
+      invoke("mpv:set-speed", speed),
     setSubtitleDelay: (seconds: number): Promise<unknown> =>
       invoke("mpv:set-subtitle-delay", seconds),
     setSubtitleScale: (scale: number): Promise<unknown> =>
@@ -104,9 +123,11 @@ const api = {
     setNowPlaying: (value: unknown): Promise<unknown> =>
       invoke("player:set-now-playing", value),
     getNowPlaying: (): Promise<unknown> => invoke("player:get-now-playing"),
-    send: (command: string): Promise<unknown> => invoke("player:command", command),
+    send: (command: string): Promise<unknown> =>
+      invoke("player:command", command),
     focus: (): Promise<unknown> => invoke("player:focus"),
-    drag: (payload: unknown): Promise<unknown> => invoke("player:drag", payload),
+    drag: (payload: unknown): Promise<unknown> =>
+      invoke("player:drag", payload),
     toggleMaximize: (): Promise<unknown> => invoke("player:toggle-maximize"),
     setInteractive: (interactive: boolean): Promise<unknown> =>
       invoke("player:set-interactive", interactive),
@@ -116,7 +137,8 @@ const api = {
       return () => ipcRenderer.off("player:now-playing", wrapped);
     },
     onCommand: (listener: (command: string) => void): (() => void) => {
-      const wrapped = (_event: unknown, command: unknown) => listener(String(command));
+      const wrapped = (_event: unknown, command: unknown) =>
+        listener(String(command));
       ipcRenderer.on("player:command", wrapped);
       return () => ipcRenderer.off("player:command", wrapped);
     },
@@ -130,13 +152,15 @@ const api = {
 
   progress: {
     all: (): Promise<unknown> => invoke("progress:all"),
-    save: (progress: unknown): Promise<unknown> => invoke("progress:save", progress),
+    save: (progress: unknown): Promise<unknown> =>
+      invoke("progress:save", progress),
     clear: (ref: unknown): Promise<unknown> => invoke("progress:clear", ref),
   },
 
   bookmarks: {
     all: (): Promise<unknown> => invoke("bookmarks:all"),
-    toggle: (input: unknown): Promise<unknown> => invoke("bookmarks:toggle", input),
+    toggle: (input: unknown): Promise<unknown> =>
+      invoke("bookmarks:toggle", input),
   },
 
   history: {
@@ -150,7 +174,8 @@ const api = {
     entries: (): Promise<unknown> => invoke("library:entries"),
     folders: (): Promise<unknown> => invoke("library:folders"),
     pickFolder: (): Promise<unknown> => invoke("library:pick-folder"),
-    removeFolder: (id: string): Promise<unknown> => invoke("library:remove-folder", id),
+    removeFolder: (id: string): Promise<unknown> =>
+      invoke("library:remove-folder", id),
     scan: (): Promise<unknown> => invoke("library:scan"),
     rematch: (): Promise<unknown> => invoke("library:rematch"),
 
@@ -164,8 +189,11 @@ const api = {
 
   extensions: {
     list: (): Promise<unknown> => invoke("extensions:list"),
-    call: (extensionId: string, method: string, args: unknown[]): Promise<unknown> =>
-      invoke("extensions:call", extensionId, method, args),
+    call: (
+      extensionId: string,
+      method: string,
+      args: unknown[],
+    ): Promise<unknown> => invoke("extensions:call", extensionId, method, args),
 
     installed: (): Promise<unknown> => invoke("extensions:installed"),
     registries: (): Promise<unknown> => invoke("extensions:registries"),
@@ -176,7 +204,8 @@ const api = {
       invoke("extensions:prepare", candidate),
     install: (request: unknown): Promise<unknown> =>
       invoke("extensions:install", request),
-    uninstall: (id: string): Promise<unknown> => invoke("extensions:uninstall", id),
+    uninstall: (id: string): Promise<unknown> =>
+      invoke("extensions:uninstall", id),
     pickUnpacked: (): Promise<unknown> => invoke("extensions:pick-unpacked"),
     installUnpacked: (request: unknown): Promise<unknown> =>
       invoke("extensions:install-unpacked", request),

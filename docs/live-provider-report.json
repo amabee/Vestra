@@ -1,0 +1,80 @@
+{
+  "checkedAt": "2026-10-29T05:58:58.752Z",
+  "scope": "Live search, episodes, stream URL resolution and repaired-source HLS manifest validation; no playback or media segments downloaded",
+  "providers": [
+    {
+      "id": "anidb",
+      "query": "Naruto",
+      "steps": [
+        {
+          "stage": "load",
+          "error": "Local provider source is absent; skipped without aborting other providers."
+        }
+      ],
+      "status": "source-missing"
+    },
+    {
+      "id": "animesaturnmirror",
+      "query": "Naruto",
+      "steps": [
+        {
+          "stage": "search",
+          "count": 10
+        },
+        {
+          "stage": "episodes",
+          "count": 1
+        },
+        {
+          "stage": "stream",
+          "count": 1
+        },
+        {
+          "stage": "manifest",
+          "httpStatus": 200,
+          "isHls": true
+        }
+      ],
+      "sourceSha256": "0199cbe8414f83acccb48a7bbbce7e6dc5c05fb12bee00cd340eabea2adb6fe4",
+      "compatibility": "animesaturn-nested-player-v1",
+      "elapsedMs": 4833,
+      "status": "manifest-verified"
+    },
+    {
+      "id": "donghuastream",
+      "query": "Battle",
+      "steps": [
+        {
+          "stage": "search",
+          "count": 6
+        },
+        {
+          "stage": "episodes",
+          "count": 3
+        },
+        {
+          "stage": "stream",
+          "count": 1
+        },
+        {
+          "stage": "manifest",
+          "httpStatus": 403,
+          "isHls": false
+        },
+        {
+          "stage": "mirror-manifest",
+          "server": "Server 2",
+          "httpStatus": 200,
+          "isHls": true
+        }
+      ],
+      "sourceSha256": "83d992a29fce831c99c90396994b16cd04a1a37c9c3bd824d6179c1ac0b1263b",
+      "elapsedMs": 4520,
+      "status": "manifest-verified"
+    }
+  ],
+  "summary": {
+    "manifestVerified": 2,
+    "unresolved": 1
+  }
+}

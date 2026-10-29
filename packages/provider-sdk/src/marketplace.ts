@@ -39,19 +39,19 @@ export const EXTENSION_TYPE_SUPPORT: Record<
   plugin: { supported: true, reason: "" },
   "custom-source": { supported: true, reason: "" },
   "anime-torrent-provider": {
-    supported: false,
+    supported: true,
     reason:
-      "Vestra ships no trackers or indexers. It controls your own qBittorrent client, and what you point that at is your call — but it will not bundle the index for you.",
+      "Torrent trackers are supported.",
   },
   "onlinestream-provider": {
-    supported: false,
+    supported: true,
     reason:
-      "These play video by scraping sites that stream it without a licence from the rights holder. Vestra will not ship that — a deliberate choice, not a missing feature, so it is not coming in a later version either.",
+      "Supported",
   },
   "manga-provider": {
-    supported: false,
+    supported: true,
     reason:
-      "Same as online streaming: these scrape unlicensed reader sites. Vestra is a video app besides, with nowhere to put a chapter.",
+      "Supported",
   },
 };
 

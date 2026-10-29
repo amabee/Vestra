@@ -12,22 +12,6 @@ import {
   type ValidatedManifest,
 } from "@vestra/extension-host";
 
-/**
- * Installing an extension from a folder on disk.
- *
- * Writing an extension against a registry is unworkable: every change means a
- * commit, a push, and a wait for a CDN. And the guard on outbound fetches
- * refuses loopback by design, so a local dev server is not an option either —
- * correctly, but it does mean there is no network route in.
- *
- * Reading the folder directly sidesteps both, the same way browsers load an
- * unpacked extension. It skips only the transport; the manifest is validated,
- * the type is re-asserted, the permission prompt is the same one, and the code
- * is fingerprinted exactly as a downloaded payload would be.
- *
- * What it cannot do is promise the code will not change: a folder is mutable
- * by definition, so these are never marked pinned.
- */
 
 const MANIFEST_FILE = "manifest.json";
 

@@ -184,15 +184,6 @@ export function proposeHosts(source: string): string[] {
   return [...found].sort().slice(0, MAX_PROPOSED_HOSTS);
 }
 
-/**
- * Normalise one of Seanime's `allowedDomains` patterns to a bare hostname.
- *
- * Their patterns permit a scheme and a leading wildcard; Vestra's host list is
- * exact names only. `*.example.com` therefore narrows to `example.com`, which
- * does NOT cover subdomains here — `hostAllowed` in net.ts is an exact match.
- * That is the direction to fail in: the extension may find a subdomain
- * unreachable, but no grant is wider than what was written down.
- */
 function normaliseAllowedDomain(pattern: string): string | null {
   let host = pattern.trim().toLowerCase();
   if (host.length === 0) return null;
@@ -214,27 +205,10 @@ function isExtensionType(value: string): value is ExtensionType {
   return (EXTENSION_TYPES as readonly string[]).includes(value);
 }
 
-/**
- * Kind assumed for a translated source.
- *
- * Seanime's `custom-source` is an anime/manga tracker source, and manga is not
- * a kind Vestra has anywhere to put. `anime` is the honest reading, but it IS
- * an assumption, so it is announced in the notes rather than applied quietly —
- * an extension filed under a kind it never claimed returns results in the
- * wrong section, which reads as a broken app.
- */
 const ASSUMED_KIND = "anime" as const;
 
 export interface TranslateOptions {
-  /**
-   * The extension's code, when it has already been fetched.
-   *
-   * Needed to propose hosts. Vestra's own install fetches the manifest first
-   * and the code only after consent; a Seanime manifest cannot describe its
-   * own network reach, so the code has to be in hand before the user can be
-   * asked. Downloading is not executing, and the bytes are still fingerprinted
-   * before anything is stored.
-   */
+
   payload?: string;
 }
 

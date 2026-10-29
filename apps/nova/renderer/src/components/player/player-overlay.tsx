@@ -62,10 +62,13 @@ export function PlayerOverlay() {
   const surfaceRef = useRef<HTMLDivElement>(null);
 
   const fileId = useFileId(source?.locator);
-  const decision = useEngineDecision(fileId);
+  const streamLocator = source?.locator.startsWith("vestra-stream://")
+    ? source.locator
+    : undefined;
+  const decision = useEngineDecision(fileId, Boolean(streamLocator));
 
   const [override, setOverride] = useState<"builtin" | "mpv" | null>(null);
-  const engine = override ?? decision.engine;
+  const engine = streamLocator ? "mpv" : override ?? decision.engine;
   const usingMpv = engine === "mpv" && Boolean(item) && Boolean(source);
 
   const mpv = useMpvState(usingMpv);
@@ -334,16 +337,22 @@ export function PlayerOverlay() {
 
         case "arrowup":
           event.preventDefault();
-          setVolume((usingMpv ? mpv.volume : (videoRef.current?.volume ?? 1)) + 0.05);
+          setVolume(
+            (usingMpv ? mpv.volume : (videoRef.current?.volume ?? 1)) + 0.05,
+          );
           break;
         case "arrowdown":
           event.preventDefault();
-          setVolume((usingMpv ? mpv.volume : (videoRef.current?.volume ?? 1)) - 0.05);
+          setVolume(
+            (usingMpv ? mpv.volume : (videoRef.current?.volume ?? 1)) - 0.05,
+          );
           break;
 
         case "m":
-          if (usingMpv) void bridge.mpv.setMuted(!mpv.muted).catch(() => undefined);
-          else if (videoRef.current) videoRef.current.muted = !videoRef.current.muted;
+          if (usingMpv)
+            void bridge.mpv.setMuted(!mpv.muted).catch(() => undefined);
+          else if (videoRef.current)
+            videoRef.current.muted = !videoRef.current.muted;
           break;
 
         case "f":
@@ -374,13 +383,15 @@ export function PlayerOverlay() {
         case "v": {
           if (!usingMpv) break;
           const subtitles = mpv.tracks.filter((track) => track.type === "sub");
-          const on = mpv.subtitleVisible && subtitles.some((track) => track.selected);
+          const on =
+            mpv.subtitleVisible && subtitles.some((track) => track.selected);
           void (async () => {
             if (on) {
               await bridge.mpv.setSubtitleVisible(false);
               return;
             }
-            const chosen = subtitles.find((track) => track.selected) ?? subtitles[0];
+            const chosen =
+              subtitles.find((track) => track.selected) ?? subtitles[0];
             if (chosen) await bridge.mpv.selectTrack("sub", chosen.id);
             await bridge.mpv.setSubtitleVisible(true);
           })().catch(() => undefined);
@@ -398,16 +409,16 @@ export function PlayerOverlay() {
 
         case "[":
           if (usingMpv) {
-            void bridge.mpv.setSpeed(Math.max(0.25, mpv.speed - 0.25)).catch(
-              () => undefined,
-            );
+            void bridge.mpv
+              .setSpeed(Math.max(0.25, mpv.speed - 0.25))
+              .catch(() => undefined);
           }
           break;
         case "]":
           if (usingMpv) {
-            void bridge.mpv.setSpeed(Math.min(4, mpv.speed + 0.25)).catch(
-              () => undefined,
-            );
+            void bridge.mpv
+              .setSpeed(Math.min(4, mpv.speed + 0.25))
+              .catch(() => undefined);
           }
           break;
       }
@@ -439,7 +450,13 @@ export function PlayerOverlay() {
    * ---------------------------------------------------------------------- */
 
   useEffect(() => {
-    if (!usingMpv || !fileId || !decision.ready || decision.needsMpv) return;
+    if (
+      !usingMpv ||
+      (!fileId && !streamLocator) ||
+      !decision.ready ||
+      decision.needsMpv
+    )
+      return;
 
     let cancelled = false;
 
@@ -449,17 +466,20 @@ export function PlayerOverlay() {
       reopen the file mid-playback each time it did.
     */
     void (async () => {
-      const startSeconds = await resumeSecondsFor(
-        itemRef.current,
-        fileId,
-        rememberPositionRef.current,
-      );
+      const startSeconds = fileId
+        ? await resumeSecondsFor(
+            itemRef.current,
+            fileId,
+            rememberPositionRef.current,
+          )
+        : 0;
       if (cancelled) return;
 
       const box = surfaceRef.current?.getBoundingClientRect();
 
       await bridge.mpv.open({
-        fileId,
+        fileId: fileId ?? undefined,
+        streamLocator,
         // An explicit choice from the episode list wins over stored progress.
         startSeconds: usePlayer.getState().startAt ?? startSeconds,
         rect: {
@@ -471,14 +491,16 @@ export function PlayerOverlay() {
       });
     })().catch((error: unknown) => {
       if (cancelled) return;
-      setFailed(error instanceof Error ? error.message : "mpv could not start.");
-      setOverride("builtin");
+      setFailed(
+        error instanceof Error ? error.message : "mpv could not start.",
+      );
+      if (!streamLocator) setOverride("builtin");
     });
 
     return () => {
       cancelled = true;
     };
-  }, [usingMpv, fileId, decision.ready, decision.needsMpv]);
+  }, [usingMpv, fileId, streamLocator, decision.ready, decision.needsMpv]);
 
   // Leaving the player packs both extra windows away; mpv itself keeps running
   // so the next episode does not pay for another process launch.
@@ -596,7 +618,9 @@ export function PlayerOverlay() {
         <div className="absolute inset-0 grid place-items-center bg-black p-8">
           <div className="max-w-md text-center">
             <p className="font-serif text-display-sm">Cannot play this</p>
-            <p className="mt-2 text-sm leading-relaxed text-base-content/55">{error}</p>
+            <p className="mt-2 text-sm leading-relaxed text-base-content/55">
+              {error}
+            </p>
             {decision.probe ? (
               <p className="meta mt-3">
                 {decision.probe.video[0]?.codec ?? "?"} ·{" "}
@@ -631,12 +655,14 @@ function MpvMissing({ reasons }: { reasons: string[] }) {
         </p>
         <p className="mt-4 text-sm leading-relaxed text-base-content/55">
           mpv normally ships with Vestra. If this build was packaged without it,
-          install mpv and it will be picked up automatically, or set its location
-          in Settings.
+          install mpv and it will be picked up automatically, or set its
+          location in Settings.
         </p>
         <button
           type="button"
-          onClick={() => void bridge.shell.openExternal("https://mpv.io/installation/")}
+          onClick={() =>
+            void bridge.shell.openExternal("https://mpv.io/installation/")
+          }
           className="mt-5 rounded-field border border-base-content/20 px-4 py-2 text-sm transition-colors hover:bg-primary hover:text-primary-content"
         >
           Installation guide

@@ -15,6 +15,7 @@ import {
 import { ExtensionsRoute } from "@/routes/extensions";
 import { HomeRoute } from "@/routes/home";
 import { SettingsRoute } from "@/routes/system";
+import { MangaRoute } from "@/routes/manga";
 
 import "@/styles/theme.css";
 
@@ -75,6 +76,7 @@ const router = createHashRouter([
         ),
       },
       { path: "library", element: <LibraryRoute /> },
+      { path: "manga", element: <MangaRoute /> },
       { path: "watchlist", element: <WatchlistRoute /> },
       { path: "history", element: <HistoryRoute /> },
       { path: "extensions", element: <ExtensionsRoute /> },
