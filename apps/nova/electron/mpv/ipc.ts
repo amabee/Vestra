@@ -49,6 +49,7 @@ interface NowPlaying {
 }
 
 let nowPlaying: NowPlaying | null = null;
+let openRevision = 0;
 
 /** Renderers currently subscribed to state pushes. */
 const subscribers = new Set<Electron.WebContents>();
@@ -161,6 +162,7 @@ export function registerMpvIpc(): void {
       raw,
       "open request",
     );
+    const revision = ++openRevision;
 
     const window = BrowserWindow.fromWebContents(event.sender);
     if (!window) throw new Error("No window is associated with this request.");
@@ -170,6 +172,7 @@ export function registerMpvIpc(): void {
       : undefined;
     const filePath = remote?.url ?? (await pathForFileId(fileId!));
     const settings = await getSettings(getDriver());
+    if (revision !== openRevision) return session.state;
 
     // Position the surface before mpv attaches, so the first frame lands in
     // the right place rather than flashing at the window origin.
@@ -188,6 +191,7 @@ export function registerMpvIpc(): void {
       volume: settings.playback.defaultVolume,
     });
 
+    if (revision !== openRevision) return session.state;
     await session.load(filePath, startSeconds, remote);
     return session.state;
   });
@@ -275,6 +279,7 @@ export function registerMpvIpc(): void {
    * creation. `shutdownMpv` is what actually tears it down, at quit.
    */
   handle("mpv:close", async () => {
+    openRevision++;
     overlay.setVisible(false);
     surface.setVisible(false);
     nowPlaying = null;

@@ -34,12 +34,18 @@ selected Seanime host APIs implemented in C#. No speed advantage has been measur
 - [x] Runtime checks and visible provider-load errors; disabled sources stay out of worker replay.
 - [x] Live metadata/manifest checks for selected anime providers and single-image checks for two manga providers, recorded with source hashes.
 
-Latest recorded verification: 76 .NET cases, five reader-service tests and five
-reader-navigation tests, plus eleven source-management cases; the earlier five
-worker-process checks also passed. Nova type checks and builds
+Latest recorded verification: 78 .NET cases, five worker-process, five reader-service,
+five reader-navigation, eleven source-management, five remote-source and five
+subtitle-loader cases, plus the player-quality state and two playback-helper cases.
+Nova type checks and builds
 pass. Native mpv passed a controlled local HLS/header/subtitle fixture. Live checks
 are source-specific observations and can become stale. Visual end-to-end checks
 remain unchecked below.
+
+Recent feature work is on stacked branches: `codex/remote-provider-updates`,
+then `codex/stream-quality-selection`, then `codex/subtitle-track-metadata`.
+The final branch includes the earlier two. Native playback tests remain deferred;
+the optional native mpv fixture was skipped in these passes.
 
 ## 1. Package the working preview — implementation complete; clean-machine gate open
 
@@ -128,7 +134,8 @@ and provider storage are already implemented; they do not constitute a full data
 ## 6. Finish anime playback and download services
 
 - [x] Select provider-advertised stream qualities per episode using opaque handles and refreshed URLs.
-- [ ] Forward complete subtitle language/title/default metadata to native mpv.
+- [x] Preserve subtitle language/title/default metadata through both provider hosts and native track-add commands.
+- [ ] Verify the updated quality picker and subtitle loading path with actual video playback.
 - [ ] Migrate/audit playlists, player lifecycle, containers and required track behavior.
 - [ ] Implement persistent download queues, progress, cancellation and recovery.
 - [ ] Implement and verify supported torrent-client and debrid integrations.

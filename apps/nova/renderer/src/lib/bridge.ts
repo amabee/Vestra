@@ -326,6 +326,7 @@ export interface MpvState {
   chapters: MpvChapter[];
   subtitleVisible: boolean;
   error: string | null;
+  subtitleError: string | null;
 }
 
 export interface MpvStatus {

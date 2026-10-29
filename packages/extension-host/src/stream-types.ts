@@ -105,6 +105,7 @@ export const subtitleTrackSchema = z.object({
   url: httpsUrlSchema,
   /** Free text as the source gives it ("English", "en", "pt-BR"). Not normalised. */
   language: z.string().min(1).max(100),
+  title: z.string().max(200).optional(),
   isDefault: z.boolean().optional(),
 });
 

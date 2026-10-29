@@ -172,7 +172,18 @@ export async function activateCSharpSource(
         )) as {
           server: string;
           headers?: Record<string, string>;
-          videoSources: { type: string; url: string; quality?: string }[];
+          videoSources: {
+            type: string;
+            url: string;
+            quality?: string;
+            subtitles?: {
+              id?: string;
+              url: string;
+              language: string;
+              title?: string;
+              isDefault?: boolean;
+            }[];
+          }[];
         };
         return [
           {
@@ -185,7 +196,20 @@ export async function activateCSharpSource(
                     ? "mp4"
                     : null;
               return type
-                ? [{ ...video, type, quality: video.quality ?? "auto" }]
+                ? [
+                    {
+                      ...video,
+                      type,
+                      quality: video.quality ?? "auto",
+                      subtitles: (video.subtitles ?? []).map((sub, i) => ({
+                        ...sub,
+                        id:
+                          typeof sub.id === "string" && sub.id.trim()
+                            ? sub.id
+                            : `csharp-sub-${i}`,
+                      })),
+                    },
+                  ]
                 : [];
             }),
           },

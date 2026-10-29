@@ -58,6 +58,7 @@ const EMPTY: MpvState = {
   chapters: [],
   subtitleVisible: true,
   error: null,
+  subtitleError: null,
 };
 
 const HIDE_AFTER_MS = 2600;
@@ -359,6 +360,11 @@ export function PlayerChrome() {
         }`}
       >
         {/* Scrims rather than panels: the video stays visible through them. */}
+        {mpv.subtitleError && (
+          <p role="status" className="pointer-events-none absolute inset-x-6 top-16 rounded-lg bg-black/80 p-3 text-xs text-white">
+            {mpv.subtitleError}
+          </p>
+        )}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/85 to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/90 via-black/60 to-transparent" />
 

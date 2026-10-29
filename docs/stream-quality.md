@@ -27,3 +27,7 @@ quality selection after reordering, rendition headers and unavailable choices.
 Type checks and Electron/renderer builds pass. The native mpv fixture was not rerun
 and interactive picker/playback verification is deferred; installer refresh is
 also pending.
+
+Subtitle titles, languages and default selection are now preserved by the native
+loading path; see [subtitle-metadata.md](subtitle-metadata.md) for behavior and the
+remaining actual-playback verification gate.

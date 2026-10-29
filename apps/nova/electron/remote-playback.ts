@@ -29,8 +29,14 @@ const remoteSchema = z.object({
           .string()
           .url()
           .max(4096)
-          .refine((v) => new URL(v).protocol === "https:"),
+          .refine(
+            (v) =>
+              new URL(v).protocol === "https:" &&
+              !new URL(v).username &&
+              !new URL(v).password,
+          ),
         language: z.string().max(100),
+        title: z.string().max(200).optional(),
         isDefault: z.boolean().optional(),
       }),
     )
