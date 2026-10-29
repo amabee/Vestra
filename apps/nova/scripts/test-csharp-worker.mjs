@@ -21,7 +21,79 @@ const { CSharpProviderWorker, CSharpProviderSession } = createRequire(
   import.meta.url,
 )(join(scratch, "client.cjs"));
 after(() => rm(scratch, { recursive: true, force: true }));
-const dll = join(root, "apps/server/bin/Release/net10.0/Vestra.Server.dll");
+const dll =
+  process.env.VESTRA_TEST_WORKER_TARGET ??
+  join(root, "apps/server/bin/Release/net10.0/Vestra.Server.dll");
+
+test("private progress commands preserve imported state and reject invalid writes", async () => {
+  const data = join(scratch, "reading-progress");
+  let worker = new CSharpProviderWorker(dll, data);
+  const scope = { providerId: "manga", bookId: "book" };
+  try {
+    assert.equal(
+      await worker.request({ kind: "progress:get", ...scope }),
+      null,
+    );
+    const legacy = {
+      chapterId: "chapter",
+      page: 1,
+      updatedAt: "2026-01-01T00:00:00Z",
+    };
+    assert.equal(
+      (
+        await worker.request({
+          kind: "progress:import",
+          ...scope,
+          progress: legacy,
+        })
+      ).page,
+      1,
+    );
+    await assert.rejects(
+      worker.request({
+        kind: "progress:save",
+        ...scope,
+        chapterId: "chapter",
+        page: 2,
+        pageCount: 2,
+      }),
+      /Invalid reading position/,
+    );
+    await worker.request({
+      kind: "progress:save",
+      ...scope,
+      chapterId: "chapter",
+      page: 0,
+      pageCount: 2,
+    });
+    assert.equal(
+      (
+        await worker.request({
+          kind: "progress:import",
+          ...scope,
+          progress: legacy,
+        })
+      ).page,
+      0,
+    );
+    worker.stop();
+    worker = new CSharpProviderWorker(dll, data);
+    assert.equal(
+      (await worker.request({ kind: "progress:get", ...scope })).page,
+      0,
+    );
+    assert.equal(
+      await worker.request({
+        kind: "progress:get",
+        ...scope,
+        providerId: "other",
+      }),
+      null,
+    );
+  } finally {
+    worker.stop();
+  }
+});
 
 test("manga protocol validates its own contract and survives worker reload", async () => {
   const session = new CSharpProviderSession(dll);

@@ -20,6 +20,11 @@ import type {
   InstalledExtension,
 } from "@vestra/extension-host/install";
 import type { MarketplaceEntry } from "@vestra/provider-sdk/marketplace";
+import type {
+  PickedSource,
+  SourceOptions,
+  SourceSummary,
+} from "../../../shared/sources";
 
 export type {
   InstallCandidate,
@@ -53,8 +58,17 @@ export interface BrowseResult {
  */
 
 interface RawBridge {
+  sources: {
+    list: () => Promise<unknown>;
+    pick: () => Promise<unknown>;
+    install: (token: string, options: unknown) => Promise<unknown>;
+    update: (id: string, options: unknown) => Promise<unknown>;
+    remove: (id: string) => Promise<unknown>;
+    check: (id: string) => Promise<unknown>;
+  };
   manga: {
     sources: () => Promise<unknown>;
+    recent: (p: string) => Promise<unknown>;
     search: (p: string, q: string) => Promise<unknown>;
     chapters: (p: string, b: string) => Promise<unknown>;
     pages: (p: string, b: string, c: string) => Promise<unknown>;
@@ -346,7 +360,21 @@ export interface SurfaceRect {
 }
 
 export const bridge = {
+  sources: {
+    list: () => raw().sources.list() as Promise<SourceSummary[]>,
+    pick: () => raw().sources.pick() as Promise<PickedSource | null>,
+    install: (token: string, options: SourceOptions) =>
+      raw().sources.install(token, options),
+    update: (id: string, options: SourceOptions & { enabled: boolean }) =>
+      raw().sources.update(id, options),
+    remove: (id: string) => raw().sources.remove(id),
+    check: (id: string) => raw().sources.check(id),
+  },
   manga: {
+    recent: (p: string) =>
+      raw().manga.recent(p) as Promise<
+        import("../../../shared/manga").MangaRecent
+      >,
     sources: async () =>
       (await raw().manga.sources()) as { id: string; name: string }[],
     search: async (p: string, q: string) =>

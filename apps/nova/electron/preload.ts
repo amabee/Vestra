@@ -17,8 +17,19 @@ const invoke = (channel: string, ...args: unknown[]): Promise<unknown> =>
   ipcRenderer.invoke(channel, ...args);
 
 const api = {
+  sources: {
+    list: () => invoke("sources:list"),
+    pick: () => invoke("sources:pick"),
+    install: (token: string, options: unknown) =>
+      invoke("sources:install", token, options),
+    update: (id: string, options: unknown) =>
+      invoke("sources:update", id, options),
+    remove: (id: string) => invoke("sources:remove", id),
+    check: (id: string) => invoke("sources:check", id),
+  },
   manga: {
     sources: () => invoke("manga:sources"),
+    recent: (p: string) => invoke("manga:recent", p),
     search: (p: string, q: string) => invoke("manga:search", p, q),
     chapters: (p: string, b: string) => invoke("manga:chapters", p, b),
     pages: (p: string, b: string, c: string) => invoke("manga:pages", p, b, c),

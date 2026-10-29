@@ -16,21 +16,21 @@ reader, guarded image delivery and persisted reading progress. See
 live metadata checks and reader/UI limits. This supersedes the earlier
 online-stream-only checkpoint in the table below.
 
-| Area               | Current implementation                                                           | Remaining work                                                                              |
-| ------------------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Engine             | Jint 4.17.0; call budgets; JSON boundary                                         | Goja-specific semantics, broad parity corpus and throughput benchmarks                      |
-| Streaming contract | search, findEpisodes, findEpisodeServer, getSettings                             | Full AniList context, GUI installer/updater and packaged rollout                            |
-| Fetch              | Guarded HTTPS transport; text bodies, JSON, URL-encoded forms and multipart text | Binary payloads, per-fetch AbortSignal, concurrent scheduling, full cookie/header semantics |
-| Responses          | Synchronous text/json (await also works), statusText, headers map/get            | Complete Seanime response surface and binary data                                           |
-| HTML               | Read-only AngleSharp selection subset                                            | Remaining goquery traversal and callback edge semantics                                     |
-| Binary and URL     | Bounded Buffer and HTTP(S) URL/query subsets                                     | Full Node/WHATWG compatibility                                                              |
-| Crypto             | AES-CBC, hash and encoder subsets                                                | Remaining hashes, HMAC and exact upstream WordArray/byte-array shapes                       |
-| State              | Per-provider atomic JSON store, preferences supplied by config                   | Complete preference lifecycle, database import and multiprocess ownership                   |
-| TypeScript         | Syntax diagnostics and preprocessing; global Provider scripts                    | Modules and runtime import policy; production compiler packaging                            |
-| Worker lifecycle   | Private stdio, cancellation deadline, restart/reload on next request             | Packaged executable distribution; no OS privilege/memory sandbox is claimed                 |
-| Extension kinds | Online-stream and manga worker contracts | Manga reader UI/ranking, anime torrents, custom sources, plugin hooks and app services |
-| Other bindings     | Explicitly unavailable                                                           | ChromeDP/browser observation, timers, scanner/torrent helpers and remaining global APIs     |
-| Playback           | Opaque handles, lazy resolution, mpv headers/subtitle URLs                       | Live visual end-to-end checks, source health UI, broader media fixtures                     |
+| Area               | Current implementation                                                                          | Remaining work                                                                                   |
+| ------------------ | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Engine             | Jint 4.17.0; call budgets; JSON boundary                                                        | Goja-specific semantics, broad parity corpus and throughput benchmarks                           |
+| Streaming contract | search, findEpisodes, findEpisodeServer, getSettings                                            | Full AniList context, remote installer/updater and clean-machine verification                    |
+| Fetch              | Guarded HTTPS transport; text bodies, JSON, URL-encoded forms and multipart text                | Binary payloads, per-fetch AbortSignal, concurrent scheduling, full cookie/header semantics      |
+| Responses          | Synchronous text/json (await also works), statusText, headers map/get                           | Complete Seanime response surface and binary data                                                |
+| HTML               | Read-only AngleSharp selection subset                                                           | Remaining goquery traversal and callback edge semantics                                          |
+| Binary and URL     | Bounded Buffer and HTTP(S) URL/query subsets                                                    | Full Node/WHATWG compatibility                                                                   |
+| Crypto             | AES-CBC, hash and encoder subsets                                                               | Remaining hashes, HMAC and exact upstream WordArray/byte-array shapes                            |
+| State              | Per-provider atomic JSON store, C# reading progress with legacy import, preferences from config | Complete preference lifecycle, Seanime database import and multiprocess ownership                |
+| TypeScript         | Syntax diagnostics and preprocessing; global Provider scripts                                   | Modules and runtime import policy                                                                |
+| Worker lifecycle   | Private stdio, cancellation deadline, restart/reload on next request                            | Clean-machine install and visual lifecycle checks; no OS sandbox is claimed                      |
+| Extension kinds    | Online-stream and manga worker contracts; preview manga reader                                  | Manga ranking/downloads/visual QA, anime torrents, custom sources, plugin hooks and app services |
+| Other bindings     | Explicitly unavailable                                                                          | ChromeDP/browser observation, timers, scanner/torrent helpers and remaining global APIs          |
+| Playback           | Opaque handles, lazy resolution, mpv headers/subtitle URLs                                      | Live visual end-to-end checks, source health UI, broader media fixtures                          |
 
 The response audit found that Seanime returns body methods synchronously. The
 initial Vestra implementation incorrectly returned promises. It now matches

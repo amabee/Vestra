@@ -1,5 +1,8 @@
 # Vestra C# migration
 
+The current work checklist is [roadmap.md](roadmap.md). This document retains
+earlier implementation checkpoints; later passes supersede their pending items.
+
 ## Objective
 
 Continue Vestra with a C# backend and Seanime feature parity as the target.
@@ -196,3 +199,50 @@ build/type checks. Both live sources successfully fetched one image each. Deskto
 visual QA was attempted but the helper could not activate the returned test window;
 the instance was stopped. Interactive visual verification, downloads, advanced
 reader layouts and migration of the reading-progress repository to C# remain open.
+
+## C# reading-progress pass
+
+The reading-progress repository now runs in C#. Nova retains only the IPC adapter,
+loaded-chapter validation and read-only legacy import path. Versioned JSON writes
+use atomic replacement with a preceding flush; corrupt/oversized state fails
+visibly. Imports retain the original timestamp and cannot overwrite C# state.
+The old Vestra file remains as a recovery copy. This is a Vestra state migration,
+not a Seanime database import. One worker owns the directory.
+
+72 .NET cases, five process tests and four reader-service tests pass. The service
+tests exercise the real C# process, a full restart and legacy migration. Type-check
+and builds pass. Interactive visual verification, downloads, advanced reader
+layouts and the broader Seanime database migration remain open.
+
+## Source management pass
+
+Nova now has a Sources screen with native local-script imports, persisted
+configuration, enable/disable/remove controls, runtime checks and server selection.
+Runtime registration is per source; activation errors no longer tear down every
+loaded source. The legacy environment config is a first-run seed. Management
+storage remains TypeScript/Node-backed. Six management tests include actual C#
+load/unload and disabling after cancellation without replay. Packaged worker
+distribution, remote marketplace imports/updates and visual UI checks remain open.
+See [source-management.md](source-management.md).
+
+## Windows worker packaging pass
+
+Added self-contained Windows x64 publishing, packaged-executable selection, runtime
+asset checks and bundled TypeScript preprocessing with its license. Packaged source
+imports are enabled. The published worker and the copy inside an actual unpacked
+Electron build pass SDK-hidden tests; its ASAR compiler is extracted and tested
+outside node_modules. Three packaging checks include the existing five worker
+protocol tests against the executable. Clean-machine installation and visual
+application flows remain unverified. See [worker-packaging.md](worker-packaging.md).
+
+## Background reader-completion pass
+
+Added C# recent-reading metadata/listing and Continue Reading entries that restore
+known books without a source search. Progress stays compatible with the previous
+v1 shape; optional metadata is added on save. Reader controls now support chapter
+navigation, language/scanlator filtering, page jumps, RTL/double pages, fit and zoom.
+Appearance preferences remain local to the TypeScript renderer profile. A spread
+saves progress only after all visible images decode, and image/save failures can
+be retried independently. Interactive checking and installer refresh are deferred
+at the user's request; [desktop-verification.md](desktop-verification.md) records
+the earlier limited packaged observations.

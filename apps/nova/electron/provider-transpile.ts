@@ -1,11 +1,21 @@
 import { createRequire } from "node:module";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 
 /** Trusted compiler only; provider code is transformed, never imported into Node. */
 export function transpileProvider(source: string, filename: string): string {
   if (!/\.tsx?$/i.test(filename)) return source;
-  const ts = createRequire(__filename)(
-    "typescript",
-  ) as typeof import("typescript");
+  const bundled = join(__dirname, "provider-typescript.cjs");
+  let ts: typeof import("typescript");
+  try {
+    ts = createRequire(__filename)(
+      existsSync(bundled) ? bundled : "typescript",
+    ) as typeof import("typescript");
+  } catch {
+    throw new Error(
+      "The TypeScript provider compiler is missing. Rebuild or reinstall Vestra.",
+    );
+  }
   const result = ts.transpileModule(source, {
     fileName: filename,
     reportDiagnostics: true,

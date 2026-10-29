@@ -19,3 +19,8 @@ export interface ReadingProgress {
   page: number;
   updatedAt: string;
 }
+export interface MangaRecent {
+  entries: { book: MangaBook; progress: ReadingProgress }[];
+  unreadable: number;
+  truncated: boolean;
+}

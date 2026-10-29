@@ -10,6 +10,7 @@ const text = z.string().min(1).max(4096);
 export function registerMangaIpc(): void {
   const api = getMangaService();
   ipcMain.handle("manga:sources", () => api.list());
+  ipcMain.handle("manga:recent", (_e, p) => api.recent(text.parse(p)));
   ipcMain.handle("manga:search", (_e, p, q) =>
     api.search(text.parse(p), z.string().trim().min(1).max(500).parse(q)),
   );

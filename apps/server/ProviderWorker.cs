@@ -11,6 +11,7 @@ internal static class ProviderWorker
     {
         using var transport = new ProviderHttpTransport();
         var runtime = new ProviderRuntime(transport, store: new ProviderStore(Environment.GetEnvironmentVariable("VESTRA_PROVIDER_DATA_DIR")));
+        var progress = new ReadingProgressStore(Environment.GetEnvironmentVariable("VESTRA_PROVIDER_DATA_DIR"));
         using var input = Console.OpenStandardInput();
         using var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
         await output.WriteLineAsync("{\"kind\":\"ready\",\"protocol\":1,\"engine\":\"jint\",\"compatibility\":\"seanime-onlinestream-subset\"}");
@@ -45,6 +46,13 @@ internal static class ProviderWorker
                         "list" => runtime.List(),
                         "capabilities" => ProviderCapabilities.Describe(),
                         "image" => await ImageAsync(transport,command),
+                        "progress:get" => progress.Read(command.GetProperty("providerId").GetString()!, command.GetProperty("bookId").GetString()!),
+                        "progress:recent" => progress.Recent(command.GetProperty("providerId").GetString()!),
+                        "progress:save" => progress.Save(command.GetProperty("providerId").GetString()!, command.GetProperty("bookId").GetString()!,
+                            command.GetProperty("chapterId").GetString()!, command.GetProperty("page").GetInt32(), command.GetProperty("pageCount").GetInt32(),
+                            command.TryGetProperty("title", out var title) ? title.GetString() : null),
+                        "progress:import" => progress.Import(command.GetProperty("providerId").GetString()!, command.GetProperty("bookId").GetString()!,
+                            command.GetProperty("progress").Deserialize<ReadingPosition>(ProviderRuntime.JsonOptions) ?? throw new ArgumentException("Missing reading position.")),
                         _ => throw new ArgumentException("Unknown worker command.")
                     };
                     await output.WriteLineAsync(JsonSerializer.Serialize(new { id, ok = true, value = result }, ProviderRuntime.JsonOptions));

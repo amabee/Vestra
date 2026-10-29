@@ -1,4 +1,20 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { existsSync } from "node:fs";
+
+export function workerCommand(target: string): {
+  executable: string;
+  args: string[];
+} {
+  if (!existsSync(target))
+    throw new Error(
+      "C# provider worker is missing. Rebuild the server in development or reinstall Vestra.",
+    );
+  if (/\.dll$/i.test(target))
+    return { executable: "dotnet", args: [target, "--provider-worker"] };
+  if (/\.exe$/i.test(target))
+    return { executable: target, args: ["--provider-worker"] };
+  throw new Error("Unsupported C# worker executable.");
+}
 
 interface PendingCall {
   id: string;
@@ -22,13 +38,14 @@ export class CSharpProviderWorker {
   private sequence = 0;
   private failure: Error | null = null;
 
-  constructor(dllPath: string, dataDir?: string) {
+  constructor(target: string, dataDir?: string) {
+    const command = workerCommand(target);
     this.ready = new Promise((resolve, reject) => {
       this.acceptReady = resolve;
       this.rejectReady = reject;
     });
     void this.ready.catch(() => undefined);
-    this.child = spawn("dotnet", [dllPath, "--provider-worker"], {
+    this.child = spawn(command.executable, command.args, {
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"],
       env: {
@@ -50,7 +67,13 @@ export class CSharpProviderWorker {
     this.child.stderr.on("data", (chunk: string) =>
       console.warn("[csharp-provider]", chunk.slice(0, 2000)),
     );
-    this.child.on("error", (error) => this.stop(error));
+    this.child.on("error", (error) =>
+      this.stop(
+        new Error(
+          `Could not start C# provider worker: ${error.message}. Rebuild the server in development or reinstall Vestra.`,
+        ),
+      ),
+    );
     this.child.stdin.on("error", (error) => this.stop(error));
     this.child.on("exit", (code) =>
       this.stop(new Error(`C# provider worker exited (${String(code)}).`)),
@@ -158,11 +181,15 @@ export class CSharpProviderSession {
   private queue: Promise<void> = Promise.resolve();
   private stopped = false;
   private readonly definitions = new Map<string, Record<string, unknown>>();
+  /** Drop replay state before disabling a source, even if its worker has failed. */
+  forget(providerId: string): void {
+    this.definitions.delete(providerId);
+  }
   constructor(
-    private readonly dllPath: string,
+    private readonly target: string,
     private readonly dataDir?: string,
   ) {
-    this.worker = new CSharpProviderWorker(dllPath, dataDir);
+    this.worker = new CSharpProviderWorker(target, dataDir);
   }
   request(
     input: Record<string, unknown>,
@@ -173,7 +200,7 @@ export class CSharpProviderSession {
       if (this.stopped) throw new Error("C# provider session stopped.");
       signal?.throwIfAborted();
       if (this.worker.isFailed) {
-        this.worker = new CSharpProviderWorker(this.dllPath, this.dataDir);
+        this.worker = new CSharpProviderWorker(this.target, this.dataDir);
         try {
           for (const provider of this.definitions.values())
             await this.worker.request({ kind: "load", provider }, signal);
