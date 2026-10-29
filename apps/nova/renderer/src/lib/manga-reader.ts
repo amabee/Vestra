@@ -1,9 +1,9 @@
 import type { MangaChapter } from "../../../shared/manga";
 
 export interface ReaderOptions {
-  layout: "single" | "double";
+  layout: "single" | "double" | "continuous" | "webtoon";
   direction: "ltr" | "rtl";
-  fit: "height" | "width";
+  fit: "height" | "width" | "page" | "original";
   zoom: number;
   firstPageAlone: boolean;
 }
@@ -15,13 +15,29 @@ export const defaultReaderOptions: ReaderOptions = {
   firstPageAlone: true,
 };
 export const readerOptionsKey = "vestra-manga-reader-v1";
+export const seriesOptionsKey = (provider: string, book: string) =>
+  `${readerOptionsKey}:${JSON.stringify([provider, book])}`;
+export const isVerticalLayout = (layout: ReaderOptions["layout"]) =>
+  layout === "continuous" || layout === "webtoon";
+export function recommendLayout(
+  width: number,
+  height: number,
+): ReaderOptions["layout"] | null {
+  return width > 0 && height / width >= 2.5 ? "webtoon" : null;
+}
 export function parseReaderOptions(raw: string | null): ReaderOptions {
   try {
     const value = JSON.parse(raw ?? "null");
     return {
-      layout: value?.layout === "double" ? "double" : "single",
+      layout: ["single", "double", "continuous", "webtoon"].includes(
+        value?.layout,
+      )
+        ? value.layout
+        : "single",
       direction: value?.direction === "rtl" ? "rtl" : "ltr",
-      fit: value?.fit === "width" ? "width" : "height",
+      fit: ["height", "width", "page", "original"].includes(value?.fit)
+        ? value.fit
+        : "height",
       zoom:
         typeof value?.zoom === "number" && Number.isFinite(value.zoom)
           ? Math.min(200, Math.max(50, Math.round(value.zoom)))
@@ -42,7 +58,7 @@ export function visiblePages(
 ): number[] {
   if (count <= 0) return [];
   const page = Math.max(0, Math.min(Math.floor(position), count - 1));
-  if (options.layout === "single" || (options.firstPageAlone && page === 0))
+  if (options.layout !== "double" || (options.firstPageAlone && page === 0))
     return [page];
   const offset = options.firstPageAlone ? 1 : 0;
   const first = offset + Math.floor((page - offset) / 2) * 2;

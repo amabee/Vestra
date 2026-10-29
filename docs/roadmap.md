@@ -147,10 +147,14 @@ coverage, including failed and interrupted downloads.
 
 ## 7. Finish the manga experience
 
+- [x] Add continuous/Webtoon layouts, per-series preferences, immersive controls, fullscreen and a progress slider; see [reader checklist](manga-reader-checklist.md).
+- [x] Add a focused reading canvas, searchable chapter drawer and compact persistent page controls (desktop visual verification pending).
 - [x] Add next/previous chapter navigation and C#-backed Continue Reading entry points.
 - [x] Add left/right reading direction, double-page mode, fit/zoom and remembered reader preferences.
 - [x] Add language/scanlator filtering, page jumps and separate image-decode/save retry controls.
-- [ ] Add cover handling and host-side search ranking where required.
+- [x] Add provider cover art, a compact library grid and persisted Continue Reading artwork.
+- [x] Add cached AniList manga discovery with popularity, origin, genre and publication filters and an explicit source-search handoff.
+- [ ] Add host-side search ranking where required.
 - [ ] Implement persistent chapter downloads and offline reading.
 - [ ] Verify chapter ordering, language/scanlator selection and changing page counts.
 - [ ] Verify downloaded-image integrity, retry behavior and progress consistency.

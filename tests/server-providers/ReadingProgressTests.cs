@@ -19,6 +19,50 @@ public sealed class ReadingProgressTests : IDisposable
         Assert.Null(restarted.Read("source", "other"));
         Assert.Empty(Directory.GetFiles(directory, "*.tmp", SearchOption.AllDirectories));
     }
+    [Fact]
+    public void CoverMetadataSurvivesRestartAndSavesWithoutNewArtwork()
+    {
+        var cover = new ReadingCover("https://images.example/cover.jpg", new() { ["Referer"] = "https://manga.example/" });
+        var store = new ReadingProgressStore(directory);
+        store.Save("source", "book", "chapter", 0, 2, "Manga", cover);
+        var restarted = new ReadingProgressStore(directory);
+        restarted.Save("source", "book", "chapter", 1, 2, "Manga");
+        var recent = Assert.Single(restarted.Recent("source").Entries);
+        Assert.Equal(cover.Url, recent.Cover!.Url);
+        Assert.Equal("https://manga.example/", recent.Cover.Headers!["Referer"]);
+        Assert.Equal(1, recent.Progress.Page);
+        Assert.Empty(restarted.Recent("other").Entries);
+    }
+    [Fact]
+    public void ArtworkBackfillPreservesPositionTimestampAndDoesNotCreateHistory()
+    {
+        var store = new ReadingProgressStore(directory);
+        var position = store.Save("source", "book", "chapter", 1, 2, "Manga");
+        var cover = new ReadingCover("https://images.example/cover.jpg");
+        Assert.True(store.SetCover("source", "book", cover));
+        Assert.Equal(position, store.Read("source", "book"));
+        Assert.Equal(cover.Url, Assert.Single(new ReadingProgressStore(directory).Recent("source").Entries).Cover!.Url);
+        Assert.False(store.SetCover("source", "unread", cover));
+        Assert.Null(store.Read("source", "unread"));
+        Assert.Single(store.Recent("source").Entries);
+    }
+
+    [Theory]
+    [InlineData("http://images.example/cover.jpg")]
+    [InlineData("https://user:pass@images.example/cover.jpg")]
+    public void InvalidCoversCannotBePersisted(string url)
+    {
+        Assert.Throws<InvalidDataException>(() => new ReadingProgressStore(directory).Save("source", "book", "chapter", 0, 1, "Manga", new(url)));
+    }
+    [Fact]
+    public void OversizedArtworkDoesNotBlockSavingTheReadingPosition()
+    {
+        var headers = Enumerable.Range(0, 16).ToDictionary(index => "X-Test-" + index, _ => new string('a', 4096));
+        var store = new ReadingProgressStore(directory);
+        store.Save("source", "book", "chapter", 0, 1, "Manga", new("https://images.example/cover.jpg", headers));
+        Assert.Equal(0, store.Read("source", "book")!.Page);
+        Assert.Null(Assert.Single(store.Recent("source").Entries).Cover);
+    }
 
     [Fact]
     public void ImportPreservesTimestampAndCannotOverwriteExistingPosition()

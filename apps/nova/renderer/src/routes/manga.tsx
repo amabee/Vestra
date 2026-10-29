@@ -1,165 +1,44 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { Link } from "react-router";
-import { Page, PageHeader } from "@/components/layout/page";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { BookOpen, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
+import { MangaLibrary } from "@/components/manga/manga-library";
 import { bridge } from "@/lib/bridge";
 import { chapterSequence } from "@/lib/manga-reader";
 import { PageReader } from "@/components/manga/page-reader";
+import { useReaderChrome } from "@/lib/use-reader-chrome";
 import type { MangaBook } from "../../../shared/manga";
 
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 export function MangaRoute() {
-  const sources = useQuery({
-    queryKey: ["manga", "sources"],
-    queryFn: bridge.manga.sources,
-    refetchInterval: (q) => (q.state.data?.length ? false : 2000),
-  });
-  const [selected, setSelected] = useState("");
-  const id = sources.data?.some((source) => source.id === selected)
-    ? selected
-    : sources.data?.[0]?.id || "";
   return (
-    <Page>
-      <PageHeader
-        eyebrow="Library"
-        title="Manga"
-        lead="Search, read and continue where you left off."
-      />
-      {sources.error && <p role="alert">{errorText(sources.error)}</p>}
-      {!sources.data?.length ? (
-        <p className="py-8 text-base-content/60">
-          No manga sources are connected.{" "}
-          <Link className="link" to="/sources">
-            Add a manga source
-          </Link>{" "}
-          to start reading.
-        </p>
-      ) : (
-        <>
-          <label className="flex items-center gap-3 py-4">
-            Source
-            <select
-              className="select select-bordered"
-              value={id}
-              onChange={(e) => setSelected(e.target.value)}
-            >
-              {sources.data.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <MangaBrowser key={id} provider={id} />
-        </>
-      )}
-    </Page>
-  );
-}
-function MangaBrowser({ provider }: { provider: string }) {
-  const [input, setInput] = useState("");
-  const [query, setQuery] = useState("");
-  const [book, setBook] = useState<MangaBook | null>(null);
-  const recent = useQuery({
-    queryKey: ["manga", provider, "recent"],
-    queryFn: () => bridge.manga.recent(provider),
-    enabled: book === null,
-  });
-  const results = useQuery({
-    queryKey: ["manga", provider, "search", query],
-    queryFn: () => bridge.manga.search(provider, query),
-    enabled: query.length > 0,
-  });
-  if (book)
-    return (
-      <>
-        <button className="btn btn-ghost mb-4" onClick={() => setBook(null)}>
-          ← Browse manga
-        </button>
-        <BookReader key={book.id} provider={provider} book={book} />
-      </>
-    );
-  return (
-    <>
-      {recent.error && (
-        <p role="alert" className="py-3">
-          Could not load recent reading: {errorText(recent.error)}
-        </p>
-      )}
-      {!!recent.data?.entries.length && (
-        <section className="pb-6">
-          <h2 className="text-lg font-semibold">Continue reading</h2>
-          <div className="grid gap-2 py-3 sm:grid-cols-2">
-            {recent.data.entries.map((entry) => (
-              <button
-                key={entry.book.id}
-                className="rounded-lg border rule p-4 text-left hover:bg-base-200"
-                onClick={() => setBook(entry.book)}
-              >
-                <span className="block font-medium">{entry.book.title}</span>
-                <span className="text-sm text-base-content/60">
-                  Page {entry.progress.page + 1} ·{" "}
-                  {new Date(entry.progress.updatedAt).toLocaleDateString()}
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-      {(!!recent.data?.unreadable || recent.data?.truncated) && (
-        <p role="status" className="py-3 text-sm">
-          Some saved reading entries could not be listed. You can still search
-          for the title to open it.
-        </p>
-      )}
-      <form
-        className="flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setQuery(input.trim());
-        }}
-      >
-        <input
-          aria-label="Search manga"
-          className="input input-bordered flex-1"
-          placeholder="Search manga titles"
-          maxLength={500}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
+    <MangaLibrary
+      renderReader={(provider, book, onBack, chapter) => (
+        <BookReader
+          key={book.id}
+          provider={provider}
+          book={book}
+          onBack={onBack}
+          initialChapter={chapter}
+          backLabel="Details"
         />
-        <button className="btn btn-primary" disabled={!input.trim()}>
-          Search
-        </button>
-      </form>
-      {results.isFetching && (
-        <p role="status" className="py-4">
-          Searching…
-        </p>
       )}
-      {results.error && (
-        <p role="alert" className="py-4">
-          {errorText(results.error)}
-        </p>
-      )}
-      {query && results.data?.length === 0 && (
-        <p className="py-4">No matching manga found.</p>
-      )}
-      <div className="grid gap-2 py-5 sm:grid-cols-2">
-        {results.data?.map((b) => (
-          <button
-            key={b.id}
-            className="rounded-lg border rule p-4 text-left hover:bg-base-200"
-            onClick={() => setBook(b)}
-          >
-            {b.title}
-          </button>
-        ))}
-      </div>
-    </>
+    />
   );
 }
-function BookReader({ provider, book }: { provider: string; book: MangaBook }) {
+export function BookReader({
+  provider,
+  book,
+  onBack,
+  initialChapter,
+  backLabel = "Library",
+}: {
+  provider: string;
+  book: MangaBook;
+  onBack: () => void;
+  initialChapter?: string;
+  backLabel?: string;
+}) {
   const chapters = useQuery({
     queryKey: ["manga", provider, book.id, "chapters"],
     queryFn: () => bridge.manga.chapters(provider, book.id),
@@ -172,9 +51,23 @@ function BookReader({ provider, book }: { provider: string; book: MangaBook }) {
     staleTime: 0,
     gcTime: 0,
   });
-  const [selected, setSelected] = useState("");
+  const [selected, setSelected] = useState(initialChapter ?? "");
   const [language, setLanguage] = useState("");
   const [scanlator, setScanlator] = useState("");
+  const [chaptersOpen, setChaptersOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const chrome = useReaderChrome();
+  const changeSettings = useCallback((open: boolean) => {
+    setSettingsOpen(open);
+    if (open) setChaptersOpen(false);
+  }, []);
+  useEffect(() => {
+    if (chrome.immersive) {
+      setChaptersOpen(false);
+      setSettingsOpen(false);
+    }
+  }, [chrome.immersive]);
+  const [filter, setFilter] = useState("");
   const ordered = chapterSequence(chapters.data ?? [], language, scanlator);
   const languages = [
     ...new Set(
@@ -193,111 +86,219 @@ function BookReader({ provider, book }: { provider: string; book: MangaBook }) {
   const chapter = ordered.some((c) => c.id === selected) ? selected : fallback;
   const chapterIndex = ordered.findIndex((c) => c.id === chapter);
   return (
-    <section>
-      <h2 className="text-xl font-semibold">{book.title}</h2>
-      {(languages.length > 1 || scanlators.length > 1) && (
-        <div className="flex flex-wrap gap-3 py-3">
-          {languages.length > 1 && (
-            <label className="flex items-center gap-2 text-sm">
-              Language
-              <select
-                className="select select-bordered select-sm"
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-              >
-                <option value="">All languages</option>
-                {languages.map((value) => (
-                  <option key={value}>{value}</option>
+    <section
+      ref={chrome.root}
+      aria-label="Manga reader"
+      className={`fixed inset-x-0 bottom-0 z-40 flex flex-col overflow-hidden bg-neutral-950 ${chrome.fullscreen ? "top-0" : "top-11"}`}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") setChaptersOpen(false);
+      }}
+    >
+      <header
+        data-reader-chrome
+        inert={!chrome.visible}
+        className={`absolute inset-x-0 top-0 z-30 grid h-16 grid-cols-[1fr_minmax(0,2fr)_1fr] items-center gap-3 border-b rule bg-base-100/90 px-4 backdrop-blur-xl transition-opacity ${chrome.visible ? "opacity-100" : "pointer-events-none opacity-0"}`}
+      >
+        <div>
+          <button className="btn btn-ghost btn-sm" onClick={onBack}>
+            ← {backLabel}
+          </button>
+        </div>
+        <div className="min-w-0 text-center">
+          <h2
+            data-reader-title
+            className="truncate text-sm font-semibold"
+            title={book.title}
+          >
+            {book.title}
+          </h2>
+          <p className="truncate text-xs text-base-content/60">
+            {ordered[chapterIndex]?.title || "Choose a chapter"}
+          </p>
+        </div>
+        <div aria-hidden="true" />
+      </header>
+      {chrome.error && (
+        <p role="alert" className="bg-base-100 px-4 py-2">
+          {chrome.error}
+        </p>
+      )}
+      <div className="relative flex min-h-0 flex-1">
+        {chaptersOpen && (
+          <aside
+            id="reader-chapters"
+            data-reader-chrome
+            className="absolute bottom-24 right-4 z-40 flex max-h-[70vh] w-80 max-w-[calc(100%_-_2rem)] flex-col overflow-hidden rounded-xl border rule bg-base-100/95 shadow-2xl backdrop-blur-xl"
+          >
+            <div className="border-b rule p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="font-semibold">
+                  Chapters{" "}
+                  <span className="text-base-content/50">{ordered.length}</span>
+                </h3>
+                <button
+                  className="btn btn-ghost btn-xs"
+                  onClick={() => setChaptersOpen(false)}
+                  aria-label="Close chapters"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="mb-3 flex gap-2">
+                <button
+                  className="btn btn-ghost btn-sm flex-1"
+                  disabled={chapterIndex <= 0}
+                  aria-label="Previous chapter"
+                  onClick={() => setSelected(ordered[chapterIndex - 1]!.id)}
+                >
+                  <ChevronLeft className="size-4" /> Previous
+                </button>
+                <button
+                  className="btn btn-ghost btn-sm flex-1"
+                  disabled={
+                    chapterIndex < 0 || chapterIndex === ordered.length - 1
+                  }
+                  aria-label="Next chapter"
+                  onClick={() => setSelected(ordered[chapterIndex + 1]!.id)}
+                >
+                  Next <ChevronRight className="size-4" />
+                </button>
+              </div>
+              <input
+                className="input input-bordered input-sm w-full"
+                aria-label="Find chapter"
+                placeholder="Find chapter…"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+              />
+              {(languages.length > 1 || scanlators.length > 1) && (
+                <div className="flex flex-wrap gap-3 py-3">
+                  {languages.length > 1 && (
+                    <label className="flex items-center gap-2 text-sm">
+                      Language
+                      <select
+                        className="select select-bordered select-sm"
+                        value={language}
+                        onChange={(e) => setLanguage(e.target.value)}
+                      >
+                        <option value="">All languages</option>
+                        {languages.map((value) => (
+                          <option key={value}>{value}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  {scanlators.length > 1 && (
+                    <label className="flex items-center gap-2 text-sm">
+                      Scanlator
+                      <select
+                        className="select select-bordered select-sm"
+                        value={scanlator}
+                        onChange={(e) => setScanlator(e.target.value)}
+                      >
+                        <option value="">All scanlators</option>
+                        {scanlators.map((value) => (
+                          <option key={value}>{value}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </div>
+              )}
+            </div>
+            <nav
+              aria-label="Chapters"
+              className="min-h-0 flex-1 overflow-y-auto p-2"
+            >
+              {ordered
+                .filter((c) =>
+                  `${c.title} ${c.chapter}`
+                    .toLowerCase()
+                    .includes(filter.toLowerCase()),
+                )
+                .map((c) => (
+                  <button
+                    key={c.id}
+                    aria-current={c.id === chapter ? "true" : undefined}
+                    className={`mb-1 block w-full rounded-lg p-3 text-left text-sm ${c.id === chapter ? "bg-primary/15 text-primary" : "hover:bg-base-200"}`}
+                    onClick={() => {
+                      setSelected(c.id);
+                      setChaptersOpen(false);
+                    }}
+                  >
+                    <span className="block">
+                      {c.title || `Chapter ${c.chapter}`}
+                    </span>
+                    <span className="text-xs opacity-60">
+                      {[c.language, c.scanlator].filter(Boolean).join(" · ")}
+                    </span>
+                  </button>
                 ))}
-              </select>
-            </label>
+            </nav>
+          </aside>
+        )}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {chapters.error && <p role="alert">{errorText(chapters.error)}</p>}
+          {progress.error && (
+            <p role="alert">
+              Could not read saved progress: {errorText(progress.error)}
+            </p>
           )}
-          {scanlators.length > 1 && (
-            <label className="flex items-center gap-2 text-sm">
-              Scanlator
-              <select
-                className="select select-bordered select-sm"
-                value={scanlator}
-                onChange={(e) => setScanlator(e.target.value)}
-              >
-                <option value="">All scanlators</option>
-                {scanlators.map((value) => (
-                  <option key={value}>{value}</option>
-                ))}
-              </select>
-            </label>
+          {chapters.isPending ||
+          progress.isPending ||
+          chapters.isFetching ||
+          progress.isFetching ? (
+            <p role="status" className="py-5">
+              Loading chapters…
+            </p>
+          ) : ordered.length ? (
+            <>
+              <ChapterReader
+                key={chapter}
+                provider={provider}
+                book={book.id}
+                chapter={chapter}
+                start={
+                  progress.data?.chapterId === chapter ? progress.data.page : 0
+                }
+                onNextChapter={
+                  chapterIndex >= 0 && chapterIndex < ordered.length - 1
+                    ? () => setSelected(ordered[chapterIndex + 1]!.id)
+                    : undefined
+                }
+                chrome={chrome}
+                settingsOpen={settingsOpen}
+                onSettingsChange={changeSettings}
+                chapterControl={
+                  <button
+                    className="btn btn-ghost btn-sm max-w-44"
+                    title="Choose chapter"
+                    aria-label="Choose chapter"
+                    aria-expanded={chaptersOpen}
+                    aria-controls="reader-chapters"
+                    onClick={() => {
+                      setChaptersOpen(!chaptersOpen);
+                      setSettingsOpen(false);
+                    }}
+                  >
+                    <BookOpen className="size-4 shrink-0" />
+                    <span className="truncate">
+                      {ordered[chapterIndex]
+                        ? `Ch. ${ordered[chapterIndex]!.chapter}`
+                        : "Chapters"}
+                    </span>
+                    <ChevronUp className="size-3 shrink-0" />
+                  </button>
+                }
+              />
+            </>
+          ) : (
+            !chapters.error && (
+              <p className="py-5">No chapters match the current selection.</p>
+            )
           )}
         </div>
-      )}
-      {chapters.error && <p role="alert">{errorText(chapters.error)}</p>}
-      {progress.error && (
-        <p role="alert">
-          Could not read saved progress: {errorText(progress.error)}
-        </p>
-      )}
-      {chapters.isPending ||
-      progress.isPending ||
-      chapters.isFetching ||
-      progress.isFetching ? (
-        <p role="status" className="py-5">
-          Loading chapters…
-        </p>
-      ) : ordered.length ? (
-        <>
-          <label className="flex items-center gap-3 py-4">
-            Chapter
-            <select
-              aria-label="Chapter"
-              className="select select-bordered max-w-lg"
-              value={chapter}
-              onChange={(e) => setSelected(e.target.value)}
-            >
-              {ordered.map((c, i) => (
-                <option key={c.id} value={c.id}>
-                  {c.title || `Chapter ${c.chapter}`}{" "}
-                  {c.language ? `· ${c.language}` : ""}{" "}
-                  {c.scanlator ? `· ${c.scanlator}` : ""} ({i + 1}/
-                  {ordered.length})
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="flex justify-between gap-3 pb-4">
-            <button
-              className="btn btn-sm"
-              disabled={chapterIndex <= 0}
-              onClick={() => setSelected(ordered[chapterIndex - 1]!.id)}
-            >
-              Previous chapter
-            </button>
-            <button
-              className="btn btn-sm"
-              disabled={chapterIndex < 0 || chapterIndex === ordered.length - 1}
-              onClick={() => setSelected(ordered[chapterIndex + 1]!.id)}
-            >
-              Next chapter
-            </button>
-          </div>
-          <ChapterReader
-            key={chapter}
-            provider={provider}
-            book={book.id}
-            chapter={chapter}
-            start={
-              progress.data?.chapterId === chapter ? progress.data.page : 0
-            }
-            onNextChapter={
-              chapterIndex >= 0 && chapterIndex < ordered.length - 1
-                ? () => setSelected(ordered[chapterIndex + 1]!.id)
-                : undefined
-            }
-          />
-        </>
-      ) : (
-        !chapters.error && (
-          <p className="py-5">No chapters match the current selection.</p>
-        )
-      )}
+      </div>
     </section>
   );
 }
@@ -307,12 +308,20 @@ function ChapterReader({
   chapter,
   start,
   onNextChapter,
+  chrome,
+  onSettingsChange,
+  settingsOpen,
+  chapterControl,
 }: {
   provider: string;
   book: string;
   chapter: string;
   start: number;
   onNextChapter?: () => void;
+  chrome: ReturnType<typeof useReaderChrome>;
+  onSettingsChange: (open: boolean) => void;
+  settingsOpen: boolean;
+  chapterControl: ReactNode;
 }) {
   const pages = useQuery({
     queryKey: ["manga", provider, book, chapter, "pages"],
@@ -339,6 +348,10 @@ function ChapterReader({
       pages={pages.data}
       start={start}
       onNextChapter={onNextChapter}
+      chrome={chrome}
+      onSettingsChange={onSettingsChange}
+      settingsOpen={settingsOpen}
+      chapterControl={chapterControl}
     />
   );
 }

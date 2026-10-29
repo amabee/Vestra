@@ -9,6 +9,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
+    "build:app": "dotnet build apps/server/Vestra.Server.csproj -c Release --nologo && pnpm --filter @vestra/nova build",
     "build:server": "dotnet build apps/server/Vestra.Server.csproj -c Release --nologo",
     "test:server": "dotnet test tests/server-providers/Vestra.Providers.Tests.csproj -c Release --nologo",
     "test:server:bridge": "pnpm run build:server && node apps/nova/scripts/test-csharp-worker.mjs",
@@ -21,6 +22,8 @@
     "check:manga:live": "pnpm run build:server && node apps/nova/scripts/check-manga-live.mjs",
     "test:manga:reader": "pnpm run build:server && node apps/nova/scripts/test-manga-reader.mjs",
     "test:manga:navigation": "node apps/nova/scripts/test-reader-navigation.mjs",
+    "test:manga:ui": "pnpm --filter @vestra/nova build:renderer && node apps/nova/scripts/test-reader-ui.mjs",
+    "test:manga:preload": "pnpm run build:server && node apps/nova/scripts/test-reader-images.mjs",
     "test:sources": "pnpm run build:server && node apps/nova/scripts/test-source-manager.mjs",
     "test:sources:remote": "node apps/nova/scripts/test-remote-sources.mjs",
     "test:server:packaged": "pnpm --filter @vestra/nova run publish:worker && pnpm --filter @vestra/nova run build:electron && pnpm --filter @vestra/nova run test:packaged-worker",

@@ -22,6 +22,9 @@ const {
   chapterSequence,
   navigationKey,
   parseReaderOptions,
+  seriesOptionsKey,
+  isVerticalLayout,
+  recommendLayout,
 } = createRequire(import.meta.url)(join(scratch, "reader.cjs"));
 test("double pages preserve cover and final odd page without skipping", () => {
   const options = { layout: "double", firstPageAlone: true };
@@ -71,4 +74,29 @@ test("malformed local reader preferences recover and zoom stays bounded", () => 
   assert.equal(parseReaderOptions('{"zoom":999,"direction":"rtl"}').zoom, 200);
   assert.equal(parseReaderOptions('{"zoom":0}').zoom, 50);
   assert.equal(parseReaderOptions('{"zoom":"bad","layout":"bad"}').zoom, 100);
+});
+test("vertical layouts advance one image without applying spread alignment", () => {
+  for (const layout of ["continuous", "webtoon"]) {
+    const options = { layout, firstPageAlone: true };
+    assert.deepEqual(visiblePages(2, 7, options), [2]);
+    assert.equal(adjacentPage(2, 7, 1, options), 3);
+    assert.equal(adjacentPage(2, 7, -1, options), 1);
+    assert.equal(isVerticalLayout(layout), true);
+    assert.equal(parseReaderOptions(JSON.stringify({ layout })).layout, layout);
+  }
+  assert.equal(isVerticalLayout("double"), false);
+});
+test("series preferences remain distinct across providers and preserve new fitting options", () => {
+  assert.notEqual(seriesOptionsKey("a", "b:c"), seriesOptionsKey("a:b", "c"));
+  assert.notEqual(
+    seriesOptionsKey("one", "book"),
+    seriesOptionsKey("two", "book"),
+  );
+  for (const fit of ["height", "width", "page", "original"])
+    assert.equal(parseReaderOptions(JSON.stringify({ fit })).fit, fit);
+});
+test("only tall decoded images recommend webtoon mode", () => {
+  assert.equal(recommendLayout(800, 3200), "webtoon");
+  assert.equal(recommendLayout(800, 1100), null);
+  assert.equal(recommendLayout(0, 3200), null);
 });

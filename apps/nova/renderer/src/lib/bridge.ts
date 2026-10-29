@@ -85,12 +85,25 @@ interface RawBridge {
     check: (id: string) => Promise<unknown>;
   };
   manga: {
+    bookmarks: () => Promise<unknown>;
+    bookmark: (
+      kind: string,
+      source: string,
+      id: string,
+      saved: boolean,
+    ) => Promise<unknown>;
+    book: (p: string, id: string, title?: string) => Promise<unknown>;
+    info: (p: string, id: string) => Promise<unknown>;
+    details: (id: number) => Promise<unknown>;
+    discover: (filters: unknown) => Promise<unknown>;
+    catalogueCover: (id: number) => Promise<unknown>;
     sources: () => Promise<unknown>;
     recent: (p: string) => Promise<unknown>;
     search: (p: string, q: string) => Promise<unknown>;
     chapters: (p: string, b: string) => Promise<unknown>;
     pages: (p: string, b: string, c: string) => Promise<unknown>;
     image: (h: string) => Promise<unknown>;
+    cover: (p: string, b: string, refresh: boolean) => Promise<unknown>;
     progress: (p: string, b: string) => Promise<unknown>;
     save: (p: string, b: string, c: string, n: number) => Promise<unknown>;
   };
@@ -417,6 +430,36 @@ export const bridge = {
     check: (id: string) => raw().sources.check(id),
   },
   manga: {
+    bookmarks: () =>
+      raw().manga.bookmarks() as Promise<
+        import("../../../shared/manga").MangaBookmark[]
+      >,
+    bookmark: async (
+      kind: "source" | "catalogue",
+      source: string,
+      id: string,
+      saved: boolean,
+    ) => {
+      await raw().manga.bookmark(kind, source, id, saved);
+    },
+    book: (p: string, id: string, title?: string) =>
+      raw().manga.book(p, id, title) as Promise<
+        import("../../../shared/manga").MangaBook
+      >,
+    info: (p: string, id: string) =>
+      raw().manga.info(p, id) as Promise<
+        import("../../../shared/manga").MangaInformation | null
+      >,
+    details: (id: number) =>
+      raw().manga.details(id) as Promise<
+        import("../../../shared/manga").MangaInformation | null
+      >,
+    catalogueCover: (id: number) =>
+      raw().manga.catalogueCover(id) as Promise<string>,
+    discover: (filters: import("../../../shared/manga").MangaDiscoveryQuery) =>
+      raw().manga.discover(filters) as Promise<
+        import("../../../shared/manga").MangaDiscoveryPage
+      >,
     recent: (p: string) =>
       raw().manga.recent(p) as Promise<
         import("../../../shared/manga").MangaRecent
@@ -440,6 +483,10 @@ export const bridge = {
         c,
       )) as import("../../../shared/manga").MangaPage[],
     image: async (h: string) => (await raw().manga.image(h)) as string,
+    cover: (p: string, b: string, refresh = false) =>
+      raw().manga.cover(p, b, refresh) as Promise<
+        import("../../../shared/manga").MangaBook
+      >,
     progress: async (p: string, b: string) =>
       (await raw().manga.progress(p, b)) as
         import("../../../shared/manga").ReadingProgress | null,

@@ -13,6 +13,14 @@ export function csharpMangaProgress(
   providerId: string,
 ): ReadingProgressRepository {
   return {
+    async setCover(bookId, cover) {
+      await client.request({
+        kind: "progress:cover",
+        providerId,
+        bookId,
+        cover,
+      });
+    },
     async read(bookId) {
       return position
         .nullable()
@@ -30,6 +38,12 @@ export function csharpMangaProgress(
                 bookId: z.string().min(1).max(4096),
                 title: z.string().min(1).max(4096),
                 progress: position,
+                cover: z
+                  .object({
+                    url: z.string().url().max(4096),
+                    headers: z.record(z.string(), z.string()).nullish(),
+                  })
+                  .nullish(),
               }),
             )
             .max(12),
@@ -42,10 +56,13 @@ export function csharpMangaProgress(
         entries: result.entries.map((r) => ({
           book: { id: r.bookId, title: r.title },
           progress: r.progress,
+          artwork: r.cover
+            ? { url: r.cover.url, headers: r.cover.headers ?? {} }
+            : undefined,
         })),
       };
     },
-    async save(bookId, chapterId, page, pageCount, title) {
+    async save(bookId, chapterId, page, pageCount, title, cover) {
       await client.request({
         kind: "progress:save",
         providerId,
@@ -54,6 +71,7 @@ export function csharpMangaProgress(
         page,
         pageCount,
         title,
+        cover,
       });
     },
     async import(bookId, progress) {

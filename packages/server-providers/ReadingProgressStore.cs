@@ -9,7 +9,8 @@ public sealed record ReadingPosition(
     [property: JsonRequired] string ChapterId,
     [property: JsonRequired] int Page,
     [property: JsonRequired] DateTimeOffset UpdatedAt);
-public sealed record RecentReading(string ProviderId, string BookId, string Title, ReadingPosition Progress);
+public sealed record ReadingCover(string Url, Dictionary<string, string>? Headers = null);
+public sealed record RecentReading(string ProviderId, string BookId, string Title, ReadingPosition Progress, ReadingCover? Cover = null);
 public sealed record RecentReadings(RecentReading[] Entries, int Unreadable, bool Truncated);
 
 /// <summary>Host-owned reading state. Never bound into a provider's JavaScript engine.</summary>
@@ -17,19 +18,20 @@ public sealed class ReadingProgressStore(string? directory)
 {
     private readonly object gate = new();
     private sealed record Document([property: JsonRequired] int Version, [property: JsonRequired] ReadingPosition Progress,
-        string? ProviderId = null, string? BookId = null, string? Title = null);
+        string? ProviderId = null, string? BookId = null, string? Title = null, ReadingCover? Cover = null);
 
     public ReadingPosition? Read(string provider, string book)
     {
         lock (gate) return ReadFor(provider, book)?.Progress;
     }
 
-    public ReadingPosition Save(string provider, string book, string chapter, int page, int pageCount, string? title = null)
+    public ReadingPosition Save(string provider, string book, string chapter, int page, int pageCount, string? title = null, ReadingCover? cover = null)
     {
         if (pageCount is < 1 or > 2000 || page < 0 || page >= pageCount)
             throw new ArgumentException("Invalid reading position.");
         var value = new ReadingPosition(chapter, page, DateTimeOffset.UtcNow);
         Validate(value);
+        ValidateCover(cover);
         if (title is not null && (string.IsNullOrWhiteSpace(title) || title.Length > 4096)) throw new ArgumentException("Invalid manga title.");
         lock (gate)
         {
@@ -37,7 +39,11 @@ public sealed class ReadingProgressStore(string? directory)
             // Surface corruption rather than silently replacing a damaged document.
             var previous = ReadFor(provider, book);
             // Add optional metadata without changing the v1 progress shape older builds read.
-            Write(file, new Document(1, value, provider, book, title ?? previous?.Title ?? book));
+            var document = new Document(1, value, provider, book, title ?? previous?.Title ?? book, cover ?? previous?.Cover);
+            // Optional artwork must not consume the position document's budget.
+            if (document.Cover is not null && JsonSerializer.SerializeToUtf8Bytes(document, ProviderRuntime.JsonOptions).Length > 32768)
+                document = document with { Cover = null };
+            Write(file, document);
             return value;
         }
     }
@@ -52,6 +58,20 @@ public sealed class ReadingProgressStore(string? directory)
             if (existing is not null) return existing.Progress;
             Write(file, new Document(1, value, provider, book, book));
             return value;
+        }
+    }
+    public bool SetCover(string provider, string book, ReadingCover cover)
+    {
+        ValidateCover(cover);
+        lock (gate)
+        {
+            var file = FileFor(provider, book);
+            var current = ReadFor(provider, book);
+            if (current is null) return false;
+            var updated = current with { Cover = cover };
+            if (JsonSerializer.SerializeToUtf8Bytes(updated, ProviderRuntime.JsonOptions).Length > 32768) return false;
+            Write(file, updated);
+            return true;
         }
     }
 
@@ -74,7 +94,7 @@ public sealed class ReadingProgressStore(string? directory)
                     if (!string.Equals(FileFor(document.ProviderId, document.BookId!), file, StringComparison.OrdinalIgnoreCase))
                         throw new InvalidDataException("Reading progress identity mismatch.");
                     if (document.ProviderId != provider) continue;
-                    entries.Add(new(provider, document.BookId!, document.Title!, document.Progress));
+                    entries.Add(new(provider, document.BookId!, document.Title!, document.Progress, document.Cover));
                 }
                 catch (Exception error) when (error is IOException or InvalidDataException or JsonException or ArgumentException or UnauthorizedAccessException)
                 { unreadable++; }
@@ -121,6 +141,7 @@ public sealed class ReadingProgressStore(string? directory)
             if (document is null || document.Version != 1 || document.Progress is null)
                 throw new InvalidDataException("Invalid reading progress document.");
             Validate(document.Progress);
+            ValidateCover(document.Cover);
             if ((document.ProviderId is not null || document.BookId is not null || document.Title is not null) && (string.IsNullOrWhiteSpace(document.ProviderId) || document.ProviderId.Length > 120 ||
                 string.IsNullOrWhiteSpace(document.BookId) || document.BookId.Length > 4096 || string.IsNullOrWhiteSpace(document.Title) || document.Title.Length > 4096))
                 throw new InvalidDataException("Invalid reading progress metadata.");
@@ -146,5 +167,13 @@ public sealed class ReadingProgressStore(string? directory)
             File.Move(temp, file, true);
         }
         finally { if (File.Exists(temp)) File.Delete(temp); }
+    }
+    internal static void ValidateCover(ReadingCover? cover)
+    {
+        if (cover is null) return;
+        if (cover.Url is null || cover.Url.Length > 4096 || !Uri.TryCreate(cover.Url, UriKind.Absolute, out var uri) ||
+            uri.Scheme != "https" || !string.IsNullOrEmpty(uri.UserInfo)) throw new InvalidDataException("Invalid manga cover URL.");
+        try { ProviderResults.ValidateHeaders(JsonSerializer.SerializeToElement(cover.Headers ?? [])); }
+        catch (InvalidOperationException error) { throw new InvalidDataException("Invalid manga cover headers.", error); }
     }
 }

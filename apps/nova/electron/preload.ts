@@ -41,12 +41,23 @@ const api = {
     check: (id: string) => invoke("sources:check", id),
   },
   manga: {
+    bookmarks: () => invoke("manga:bookmarks"),
+    bookmark: (kind: string, source: string, id: string, saved: boolean) =>
+      invoke("manga:bookmark", kind, source, id, saved),
+    book: (p: string, id: string, title?: string) =>
+      invoke("manga:book", p, id, title),
+    info: (p: string, id: string) => invoke("manga:info", p, id),
+    details: (id: number) => invoke("manga:details", id),
+    discover: (filters: unknown) => invoke("manga:discover", filters),
+    catalogueCover: (id: number) => invoke("manga:catalogue-cover", id),
     sources: () => invoke("manga:sources"),
     recent: (p: string) => invoke("manga:recent", p),
     search: (p: string, q: string) => invoke("manga:search", p, q),
     chapters: (p: string, b: string) => invoke("manga:chapters", p, b),
     pages: (p: string, b: string, c: string) => invoke("manga:pages", p, b, c),
     image: (h: string) => invoke("manga:image", h),
+    cover: (p: string, b: string, refresh: boolean) =>
+      invoke("manga:cover", p, b, refresh),
     progress: (p: string, b: string) => invoke("manga:progress", p, b),
     save: (p: string, b: string, c: string, n: number) =>
       invoke("manga:save", p, b, c, n),

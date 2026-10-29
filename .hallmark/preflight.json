@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "scope": "app",
+  "screen": "manga information and saved library",
+  "theme": "Vestra existing tokens",
+  "genre": "modern-minimal",
+  "material": {
+    "actual": "AniList metadata and source chapter index",
+    "absent": "invented ratings, new visual assets"
+  },
+  "preserved": [
+    "React/Electron shell",
+    "theme.css semantic colours",
+    "Inter",
+    "compact dark controls"
+  ],
+  "signature": "source-specific chapter index before reading",
+  "states": ["loading", "empty", "error", "full"],
+  "files": [
+    "apps/nova/renderer/src/components/manga/manga-details.tsx",
+    "apps/nova/renderer/src/components/manga/manga-details.css",
+    "apps/nova/renderer/src/components/manga/manga-library.tsx",
+    "apps/nova/renderer/src/components/manga/manga-discovery.tsx"
+  ]
+}

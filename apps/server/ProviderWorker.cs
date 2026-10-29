@@ -12,6 +12,7 @@ internal static class ProviderWorker
         using var transport = new ProviderHttpTransport();
         var runtime = new ProviderRuntime(transport, store: new ProviderStore(Environment.GetEnvironmentVariable("VESTRA_PROVIDER_DATA_DIR")));
         var progress = new ReadingProgressStore(Environment.GetEnvironmentVariable("VESTRA_PROVIDER_DATA_DIR"));
+        var bookmarks = new MangaBookmarksStore(Environment.GetEnvironmentVariable("VESTRA_PROVIDER_DATA_DIR"));
         using var input = Console.OpenStandardInput();
         using var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
         await output.WriteLineAsync("{\"kind\":\"ready\",\"protocol\":1,\"engine\":\"jint\",\"compatibility\":\"seanime-onlinestream-subset\"}");
@@ -48,10 +49,15 @@ internal static class ProviderWorker
                         "image" => await ImageAsync(transport,command),
                         "download" => await DownloadAsync(transport, command),
                         "progress:get" => progress.Read(command.GetProperty("providerId").GetString()!, command.GetProperty("bookId").GetString()!),
+                        "bookmarks:list" => bookmarks.List(),
+                        "bookmarks:set" => SetBookmark(bookmarks, command),
                         "progress:recent" => progress.Recent(command.GetProperty("providerId").GetString()!),
+                        "progress:cover" => progress.SetCover(command.GetProperty("providerId").GetString()!, command.GetProperty("bookId").GetString()!,
+                            command.GetProperty("cover").Deserialize<ReadingCover>(ProviderRuntime.JsonOptions) ?? throw new ArgumentException("Missing cover.")),
                         "progress:save" => progress.Save(command.GetProperty("providerId").GetString()!, command.GetProperty("bookId").GetString()!,
                             command.GetProperty("chapterId").GetString()!, command.GetProperty("page").GetInt32(), command.GetProperty("pageCount").GetInt32(),
-                            command.TryGetProperty("title", out var title) ? title.GetString() : null),
+                            command.TryGetProperty("title", out var title) ? title.GetString() : null,
+                            command.TryGetProperty("cover", out var cover) ? cover.Deserialize<ReadingCover>(ProviderRuntime.JsonOptions) : null),
                         "progress:import" => progress.Import(command.GetProperty("providerId").GetString()!, command.GetProperty("bookId").GetString()!,
                             command.GetProperty("progress").Deserialize<ReadingPosition>(ProviderRuntime.JsonOptions) ?? throw new ArgumentException("Missing reading position.")),
                         _ => throw new ArgumentException("Unknown worker command.")
@@ -75,6 +81,13 @@ internal static class ProviderWorker
         var response = await transport.FetchBinaryAsync(new FetchRequest(url), new HashSet<string>(StringComparer.OrdinalIgnoreCase) { uri.IdnHost }, deadline.Token);
         if (response.Status is < 200 or >= 300) throw new InvalidOperationException($"Source download returned HTTP {response.Status}.");
         return new { data = Convert.ToBase64String(response.Body) };
+    }
+    private static bool SetBookmark(MangaBookmarksStore store, JsonElement command)
+    {
+        store.Set(command.GetProperty("entry").GetProperty("kind").GetString()!, command.GetProperty("entry").GetProperty("source").GetString()!,
+            command.GetProperty("entry").GetProperty("id").GetString()!, command.GetProperty("entry").GetProperty("title").GetString()!,
+            command.GetProperty("entry").TryGetProperty("cover", out var cover) ? cover.Deserialize<ReadingCover>(ProviderRuntime.JsonOptions) : null, command.GetProperty("saved").GetBoolean());
+        return true;
     }
     private static async Task<object> ImageAsync(ProviderHttpTransport transport,JsonElement command)
     {

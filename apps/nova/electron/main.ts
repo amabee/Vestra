@@ -29,7 +29,11 @@ import {
   registerMediaProtocolScheme,
 } from "./media-protocol";
 import { getDriver, resolveDataDir } from "./services";
-import { stopCSharpProviders } from "./csharp-providers";
+import {
+  stopCSharpProviders,
+  fetchCSharpImage,
+  getMangaBookmarks,
+} from "./csharp-providers";
 import { registerSourceIpc } from "./source-ipc";
 import { registerMangaIpc } from "./manga-ipc";
 import { registerAnimeIpc } from "./anime-ipc";
@@ -332,7 +336,7 @@ if (!gotLock) {
   void app.whenReady().then(() => {
     registerIpc();
     registerMediaProtocolHandler();
-    registerMangaIpc();
+    registerMangaIpc(fetchCSharpImage, getMangaBookmarks());
     registerAnimeIpc();
     registerSourceIpc();
 
