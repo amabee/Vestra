@@ -77,6 +77,10 @@ function clientForSources(): CSharpProviderSession {
     resolve(resolveDataDir(), "csharp-provider-store"),
   ));
 }
+export function fetchCSharpImage(request: unknown): Promise<unknown> {
+  if (shuttingDown) throw new Error("Image runtime is shutting down.");
+  return (imagePool ??= createImagePool(workerTarget())).image(request);
+}
 
 export async function activateCSharpSource(
   definition: ManagedSource,
@@ -104,10 +108,7 @@ export async function activateCSharpSource(
       id,
       definition.name,
       call,
-      (request) => {
-        if (shuttingDown) throw new Error("Image runtime is shutting down.");
-        return (imagePool ??= createImagePool(workerTarget())).image(request);
-      },
+      fetchCSharpImage,
       csharpMangaProgress(client, id),
     );
     mangaRegistrations.add(id);

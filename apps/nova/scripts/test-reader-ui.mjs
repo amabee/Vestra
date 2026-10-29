@@ -103,6 +103,11 @@ try {
     join(scratch, "index.html"),
     `<!doctype html><html data-theme="vestra-dark"><head><style>${css}</style></head><body style="margin:0;height:100vh"><div id="root"></div><script>
     window.readerFixture = { calls: [], saves: [], fail: true, exited:false, bridge: { manga: {
+      catalogueCover: async (id) => 'catalogue-refreshed-'+id,
+      discover: async (filters) => {
+        const f=window.readerFixture;f.discoveries??=[];f.discoveries.push(filters);
+        return {genres:['Action','Fantasy'],page:filters.page,hasNextPage:filters.page<3,stale:false,items:[{id:filters.origin==='KR'?102:101,title:filters.origin==='KR'?'Popular Korean Tale':'Popular Adventure',cover:'catalogue-'+(filters.origin==='KR'?102:101),genres:filters.genre?[filters.genre]:['Action','Fantasy'],origin:filters.origin==='all'?'JP':filters.origin,status:filters.status==='all'?'RELEASING':filters.status,score:85}]};
+      },
       cover: async (_provider,id,refresh) => {
         if(id==='recent-b')return {id,title:'City of Lanterns',cover:'cover-backfilled'};
         if(id==='recent-c'&&refresh)return {id,title:'After the Rain',cover:'cover-refreshed'};
@@ -249,6 +254,27 @@ try {
         await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Clear manga search").click()');
         await until('document.querySelector("section[aria-label^=Continue]")');
         console.log('PASS library search opens the reader and returns to a clean Continue Reading shelf');
+        await until('[...document.querySelectorAll("button")].some(e=>e.getAttribute("aria-label")==="Search Popular Adventure in source")');
+        const selectFilter=(label,value)=>run('(()=>{const e=[...document.querySelectorAll("select")].find(e=>e.getAttribute("aria-label")==='+JSON.stringify(label)+');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,"value").set.call(e,'+JSON.stringify(value)+');e.dispatchEvent(new Event("change",{bubbles:true}));})()');
+        await selectFilter('Manga origin','KR');
+        await until('window.readerFixture.discoveries.at(-1).origin==="KR"');
+        await selectFilter('Manga genre','Action');
+        await until('window.readerFixture.discoveries.at(-1).genre==="Action"');
+        await selectFilter('Manga publication status','FINISHED');
+        await until('window.readerFixture.discoveries.at(-1).status==="FINISHED"');
+        await selectFilter('Catalogue sort','score');
+        await until('window.readerFixture.discoveries.at(-1).sort==="score"');
+        await until('document.querySelector("[aria-label^=Discover]").textContent.includes("Top rated")');
+        await run('[...document.querySelector("[aria-label^=Discover]").querySelectorAll("button")].find(e=>e.textContent.trim()==="Next").click()');
+        await until('window.readerFixture.discoveries.at(-1).page===2');
+        await selectFilter('Manga genre','Fantasy');
+        await until('window.readerFixture.discoveries.at(-1).genre==="Fantasy" && window.readerFixture.discoveries.at(-1).page===1');
+        await until('[...document.querySelectorAll("button")].some(e=>e.getAttribute("aria-label")==="Search Popular Korean Tale in source")');
+        await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Search Popular Korean Tale in source").click()');
+        await until('window.readerFixture.searches.at(-1).query==="Popular Korean Tale"');
+        assert.equal(await run('!!document.querySelector("[data-reader-title]")'),false);
+        console.log('PASS discovery filters/pagination reset correctly and selecting a catalogue title searches its source');
+
         win.destroy(); app.exit(0);
       } catch(error) {console.error(error);win.destroy();app.exit(1);}
     });

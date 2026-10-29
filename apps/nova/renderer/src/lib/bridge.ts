@@ -85,6 +85,8 @@ interface RawBridge {
     check: (id: string) => Promise<unknown>;
   };
   manga: {
+    discover: (filters: unknown) => Promise<unknown>;
+    catalogueCover: (id: number) => Promise<unknown>;
     sources: () => Promise<unknown>;
     recent: (p: string) => Promise<unknown>;
     search: (p: string, q: string) => Promise<unknown>;
@@ -418,6 +420,12 @@ export const bridge = {
     check: (id: string) => raw().sources.check(id),
   },
   manga: {
+    catalogueCover: (id: number) =>
+      raw().manga.catalogueCover(id) as Promise<string>,
+    discover: (filters: import("../../../shared/manga").MangaDiscoveryQuery) =>
+      raw().manga.discover(filters) as Promise<
+        import("../../../shared/manga").MangaDiscoveryPage
+      >,
     recent: (p: string) =>
       raw().manga.recent(p) as Promise<
         import("../../../shared/manga").MangaRecent

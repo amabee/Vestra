@@ -89,10 +89,53 @@ export class MangaService {
   private coverImages = new Map<string, Promise<string>>();
   private warmQueue = new Set<string>();
   private warming = 0;
+  private catalogueImages: {
+    image: (request: unknown) => Promise<unknown>;
+  } | null = null;
+  private catalogueCovers = new Map<number, string>();
   constructor(
     private readonly driver: StorageDriver,
     private coverCache?: MangaCoverCache,
   ) {}
+  registerCatalogueImages(image: (request: unknown) => Promise<unknown>) {
+    this.catalogueImages = { image };
+  }
+  catalogueCover(id: number, url: string): string {
+    const previous = this.catalogueCovers.get(id);
+    if (previous && this.covers.get(previous)?.url === url) return previous;
+    if (previous) this.covers.delete(previous);
+    this.catalogueCovers.delete(id);
+    if (this.catalogueCovers.size >= 1000) {
+      const oldest = this.catalogueCovers.keys().next().value!;
+      this.covers.delete(this.catalogueCovers.get(oldest)!);
+      this.catalogueCovers.delete(oldest);
+    }
+    const handle = randomUUID();
+    this.catalogueCovers.set(id, handle);
+    this.covers.set(handle, {
+      providerId: "catalogue:anilist",
+      url,
+      headers: {},
+    });
+    return handle;
+  }
+  preloadArtwork(handles: string[]) {
+    this.warm(handles.map((cover) => ({ id: cover, title: "", cover })));
+  }
+  async refreshCatalogueCover(id: number): Promise<string> {
+    const handle = this.catalogueCovers.get(id),
+      row = handle ? this.covers.get(handle) : null;
+    if (!handle || !row)
+      throw new Error("Reopen the catalogue to reload this cover.");
+    await this.coverCache
+      ?.invalidate(row.providerId, row)
+      .catch(() => undefined);
+    this.covers.delete(handle);
+    this.catalogueCovers.delete(id);
+    const fresh = this.catalogueCover(id, row.url);
+    this.preloadArtwork([fresh]);
+    return fresh;
+  }
   private warm(books: MangaBook[]) {
     for (const book of books.slice(0, 8))
       if (book.cover && this.warmQueue.size < 24)
@@ -309,10 +352,15 @@ export class MangaService {
   async image(handle: string): Promise<string> {
     const r = this.handles.get(handle) ?? this.covers.get(handle);
     if (!r) throw new Error("Page expired. Reopen the chapter.");
-    const provider = this.provider(r.providerId);
+    const catalogue = r.providerId === "catalogue:anilist";
+    const provider = catalogue
+      ? this.catalogueImages
+      : this.provider(r.providerId);
+    if (!provider) throw new Error("Catalogue images are unavailable.");
     const valid = () =>
       (this.handles.get(handle) ?? this.covers.get(handle)) === r &&
-      this.providers.get(r.providerId) === provider;
+      (catalogue ? this.catalogueImages : this.providers.get(r.providerId)) ===
+        provider;
     const cover = this.covers.get(handle) === r;
     if (cover) {
       const pending = this.coverImages.get(handle);

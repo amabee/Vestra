@@ -41,6 +41,8 @@ const api = {
     check: (id: string) => invoke("sources:check", id),
   },
   manga: {
+    discover: (filters: unknown) => invoke("manga:discover", filters),
+    catalogueCover: (id: number) => invoke("manga:catalogue-cover", id),
     sources: () => invoke("manga:sources"),
     recent: (p: string) => invoke("manga:recent", p),
     search: (p: string, q: string) => invoke("manga:search", p, q),

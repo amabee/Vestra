@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getDriver, resolveDataDir } from "./services";
 import { join } from "node:path";
 import { MangaCoverCache } from "./manga-cover-cache";
+import { MangaDiscovery } from "./manga-discovery";
 import { MangaService } from "./manga-service";
 let service: MangaService | null = null;
 export function getMangaService(): MangaService {
@@ -12,9 +13,27 @@ export function getMangaService(): MangaService {
   ));
 }
 const text = z.string().min(1).max(4096);
-export function registerMangaIpc(): void {
+export function registerMangaIpc(
+  image: (request: unknown) => Promise<unknown>,
+): void {
   const api = getMangaService();
+  api.registerCatalogueImages(image);
+  const discovery = new MangaDiscovery(getDriver(), (id, url) =>
+    api.catalogueCover(id, url),
+  );
+  ipcMain.handle("manga:discover", async (_e, filters) => {
+    const page = await discovery.browse(filters);
+    api.preloadArtwork(
+      page.items
+        .map((item) => item.cover)
+        .filter((value): value is string => !!value),
+    );
+    return page;
+  });
   ipcMain.handle("manga:sources", () => api.list());
+  ipcMain.handle("manga:catalogue-cover", (_e, id) =>
+    api.refreshCatalogueCover(z.number().int().positive().parse(id)),
+  );
   ipcMain.handle("manga:recent", (_e, p) => api.recent(text.parse(p)));
   ipcMain.handle("manga:search", (_e, p, q) =>
     api.search(text.parse(p), z.string().trim().min(1).max(500).parse(q)),

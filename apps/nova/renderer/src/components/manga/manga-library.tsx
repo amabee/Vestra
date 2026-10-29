@@ -19,6 +19,7 @@ import { Link } from "react-router";
 import { bridge } from "@/lib/bridge";
 import { ReaderImages } from "@/lib/reader-images";
 import { CoverLookups } from "@/lib/cover-lookups";
+import { MangaDiscoveryShelf } from "./manga-discovery";
 import type {
   MangaBook,
   MangaRecent,
@@ -130,6 +131,7 @@ function MangaShelf({
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(48);
+  const toolbar = useRef<HTMLDivElement>(null);
   const [book, setBook] = useState<MangaBook | null>(null);
   const [images] = useState(
     () => new ReaderImages((handle) => bridge.manga.image(handle)),
@@ -168,7 +170,10 @@ function MangaShelf({
   };
   return (
     <>
-      <div className="mb-8 flex flex-col overflow-hidden rounded-xl border border-base-content/10 bg-base-200/40 sm:flex-row sm:items-center">
+      <div
+        ref={toolbar}
+        className="mb-8 flex flex-col overflow-hidden rounded-xl border border-base-content/10 bg-base-200/40 sm:flex-row sm:items-center"
+      >
         {sourceControl}
         <form
           className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2"
@@ -265,58 +270,71 @@ function MangaShelf({
           )}
         </section>
       ) : (
-        <section aria-label="Continue reading">
-          <div className="mb-5 flex items-baseline justify-between gap-4">
-            <h2 className="flex items-center gap-2 text-lg font-semibold">
-              <Clock3 className="size-4 text-base-content/40" />
-              Continue reading
-            </h2>
-            {!!recent.data?.entries.length && (
-              <span className="text-xs text-base-content/40">
-                {recent.data.entries.length} recently read
-              </span>
+        <>
+          <section aria-label="Continue reading">
+            <div className="mb-5 flex items-baseline justify-between gap-4">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <Clock3 className="size-4 text-base-content/40" />
+                Continue reading
+              </h2>
+              {!!recent.data?.entries.length && (
+                <span className="text-xs text-base-content/40">
+                  {recent.data.entries.length} recently read
+                </span>
+              )}
+            </div>
+            {recent.error && (
+              <div role="alert" className="mb-5 text-sm">
+                Could not load recent reading: {errorText(recent.error)}{" "}
+                <button className="link" onClick={() => void recent.refetch()}>
+                  Retry
+                </button>
+              </div>
             )}
-          </div>
-          {recent.error && (
-            <div role="alert" className="mb-5 text-sm">
-              Could not load recent reading: {errorText(recent.error)}{" "}
-              <button className="link" onClick={() => void recent.refetch()}>
-                Retry
-              </button>
-            </div>
-          )}
-          {recent.isPending ? (
-            <CoverSkeletons />
-          ) : recent.data?.entries.length ? (
-            <div className={grid}>
-              {recent.data.entries.map((entry) => (
-                <MangaCard
-                  key={entry.book.id}
-                  book={entry.book}
-                  progress={entry.progress}
-                  images={images}
-                  provider={provider}
-                  lookups={lookups}
-                  disabled={recent.isFetching}
-                  onOpen={() => setBook(entry.book)}
-                />
-              ))}
-            </div>
-          ) : (
-            !recent.error && (
-              <EmptyShelf
-                title="Find your next read"
-                description="Search a title above. The series you read will appear here so you can jump back in."
-              />
-            )
-          )}
-          {(!!recent.data?.unreadable || recent.data?.truncated) && (
-            <p role="status" className="mt-5 text-xs text-base-content/50">
-              Some saved entries could not be listed. Search the title to reopen
-              it.
-            </p>
-          )}
-        </section>
+            {recent.isPending ? (
+              <CoverSkeletons />
+            ) : recent.data?.entries.length ? (
+              <div className="grid auto-cols-[132px] grid-flow-col gap-4 overflow-x-auto pb-3">
+                {recent.data.entries.map((entry) => (
+                  <MangaCard
+                    key={entry.book.id}
+                    book={entry.book}
+                    progress={entry.progress}
+                    images={images}
+                    provider={provider}
+                    lookups={lookups}
+                    disabled={recent.isFetching}
+                    onOpen={() => setBook(entry.book)}
+                  />
+                ))}
+              </div>
+            ) : (
+              !recent.error && (
+                <p className="rounded-xl border border-dashed border-base-content/10 px-4 py-5 text-sm text-base-content/45">
+                  No recent reading yet. Explore below, or search your source
+                  above.
+                </p>
+              )
+            )}
+            {(!!recent.data?.unreadable || recent.data?.truncated) && (
+              <p role="status" className="mt-5 text-xs text-base-content/50">
+                Some saved entries could not be listed. Search the title to
+                reopen it.
+              </p>
+            )}
+          </section>
+          <MangaDiscoveryShelf
+            images={images}
+            onSelect={(title) => {
+              setInput(title);
+              setQuery(title);
+              setLimit(48);
+              queueMicrotask(() =>
+                toolbar.current?.scrollIntoView({ block: "start" }),
+              );
+            }}
+          />
+        </>
       )}
     </>
   );

@@ -25,3 +25,26 @@ export interface MangaRecent {
   unreadable: number;
   truncated: boolean;
 }
+export interface MangaDiscoveryQuery {
+  sort: "popular" | "trending" | "score" | "newest";
+  origin: "all" | "JP" | "KR" | "CN";
+  genre: string;
+  status: "all" | "RELEASING" | "FINISHED";
+  page: number;
+}
+export interface MangaDiscoveryTitle {
+  id: number;
+  title: string;
+  cover?: string;
+  genres: string[];
+  origin: string | null;
+  status: string | null;
+  score: number | null;
+}
+export interface MangaDiscoveryPage {
+  items: MangaDiscoveryTitle[];
+  genres: string[];
+  hasNextPage: boolean;
+  page: number;
+  stale: boolean;
+}
