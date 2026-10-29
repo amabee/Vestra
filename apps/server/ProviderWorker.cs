@@ -46,6 +46,7 @@ internal static class ProviderWorker
                         "list" => runtime.List(),
                         "capabilities" => ProviderCapabilities.Describe(),
                         "image" => await ImageAsync(transport,command),
+                        "download" => await DownloadAsync(transport, command),
                         "progress:get" => progress.Read(command.GetProperty("providerId").GetString()!, command.GetProperty("bookId").GetString()!),
                         "progress:recent" => progress.Recent(command.GetProperty("providerId").GetString()!),
                         "progress:save" => progress.Save(command.GetProperty("providerId").GetString()!, command.GetProperty("bookId").GetString()!,
@@ -65,6 +66,15 @@ internal static class ProviderWorker
                 finally { line.SetLength(0); }
             }
         }
+    }
+    private static async Task<object> DownloadAsync(ProviderHttpTransport transport, JsonElement command)
+    {
+        var url = command.GetProperty("url").GetString()!;
+        var uri = new Uri(url, UriKind.Absolute);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var response = await transport.FetchBinaryAsync(new FetchRequest(url), new HashSet<string>(StringComparer.OrdinalIgnoreCase) { uri.IdnHost }, deadline.Token);
+        if (response.Status is < 200 or >= 300) throw new InvalidOperationException($"Source download returned HTTP {response.Status}.");
+        return new { data = Convert.ToBase64String(response.Body) };
     }
     private static async Task<object> ImageAsync(ProviderHttpTransport transport,JsonElement command)
     {

@@ -229,6 +229,17 @@ export async function checkCSharpSource(sourceId: string): Promise<unknown> {
     args: [],
   });
 }
+export async function downloadSourceArtifact(url: string): Promise<Uint8Array> {
+  const result = z
+    .object({
+      data: z
+        .string()
+        .max(2796204)
+        .regex(/^[A-Za-z0-9+/]*={0,2}$/),
+    })
+    .parse(await clientForSources().request({ kind: "download", url }));
+  return Buffer.from(result.data, "base64");
+}
 
 /** Legacy config is a first-run seed. Managed copies are independent of these paths. */
 export async function readLegacyCSharpSources(): Promise<ManagedSource[]> {
@@ -255,6 +266,7 @@ export async function readLegacyCSharpSources(): Promise<ManagedSource[]> {
     result.push({
       ...definition,
       enabled: true,
+      history: [],
       filename: basename(sourcePath),
       source: await readFile(sourcePath, "utf8"),
     });

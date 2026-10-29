@@ -99,7 +99,9 @@ baselines before the broader service migrations so later comparisons remain usef
 - [ ] Implement required request cancellation, cookie semantics and concurrent IO scheduling.
 - [ ] Define module/import support and the remaining TypeScript packaging/runtime policy.
 - [x] Replace local source scripts while preserving identity/settings, with rollback on failed enabled-source updates.
-- [ ] Add remote installation and automatic update/version handling.
+- [x] Preview and install remote provider manifests with reviewed host grants and pinned script bytes.
+- [x] Track remote versions, manually check updates and restore up to three prior scripts.
+- [ ] Add unattended update policy/scheduling if required; current updates require review.
 - [ ] Add website-health diagnostics separately from the existing runtime check.
 - [ ] Complete source preference metadata, editing and lifecycle behavior.
 - [ ] Audit and implement remaining extension types, hooks and plugins.

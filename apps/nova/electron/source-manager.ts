@@ -38,7 +38,26 @@ export const sourceOptions = z.object({
   compatibility: z.enum(["animesaturn-nested-player-v1"]).optional(),
   preferredServer: z.string().trim().min(1).max(120).optional(),
 });
-const managedSource = sourceOptions.extend({
+export const secureSourceUrl = z
+  .string()
+  .url()
+  .max(4096)
+  .refine((value) => {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      !url.hash &&
+      (!url.port || url.port === "443")
+    );
+  }, "Use a public HTTPS URL without credentials, fragments or a custom port.");
+export const remoteMetadata = z.object({
+  manifestUrl: secureSourceUrl,
+  version: z.string().trim().min(1).max(80),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+});
+const scriptPayload = z.object({
   filename: z
     .string()
     .min(1)
@@ -48,7 +67,11 @@ const managedSource = sourceOptions.extend({
     .string()
     .min(1)
     .refine((s) => Buffer.byteLength(s) <= 1048576, "Source exceeds 1 MiB."),
+  remote: remoteMetadata.optional(),
+});
+const managedSource = sourceOptions.merge(scriptPayload).extend({
   enabled: z.boolean(),
+  history: z.array(scriptPayload).max(3).default([]),
 });
 export type ManagedSource = z.infer<typeof managedSource>;
 interface Runtime {
@@ -57,6 +80,10 @@ interface Runtime {
   check(id: string): Promise<unknown>;
 }
 const registryKey = "csharp-managed-sources";
+const revisionId = (row: z.infer<typeof scriptPayload>) =>
+  createHash("sha256")
+    .update(JSON.stringify([row.filename, row.source, row.remote ?? null]))
+    .digest("hex");
 const sourceHash = (source: string) =>
   createHash("sha256").update(source).digest("hex");
 export class SourceManager {
@@ -117,9 +144,14 @@ export class SourceManager {
   async list(): Promise<SourceSummary[]> {
     await this.queue;
     return this.entries.map(
-      ({ source: _source, filename: _filename, ...row }) => ({
+      ({ source: _source, filename: _filename, history, ...row }) => ({
         ...row,
         sourceHash: sourceHash(_source),
+        versions: history.map((entry) => ({
+          id: revisionId(entry),
+          version: entry.remote?.version ?? "Local script",
+          sourceHash: sourceHash(entry.source),
+        })),
         ...(this.states.get(row.id) ?? { status: "disabled" as const }),
       }),
     );
@@ -139,41 +171,107 @@ export class SourceManager {
         .pick({ source: true, filename: true })
         .parse(script);
       const next = managedSource.parse({ ...old, ...replacement });
-      if (old.source === next.source && old.filename === next.filename) return;
-      const rows = this.entries.map((row) => (row.id === id ? next : row));
-      if (!old.enabled) {
-        // Replacing a disabled source must not execute its script.
-        await this.driver.write(registryKey, rows);
-        this.entries = rows;
-        this.states.set(id, { status: "disabled" });
+      if (
+        old.source === next.source &&
+        old.filename === next.filename &&
+        !old.remote
+      )
         return;
-      }
-      const previousState = this.states.get(id);
-      try {
-        await this.runtime.deactivate(id);
-        await this.runtime.activate(next);
-        const settings = await this.settingsFor(next);
-        await this.driver.write(registryKey, rows);
-        this.entries = rows;
-        this.states.set(id, {
-          status: "ready",
-          checkedAt: new Date().toISOString(),
-          servers: settings.episodeServers,
-        });
-      } catch (error) {
-        // The persisted entry is still old. Remove any partial candidate and restore it.
-        await this.start(old);
-        const restored = this.states.get(id)?.status === "ready";
-        if (restored && previousState) this.states.set(id, previousState);
-        const detail = error instanceof Error ? error.message : String(error);
-        const recovery = this.states.get(id)?.error;
-        throw new Error(
-          restored
-            ? `Script replacement failed; the previous script was restored. ${detail}`
-            : `Script replacement failed; the previous script remains saved, but could not be restarted. ${detail} ${recovery ?? ""}`,
-        );
-      }
+      await this.commitReplacement(old, { ...next, remote: undefined });
     });
+  }
+  applyRemote(
+    id: string,
+    script: unknown,
+    hosts: unknown,
+    expectedHash: string,
+    expectedVersion: string,
+  ): Promise<void> {
+    return this.serial(async () => {
+      const old = this.entries.find((row) => row.id === id);
+      if (
+        !old ||
+        sourceHash(old.source) !== expectedHash ||
+        old.remote?.version !== expectedVersion
+      )
+        throw new Error("Source changed. Check for updates again.");
+      const payload = scriptPayload.parse(script);
+      if (
+        !payload.remote ||
+        payload.remote.manifestUrl !== old.remote?.manifestUrl
+      )
+        throw new Error("The update origin changed.");
+      await this.commitReplacement(
+        old,
+        managedSource.parse({
+          ...old,
+          ...payload,
+          hosts: sourceOptions.shape.hosts.parse(hosts),
+        }),
+      );
+    });
+  }
+  rollback(id: string, revision: string, expectedHash: string): Promise<void> {
+    return this.serial(async () => {
+      const old = this.entries.find((row) => row.id === id);
+      if (!old || sourceHash(old.source) !== expectedHash)
+        throw new Error("Source changed. Refresh its version history.");
+      const previous = old.history.find(
+        (entry) => revisionId(entry) === revision,
+      );
+      if (!previous)
+        throw new Error("That saved version is no longer available.");
+      await this.commitReplacement(
+        old,
+        managedSource.parse({ ...old, ...previous, remote: previous.remote }),
+      );
+    });
+  }
+  private async commitReplacement(
+    old: ManagedSource,
+    next: ManagedSource,
+  ): Promise<void> {
+    const id = old.id;
+    const history = [
+      { source: old.source, filename: old.filename, remote: old.remote },
+      ...old.history,
+    ]
+      .filter((entry) => revisionId(entry) !== revisionId(next))
+      .slice(0, 3);
+    next = { ...next, history };
+    const rows = this.entries.map((row) => (row.id === id ? next : row));
+    if (!old.enabled) {
+      // Replacing a disabled source must not execute its script.
+      await this.driver.write(registryKey, rows);
+      this.entries = rows;
+      this.states.set(id, { status: "disabled" });
+      return;
+    }
+    const previousState = this.states.get(id);
+    try {
+      await this.runtime.deactivate(id);
+      await this.runtime.activate(next);
+      const settings = await this.settingsFor(next);
+      await this.driver.write(registryKey, rows);
+      this.entries = rows;
+      this.states.set(id, {
+        status: "ready",
+        checkedAt: new Date().toISOString(),
+        servers: settings.episodeServers,
+      });
+    } catch (error) {
+      // The persisted entry is still old. Remove any partial candidate and restore it.
+      await this.start(old);
+      const restored = this.states.get(id)?.status === "ready";
+      if (restored && previousState) this.states.set(id, previousState);
+      const detail = error instanceof Error ? error.message : String(error);
+      const recovery = this.states.get(id)?.error;
+      throw new Error(
+        restored
+          ? `Script replacement failed; the previous script was restored. ${detail}`
+          : `Script replacement failed; the previous script remains saved, but could not be restarted. ${detail} ${recovery ?? ""}`,
+      );
+    }
   }
   private async settingsFor(row: ManagedSource) {
     const settings = z

@@ -43,9 +43,10 @@ is respected, so removed entries are not reinstalled by that legacy config.
 
 Windows x64 packages now include a self-contained C# worker and TypeScript compiler,
 and local imports are enabled in packaged builds. Clean-machine install and visual
-checks remain pending; see [worker-packaging.md](worker-packaging.md). Marketplace
-downloads, automatic updates/version history and full Seanime extension-host parity
-remain pending. Local source-code replacement is implemented below.
+checks remain pending; see [worker-packaging.md](worker-packaging.md). Remote manifest
+installs, reviewed updates and bounded version history are now implemented; see
+[remote-sources.md](remote-sources.md). Unattended updates and full Seanime
+extension-host parity remain pending. Local script replacement is described below.
 
 Validation: `pnpm test:sources` builds the worker and runs eleven management tests,
 including real C# lifecycle and disable-after-cancellation checks. Persistence,
@@ -78,9 +79,8 @@ again after the worker problem is resolved. Reloading can expire existing playba
 and page handles; cached UI data is invalidated after the operation.
 
 A disabled source remains disabled and its replacement is saved without guest
-execution. Contract validation is deferred until it is enabled. This is a local
-script replacement, not an automatic updater, remote marketplace installer or
-version-history system. Candidate script initialization/settings can access its
+execution. Contract validation is deferred until it is enabled. This local flow is separate from remote installation/update reviews. Up to three
+previous scripts are now retained for explicit restoration. Candidate script initialization/settings can access its
 own provider store; guest-side effects are not rolled back with the registry.
 
 The eleven management tests cover settings/identity preservation, persisted

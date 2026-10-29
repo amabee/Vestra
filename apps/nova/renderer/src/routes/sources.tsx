@@ -2,10 +2,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { Page, PageHeader } from "@/components/layout/page";
 import { bridge } from "@/lib/bridge";
+import {
+  RemoteSourceImport,
+  RemoteSourceReview,
+} from "@/components/sources/remote-source";
 import type {
   PickedSource,
   SourceOptions,
   SourceSummary,
+  RemoteSourcePlan,
 } from "../../../shared/sources";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -18,6 +23,13 @@ export function SourcesRoute() {
   const [picked, setPicked] = useState<PickedSource | null>(null);
   const [editing, setEditing] = useState<SourceSummary | null>(null);
   const [replacing, setReplacing] = useState<SourceSummary | null>(null);
+  const [remote, setRemote] = useState<RemoteSourcePlan | null>(null);
+  const reviewRemote = (plan: RemoteSourcePlan) => {
+    setRemote(plan);
+    setPicked(null);
+    setEditing(null);
+    setReplacing(null);
+  };
   const refresh = async () => {
     await Promise.all([
       cache.invalidateQueries({ queryKey: ["managed-sources"] }),
@@ -37,6 +49,7 @@ export function SourcesRoute() {
     onSuccess: ({ file, target }) => {
       if (!file) return;
       setPicked(file);
+      setRemote(null);
       setReplacing(target);
       setEditing(null);
       action.reset();
@@ -63,6 +76,24 @@ export function SourcesRoute() {
       </div>
       {sources.isPending && <p role="status">Loading sources…</p>}
       {sources.error && <p role="alert">{message(sources.error)}</p>}
+      <RemoteSourceImport
+        disabled={action.isPending || pick.isPending}
+        onPrepared={reviewRemote}
+      />
+      {remote && (
+        <RemoteSourceReview
+          key={remote.token}
+          plan={remote}
+          busy={action.isPending}
+          onCancel={() => setRemote(null)}
+          onApply={(hosts) =>
+            action.mutate(async () => {
+              await bridge.sources.applyRemote(remote.token, hosts);
+              setRemote(null);
+            })
+          }
+        />
+      )}
       {(pick.error || action.error) && (
         <p role="alert" className="py-3 text-error">
           {message(pick.error || action.error)}
@@ -157,6 +188,7 @@ export function SourcesRoute() {
                 <p className="text-sm text-base-content/60">
                   {source.type === "manga-provider" ? "Manga" : "Anime"} ·{" "}
                   {source.id}
+                  {source.remote ? ` · ${source.remote.version}` : ""}
                 </p>
               </div>
               <span
@@ -206,6 +238,7 @@ export function SourcesRoute() {
                 disabled={action.isPending}
                 onClick={() => {
                   setEditing(source);
+                  setRemote(null);
                   setPicked(null);
                   setReplacing(null);
                   action.reset();
@@ -229,6 +262,21 @@ export function SourcesRoute() {
               >
                 Check runtime
               </button>
+              {source.remote && (
+                <button
+                  className="btn btn-sm"
+                  disabled={action.isPending}
+                  onClick={() =>
+                    action.mutate(async () =>
+                      reviewRemote(
+                        await bridge.sources.checkUpdates(source.id),
+                      ),
+                    )
+                  }
+                >
+                  Check for updates
+                </button>
+              )}
               <button
                 className="btn btn-sm btn-ghost text-error"
                 disabled={action.isPending}
@@ -239,6 +287,40 @@ export function SourcesRoute() {
                 Remove
               </button>
             </div>
+            {!!source.versions.length && (
+              <details className="pt-4 text-sm">
+                <summary className="cursor-pointer">
+                  Previous scripts ({source.versions.length})
+                </summary>
+                <div className="grid gap-2 pt-2">
+                  {source.versions.map((version) => (
+                    <div
+                      key={version.id}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <span>
+                        {version.version} · {version.sourceHash.slice(0, 12)}
+                      </span>
+                      <button
+                        className="btn btn-sm"
+                        disabled={action.isPending}
+                        onClick={() =>
+                          action.mutate(() =>
+                            bridge.sources.rollback(
+                              source.id,
+                              version.id,
+                              source.sourceHash,
+                            ),
+                          )
+                        }
+                      >
+                        Restore
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
           </article>
         ))}
       </div>

@@ -209,6 +209,20 @@ test("C# worker round trip: readiness, load, search, episodes, stream, errors, u
     });
     assert.equal(methods.length, 4);
     const capabilities = await worker.request({ kind: "capabilities" });
+    await assert.rejects(
+      worker.request({
+        kind: "download",
+        url: "http://example.com/manifest.json",
+      }),
+      /HTTPS|https|scheme/,
+    );
+    await assert.rejects(
+      worker.request({
+        kind: "download",
+        url: "https://127.0.0.1/provider.js",
+      }),
+      /public|host|address|DNS|IP/i,
+    );
     assert.equal(capabilities.gojaEnginePort, false);
     assert.equal(capabilities.fullSeanimeCompatibility, false);
     assert.ok(capabilities.extensionTypes.includes("manga-provider"));

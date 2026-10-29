@@ -4,11 +4,13 @@ import { basename } from "node:path";
 import { dialog, ipcMain } from "electron";
 import { z } from "zod";
 import { SourceManager, sourceId, sourceOptions } from "./source-manager";
+import { RemoteSourceService } from "./source-remote";
 import {
   activateCSharpSource,
   deactivateCSharpSource,
   checkCSharpSource,
   readLegacyCSharpSources,
+  downloadSourceArtifact,
 } from "./csharp-providers";
 import { getDriver } from "./services";
 
@@ -19,6 +21,7 @@ export function registerSourceIpc(): void {
     check: checkCSharpSource,
   });
   const ready = manager.initialize(readLegacyCSharpSources);
+  const remote = new RemoteSourceService(manager, downloadSourceArtifact);
   void ready.catch((error) =>
     console.error("[nova] source initialization failed", error),
   );
@@ -29,6 +32,32 @@ export function registerSourceIpc(): void {
   ipcMain.handle("sources:list", async () => {
     await ready;
     return manager.list();
+  });
+  ipcMain.handle("sources:remote-prepare", async (_e, url) => {
+    await ready;
+    return remote.prepare(z.string().parse(url));
+  });
+  ipcMain.handle("sources:remote-check", async (_e, id) => {
+    await ready;
+    return remote.check(sourceId.parse(id));
+  });
+  ipcMain.handle("sources:remote-apply", async (_e, token, hosts) => {
+    await ready;
+    await remote.apply(z.string().uuid().parse(token), hosts);
+  });
+  ipcMain.handle("sources:rollback", async (_e, id, revision, expectedHash) => {
+    await ready;
+    await manager.rollback(
+      sourceId.parse(id),
+      z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .parse(revision),
+      z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .parse(expectedHash),
+    );
   });
   ipcMain.handle("sources:pick", async () => {
     await ready;

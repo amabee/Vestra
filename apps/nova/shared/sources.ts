@@ -14,6 +14,24 @@ export interface SourceSummary extends SourceOptions {
   error?: string;
   checkedAt?: string;
   servers?: string[];
+  remote?: { manifestUrl: string; version: string; sha256: string };
+  versions: { id: string; version: string; sourceHash: string }[];
+}
+export interface RemoteSourcePlan {
+  token: string;
+  id: string;
+  name: string;
+  type: SourceOptions["type"];
+  version: string;
+  currentVersion?: string;
+  manifestUrl: string;
+  payloadUrl: string;
+  sha256: string;
+  checksumVerified: boolean;
+  hosts: string[];
+  addedHosts: string[];
+  updating: boolean;
+  changed: boolean;
 }
 export interface PickedSource {
   token: string;

@@ -19,6 +19,7 @@
     "test:manga:reader": "pnpm run build:server && node apps/nova/scripts/test-manga-reader.mjs",
     "test:manga:navigation": "node apps/nova/scripts/test-reader-navigation.mjs",
     "test:sources": "pnpm run build:server && node apps/nova/scripts/test-source-manager.mjs",
+    "test:sources:remote": "node apps/nova/scripts/test-remote-sources.mjs",
     "test:server:packaged": "pnpm --filter @vestra/nova run publish:worker && pnpm --filter @vestra/nova run build:electron && pnpm --filter @vestra/nova run test:packaged-worker",
     "dev": "turbo run dev",
     "dev:nova": "turbo run dev --filter=@vestra/nova",

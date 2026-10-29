@@ -59,6 +59,14 @@ export interface BrowseResult {
 
 interface RawBridge {
   sources: {
+    prepareRemote: (url: string) => Promise<unknown>;
+    checkUpdates: (id: string) => Promise<unknown>;
+    applyRemote: (token: string, hosts: string[]) => Promise<unknown>;
+    rollback: (
+      id: string,
+      revision: string,
+      expectedHash: string,
+    ) => Promise<unknown>;
     list: () => Promise<unknown>;
     pick: () => Promise<unknown>;
     replace: (
@@ -366,6 +374,18 @@ export interface SurfaceRect {
 
 export const bridge = {
   sources: {
+    prepareRemote: (url: string) =>
+      raw().sources.prepareRemote(url) as Promise<
+        import("../../../shared/sources").RemoteSourcePlan
+      >,
+    checkUpdates: (id: string) =>
+      raw().sources.checkUpdates(id) as Promise<
+        import("../../../shared/sources").RemoteSourcePlan
+      >,
+    applyRemote: (token: string, hosts: string[]) =>
+      raw().sources.applyRemote(token, hosts),
+    rollback: (id: string, revision: string, expectedHash: string) =>
+      raw().sources.rollback(id, revision, expectedHash),
     list: () => raw().sources.list() as Promise<SourceSummary[]>,
     pick: () => raw().sources.pick() as Promise<PickedSource | null>,
     replace: (id: string, token: string, expectedHash: string) =>

@@ -18,6 +18,12 @@ const invoke = (channel: string, ...args: unknown[]): Promise<unknown> =>
 
 const api = {
   sources: {
+    prepareRemote: (url: string) => invoke("sources:remote-prepare", url),
+    checkUpdates: (id: string) => invoke("sources:remote-check", id),
+    applyRemote: (token: string, hosts: string[]) =>
+      invoke("sources:remote-apply", token, hosts),
+    rollback: (id: string, revision: string, expectedHash: string) =>
+      invoke("sources:rollback", id, revision, expectedHash),
     list: () => invoke("sources:list"),
     pick: () => invoke("sources:pick"),
     replace: (id: string, token: string, expectedHash: string) =>
