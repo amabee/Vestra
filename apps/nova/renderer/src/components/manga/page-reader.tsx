@@ -1,18 +1,26 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { bridge } from "@/lib/bridge";
 import {
   adjacentPage,
+  isVerticalLayout,
   navigationKey,
   parseReaderOptions,
   readerOptionsKey,
+  recommendLayout,
+  seriesOptionsKey,
   visiblePages,
   type ReaderOptions,
 } from "@/lib/manga-reader";
+import { editableTarget, type useReaderChrome } from "@/lib/use-reader-chrome";
 import type { MangaPage } from "../../../../shared/manga";
 
+type Chrome = ReturnType<typeof useReaderChrome>;
+type Dimensions = { width: number; height: number };
+type PositionedPage = MangaPage & { ordinal: number };
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
+
 export function PageReader({
   provider,
   book,
@@ -20,6 +28,8 @@ export function PageReader({
   pages,
   start,
   onNextChapter,
+  chrome,
+  onSettingsChange,
 }: {
   provider: string;
   book: string;
@@ -27,29 +37,92 @@ export function PageReader({
   pages: MangaPage[];
   start: number;
   onNextChapter?: () => void;
+  chrome: Chrome;
+  onSettingsChange: (open: boolean) => void;
 }) {
   const [page, setPage] = useState(
     Math.max(0, Math.min(start, pages.length - 1)),
   );
+  const [jump, setJump] = useState({ page, serial: 0 });
   const [options, setOptions] = useState<ReaderOptions>(() => {
     try {
-      return parseReaderOptions(localStorage.getItem(readerOptionsKey));
+      return parseReaderOptions(
+        localStorage.getItem(seriesOptionsKey(provider, book)) ??
+          localStorage.getItem(readerOptionsKey),
+      );
     } catch {
       return parseReaderOptions(null);
     }
   });
   const [optionsError, setOptionsError] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [decoded, setDecoded] = useState<Set<number>>(() => new Set());
+  const [recommendation, setRecommendation] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const content = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = content.current;
+    if (!element) return;
+    const zoom = (event: WheelEvent) => {
+      if (
+        !event.ctrlKey ||
+        (event.target instanceof Element &&
+          event.target.closest("aside,footer"))
+      )
+        return;
+      event.preventDefault();
+      setOptions((old) => ({
+        ...old,
+        zoom: Math.max(
+          50,
+          Math.min(200, old.zoom + (event.deltaY < 0 ? 5 : -5)),
+        ),
+      }));
+    };
+    element.addEventListener("wheel", zoom, { passive: false });
+    return () => element.removeEventListener("wheel", zoom);
+  }, []);
+  const vertical = isVerticalLayout(options.layout);
+  const go = useCallback(
+    (position: number) => {
+      const next = Math.max(0, Math.min(position, pages.length - 1));
+      setPage(next);
+      setJump((old) => ({ page: next, serial: old.serial + 1 }));
+      chrome.wake();
+    },
+    [pages.length, chrome.wake],
+  );
+  const patch = (value: Partial<ReaderOptions>) => {
+    setOptions((old) => ({ ...old, ...value }));
+    setJump((old) => ({ page, serial: old.serial + 1 }));
+  };
+  useEffect(() => {
+    onSettingsChange(settingsOpen);
+    return () => onSettingsChange(false);
+  }, [settingsOpen, onSettingsChange]);
   useEffect(() => {
     try {
-      localStorage.setItem(readerOptionsKey, JSON.stringify(options));
+      localStorage.setItem(
+        seriesOptionsKey(provider, book),
+        JSON.stringify(options),
+      );
       setOptionsError("");
     } catch {
       setOptionsError(
-        "Reader settings could not be remembered on this device.",
+        "Reader settings could not be remembered for this series.",
       );
     }
-  }, [options]);
+  }, [options, provider, book]);
+  const visible = visiblePages(page, pages.length, options);
+  const first = visible[0]!;
+  const last = visible[visible.length - 1]!;
+  const ready = visible.every((index) => decoded.has(index));
+  const progress = useReadingProgress(provider, book, chapter, first, ready);
+  const onDecoded = useCallback((index: number, size: Dimensions) => {
+    setDecoded((old) => (old.has(index) ? old : new Set([...old, index])));
+    if (recommendLayout(size.width, size.height) === "webtoon")
+      setRecommendation(true);
+  }, []);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -62,39 +135,65 @@ export function PageReader({
         event.altKey ||
         event.ctrlKey ||
         event.metaKey ||
-        (event.target instanceof Element &&
-          event.target.closest(
-            "input,select,textarea,[contenteditable]:not([contenteditable=false]),[role=textbox]",
-          ))
+        editableTarget(event.target)
       )
         return;
-      const step = navigationKey(event.key, options.direction);
+      if (event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        setSettingsOpen((old) => !old);
+        chrome.wake();
+        return;
+      }
+      // Space on a focused button keeps its native activation behavior.
+      if (
+        event.key === " " &&
+        event.target instanceof Element &&
+        event.target.closest("button,a")
+      )
+        return;
+      if (event.key === " " && vertical) {
+        event.preventDefault();
+        const canvas = content.current?.querySelector<HTMLElement>(
+          '[aria-label="Vertical manga pages"]',
+        );
+        if (canvas)
+          canvas.scrollBy({
+            top: canvas.clientHeight * 0.85,
+            behavior: "smooth",
+          });
+        return;
+      }
+      const step =
+        event.key === " " ? 1 : navigationKey(event.key, options.direction);
       if (step) {
         event.preventDefault();
-        setPage((n) => adjacentPage(n, pages.length, step, options));
+        go(adjacentPage(page, pages.length, step, options));
       } else if (event.key === "Home" || event.key === "End") {
         event.preventDefault();
-        setPage(event.key === "Home" ? 0 : pages.length - 1);
+        go(event.key === "Home" ? 0 : pages.length - 1);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [pages.length, options]);
-  const visible = visiblePages(page, pages.length, options);
-  const first = visible[0]!;
-  const last = visible[visible.length - 1]!;
-  const displayed = visible.map((index) => ({
-    ...pages[index]!,
-    ordinal: index,
-  }));
-  const patch = (value: Partial<ReaderOptions>) =>
-    setOptions((old) => ({ ...old, ...value }));
+  }, [page, pages.length, options, vertical, go, chrome.wake]);
+  const positioned = pages.map((value, ordinal) => ({ ...value, ordinal }));
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
+    <div
+      ref={content}
+      className="relative flex min-h-0 flex-1 flex-col bg-neutral-950 text-neutral-200"
+      onDoubleClick={(event) => {
+        if (
+          !(event.target instanceof Element) ||
+          !event.target.closest("button,input,select,aside,footer")
+        )
+          patch({ zoom: 100 });
+      }}
+    >
       {settingsOpen && (
         <aside
           aria-label="Reader settings"
-          className="absolute bottom-16 right-3 top-3 z-20 w-72 max-w-[calc(100%_-_1.5rem)] overflow-y-auto rounded-xl border rule bg-base-100 p-4 text-sm shadow-2xl"
+          className="absolute bottom-20 right-3 top-3 z-20 w-80 max-w-[calc(100%_-_1.5rem)] overflow-y-auto rounded-xl border border-white/15 bg-neutral-900/95 p-4 text-sm shadow-2xl backdrop-blur-xl"
+          data-reader-chrome
         >
           <div className="flex items-center justify-between">
             <h3 className="font-semibold">Reader settings</h3>
@@ -106,11 +205,14 @@ export function PageReader({
               ✕
             </button>
           </div>
+          <p className="mt-1 text-xs text-neutral-400">
+            Remembered separately for this series.
+          </p>
           <div className="grid gap-4 pt-4">
             <label className="grid gap-1">
               Layout
               <select
-                className="select select-bordered select-sm"
+                className="select select-bordered select-sm w-full"
                 value={options.layout}
                 onChange={(e) =>
                   patch({ layout: e.target.value as ReaderOptions["layout"] })
@@ -118,12 +220,14 @@ export function PageReader({
               >
                 <option value="single">Single page</option>
                 <option value="double">Double page</option>
+                <option value="continuous">Long strip / continuous</option>
+                <option value="webtoon">Webtoon · gapless vertical</option>
               </select>
             </label>
             <label className="grid gap-1">
               Reading direction
               <select
-                className="select select-bordered select-sm"
+                className="select select-bordered select-sm w-full"
                 value={options.direction}
                 onChange={(e) =>
                   patch({
@@ -131,14 +235,22 @@ export function PageReader({
                   })
                 }
               >
-                <option value="ltr">Left to right</option>
-                <option value="rtl">Right to left</option>
+                <option value="ltr">Left to right →</option>
+                <option value="rtl">← Right to left</option>
               </select>
+              <span className="text-xs text-neutral-400">
+                {vertical
+                  ? "Vertical reading stays top to bottom."
+                  : options.direction === "rtl"
+                    ? "← Next page · Previous page →"
+                    : "← Previous page · Next page →"}
+              </span>
             </label>
             <label className="grid gap-1">
-              Fit
+              Image fitting
               <select
-                className="select select-bordered select-sm"
+                className="select select-bordered select-sm w-full"
+                disabled={vertical}
                 value={options.fit}
                 onChange={(e) =>
                   patch({ fit: e.target.value as ReaderOptions["fit"] })
@@ -146,36 +258,30 @@ export function PageReader({
               >
                 <option value="height">Fit height</option>
                 <option value="width">Fit width</option>
+                <option value="page">Fit page</option>
+                <option value="original">Original size</option>
               </select>
+              {vertical && (
+                <span className="text-xs text-neutral-400">
+                  Vertical layouts use the strip width. Adjust it with zoom.
+                </span>
+              )}
             </label>
-            <label className="grid gap-1">
-              Zoom
-              <select
-                className="select select-bordered select-sm"
+            <label className="grid gap-2">
+              Zoom · {options.zoom}%
+              <input
+                className="range range-xs"
+                aria-label="Reader zoom"
+                type="range"
+                min={50}
+                max={200}
+                step={5}
                 value={options.zoom}
                 onChange={(e) => patch({ zoom: Number(e.target.value) })}
-              >
-                {[
-                  50,
-                  75,
-                  100,
-                  125,
-                  150,
-                  200,
-                  ...(![50, 75, 100, 125, 150, 200].includes(options.zoom)
-                    ? [options.zoom]
-                    : []),
-                ]
-                  .sort((a, b) => a - b)
-                  .map((zoom) => (
-                    <option key={zoom} value={zoom}>
-                      {zoom}%
-                    </option>
-                  ))}
-              </select>
+              />
             </label>
             {options.layout === "double" && (
-              <label className="flex items-center gap-2 py-2">
+              <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
                   className="checkbox checkbox-sm"
@@ -185,109 +291,197 @@ export function PageReader({
                 First page alone
               </label>
             )}
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                className="checkbox checkbox-sm"
+                checked={chrome.immersive}
+                onChange={(e) => chrome.setImmersive(e.target.checked)}
+              />
+              Immersive reading
+            </label>
+            <p className="text-xs leading-relaxed text-neutral-400">
+              ← / → pages · Space next page (scroll in vertical layouts) · F
+              fullscreen · S settings · I immersive · Esc close overlays
+              <br />
+              Ctrl + wheel zoom · Double-click page to reset zoom
+            </p>
           </div>
         </aside>
       )}
       {optionsError && (
-        <p role="alert" className="py-2">
+        <p role="alert" className="px-4 py-2 text-sm">
           {optionsError}
         </p>
       )}
-      <SpreadView
-        key={displayed.map((p) => p.handle).join(":")}
-        provider={provider}
-        book={book}
-        chapter={chapter}
-        pages={displayed}
-        options={options}
-      />
-      <div className="h-0.5 shrink-0 bg-base-300" aria-hidden="true">
+      {progress.error && (
+        <p role="alert" className="px-4 py-2 text-sm">
+          Progress could not be saved: {progress.error}{" "}
+          <button className="btn btn-sm" onClick={progress.retry}>
+            Retry saving
+          </button>
+        </p>
+      )}
+      {recommendation && !dismissed && !vertical && (
         <div
-          className="h-full bg-primary transition-[width]"
-          style={{ width: `${((last + 1) / pages.length) * 100}%` }}
+          className="absolute left-3 top-3 z-10 max-w-sm rounded-lg border border-white/15 bg-neutral-900/95 p-3 text-sm"
+          data-reader-chrome
+        >
+          This chapter has tall pages. Try Webtoon mode?
+          <div className="mt-2 flex gap-2">
+            <button
+              className="btn btn-primary btn-xs"
+              onClick={() => {
+                patch({ layout: "webtoon" });
+                setDismissed(true);
+              }}
+            >
+              Use Webtoon
+            </button>
+            <button
+              className="btn btn-ghost btn-xs"
+              onClick={() => setDismissed(true)}
+            >
+              Keep current layout
+            </button>
+          </div>
+        </div>
+      )}
+      {vertical ? (
+        <ContinuousView
+          key={options.layout}
+          pages={positioned}
+          options={options}
+          jump={jump}
+          onPosition={setPage}
+          onDecoded={onDecoded}
         />
-      </div>
+      ) : (
+        <SpreadView
+          key={visible.join(":")}
+          pages={visible.map((index) => positioned[index]!)}
+          options={options}
+          onDecoded={onDecoded}
+        />
+      )}
       <footer
-        className="flex min-h-14 shrink-0 flex-wrap items-center justify-center gap-3 border-t rule bg-base-100 px-3 py-2 text-sm"
-        style={{
-          flexDirection: options.direction === "rtl" ? "row-reverse" : "row",
-        }}
+        data-reader-chrome
+        inert={!chrome.visible}
+        className={`z-10 shrink-0 border-t border-white/10 bg-neutral-900/95 px-4 py-2 text-sm backdrop-blur-xl transition-opacity ${chrome.immersive ? "absolute inset-x-0 bottom-0" : ""} ${chrome.visible ? "opacity-100" : "pointer-events-none opacity-0"}`}
       >
-        <button
-          className="btn btn-ghost btn-sm"
-          disabled={first === 0}
-          onClick={() =>
-            setPage((n) => adjacentPage(n, pages.length, -1, options))
-          }
+        <input
+          className="range range-xs mb-2 block w-full"
+          aria-label="Reading progress"
+          aria-valuetext={`Page ${first + 1} of ${pages.length}`}
+          type="range"
+          min={1}
+          max={pages.length}
+          value={first + 1}
+          onChange={(e) => go(Number(e.target.value) - 1)}
+        />
+        <div
+          className="flex flex-wrap items-center justify-center gap-3"
+          style={{
+            flexDirection: options.direction === "rtl" ? "row-reverse" : "row",
+          }}
         >
-          ← Previous
-        </button>
-        <span aria-live="polite">
-          {visible.length > 1
-            ? `Pages ${first + 1}–${last + 1}`
-            : `Page ${first + 1}`}{" "}
-          / {pages.length}
-        </span>
-        <label className="flex items-center gap-2 text-sm">
-          Page
-          <input
-            aria-label="Go to page"
-            className="input input-bordered input-sm w-20"
-            type="number"
-            min={1}
-            max={pages.length}
-            value={page + 1}
-            onChange={(e) => {
-              const n = e.target.valueAsNumber;
-              if (Number.isInteger(n) && n >= 1 && n <= pages.length)
-                setPage(n - 1);
-            }}
-          />
-        </label>
-        <button
-          className="btn btn-ghost btn-sm"
-          disabled={last === pages.length - 1 && !onNextChapter}
-          onClick={() =>
-            last === pages.length - 1
-              ? onNextChapter?.()
-              : setPage((n) => adjacentPage(n, pages.length, 1, options))
-          }
-        >
-          {last === pages.length - 1
-            ? onNextChapter
-              ? "Next chapter →"
-              : "Chapter complete"
-            : "Next →"}
-        </button>
-        <button
-          className="btn btn-sm"
-          aria-expanded={settingsOpen}
-          onClick={() => setSettingsOpen(!settingsOpen)}
-        >
-          Settings
-        </button>
+          <button
+            className="btn btn-ghost btn-sm"
+            disabled={first === 0}
+            onClick={() => go(adjacentPage(page, pages.length, -1, options))}
+          >
+            ← Previous
+          </button>
+          <span className="tabular-nums">
+            {visible.length > 1 ? `${first + 1}–${last + 1}` : first + 1} /{" "}
+            {pages.length} · {(((last + 1) / pages.length) * 100).toFixed(1)}%
+          </span>
+          <button
+            className="btn btn-ghost btn-sm"
+            disabled={last === pages.length - 1 && !onNextChapter}
+            onClick={() =>
+              last === pages.length - 1
+                ? onNextChapter?.()
+                : go(adjacentPage(page, pages.length, 1, options))
+            }
+          >
+            {last === pages.length - 1
+              ? onNextChapter
+                ? "Next chapter →"
+                : "Chapter complete"
+              : "Next →"}
+          </button>
+          <button
+            className="btn btn-sm"
+            aria-expanded={settingsOpen}
+            onClick={() => setSettingsOpen(!settingsOpen)}
+          >
+            Settings
+          </button>
+          <button
+            className="btn btn-ghost btn-sm"
+            aria-pressed={chrome.immersive}
+            onClick={() => chrome.setImmersive(!chrome.immersive)}
+          >
+            Immersive
+          </button>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => void chrome.toggleFullscreen()}
+          >
+            {chrome.fullscreen ? "Exit fullscreen" : "Fullscreen"}
+          </button>
+        </div>
       </footer>
     </div>
   );
 }
 
+function useReadingProgress(
+  provider: string,
+  book: string,
+  chapter: string,
+  page: number,
+  ready: boolean,
+) {
+  const cache = useQueryClient();
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    if (!ready) return;
+    let active = true;
+    void bridge.manga.save(provider, book, chapter, page).then(
+      () => {
+        if (active) setError("");
+        cache.setQueryData(["manga", provider, book, "progress"], {
+          chapterId: chapter,
+          page,
+          updatedAt: new Date().toISOString(),
+        });
+        void cache.invalidateQueries({
+          queryKey: ["manga", provider, "recent"],
+        });
+      },
+      (failure) => {
+        if (active) setError(errorText(failure));
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [provider, book, chapter, page, ready, cache, attempt]);
+  return { error, retry: () => setAttempt((old) => old + 1) };
+}
+
 function SpreadView({
-  provider,
-  book,
-  chapter,
   pages,
   options,
+  onDecoded,
 }: {
-  provider: string;
-  book: string;
-  chapter: string;
-  pages: (MangaPage & { ordinal: number })[];
+  pages: PositionedPage[];
   options: ReaderOptions;
+  onDecoded: (index: number, size: Dimensions) => void;
 }) {
-  const cache = useQueryClient();
-  const [decoded, setDecoded] = useState<string[]>([]);
-  const [saveError, setSaveError] = useState("");
-  const [saveAttempt, setSaveAttempt] = useState(0);
   const canvas = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(0);
   useEffect(() => {
@@ -298,66 +492,237 @@ function SpreadView({
     setHeight(element.clientHeight);
     return () => observer.disconnect();
   }, []);
-  const ready = pages.every((p) => decoded.includes(p.handle));
-  const anchor = pages[0]!.ordinal;
-  useEffect(() => {
-    if (!ready) return;
-    let active = true;
-    void bridge.manga.save(provider, book, chapter, anchor).then(
-      () => {
-        if (active) setSaveError("");
-        cache.setQueryData(["manga", provider, book, "progress"], {
-          chapterId: chapter,
-          page: anchor,
-          updatedAt: new Date().toISOString(),
-        });
-        void cache.invalidateQueries({
-          queryKey: ["manga", provider, "recent"],
-        });
-      },
-      (error) => {
-        if (active) setSaveError(errorText(error));
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, [ready, provider, book, chapter, anchor, cache, saveAttempt]);
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-neutral-950 text-neutral-200">
-      {saveError && (
-        <p role="alert" className="py-2">
-          Progress could not be saved: {saveError}{" "}
-          <button
-            className="btn btn-sm"
-            onClick={() => setSaveAttempt((n) => n + 1)}
+    <div
+      ref={canvas}
+      className="min-h-0 flex-1 overflow-auto p-2"
+      tabIndex={0}
+      aria-label="Manga pages"
+    >
+      <div
+        className="mx-auto flex min-h-full items-start justify-center gap-2"
+        style={{
+          width: `${options.zoom}%`,
+          flexDirection: options.direction === "rtl" ? "row-reverse" : "row",
+        }}
+      >
+        {pages.map((page) => (
+          <div
+            key={page.handle}
+            className={`flex min-w-0 justify-center ${options.fit === "original" ? "shrink-0" : "flex-1"}`}
           >
-            Retry saving
-          </button>
-        </p>
-      )}
-      <div ref={canvas} className="min-h-0 flex-1 overflow-auto p-2">
-        <div
-          className="mx-auto flex min-h-full items-start justify-center gap-2"
-          style={{
-            width: `${options.zoom}%`,
-            flexDirection: options.direction === "rtl" ? "row-reverse" : "row",
-          }}
-        >
-          {pages.map((page) => (
             <PageImage
-              key={page.handle}
               page={page}
               options={options}
               height={height}
-              onDecoded={() =>
-                setDecoded((old) =>
-                  old.includes(page.handle) ? old : [...old, page.handle],
-                )
-              }
+              onDecoded={(size) => onDecoded(page.ordinal, size)}
             />
-          ))}
-        </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ContinuousView({
+  pages,
+  options,
+  jump,
+  onPosition,
+  onDecoded,
+}: {
+  pages: PositionedPage[];
+  options: ReaderOptions;
+  jump: { page: number; serial: number };
+  onPosition: (page: number) => void;
+  onDecoded: (index: number, size: Dimensions) => void;
+}) {
+  const canvas = useRef<HTMLDivElement>(null);
+  const slots = useRef(new Map<number, HTMLDivElement>());
+  const pending = useRef<number | null>(jump.page);
+  const [target, setTarget] = useState<number | null>(jump.page);
+  const [nearby, setNearby] = useState<Set<number>>(() => new Set([jump.page]));
+  const sizes = useRef(new Map<number, Dimensions>());
+  const observer = useRef<IntersectionObserver | null>(null);
+  const frame = useRef(0);
+  const register = useCallback(
+    (index: number, element: HTMLDivElement | null) => {
+      const prior = slots.current.get(index);
+      if (prior) observer.current?.unobserve(prior);
+      if (element) {
+        slots.current.set(index, element);
+        observer.current?.observe(element);
+      } else slots.current.delete(index);
+    },
+    [],
+  );
+  const identify = useCallback(() => {
+    const root = canvas.current;
+    if (!root || pending.current !== null) return;
+    const line =
+      root.getBoundingClientRect().top + Math.min(120, root.clientHeight * 0.2);
+    let best = 0;
+    for (const [index, element] of slots.current) {
+      if (element.getBoundingClientRect().top <= line) best = index;
+      else break;
+    }
+    onPosition(best);
+  }, [onPosition]);
+  useEffect(() => {
+    const root = canvas.current;
+    if (!root) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        setNearby((old) => {
+          const next = new Set(old);
+          for (const entry of entries) {
+            const index = Number((entry.target as HTMLElement).dataset.page);
+            if (entry.isIntersecting) next.add(index);
+            else next.delete(index);
+          }
+          return next;
+        });
+      },
+      { root, rootMargin: "800px 0px" },
+    );
+    observer.current = io;
+    for (const element of slots.current.values()) io.observe(element);
+    return () => {
+      observer.current = null;
+      io.disconnect();
+      cancelAnimationFrame(frame.current);
+    };
+  }, []);
+  const finishJump = useCallback(
+    (index: number) => {
+      if (pending.current !== index) return;
+      slots.current.get(index)?.scrollIntoView({ block: "start" });
+      pending.current = null;
+      setTarget(null);
+      onPosition(index);
+    },
+    [onPosition],
+  );
+  useEffect(() => {
+    pending.current = jump.page;
+    setTarget(jump.page);
+    const slot = slots.current.get(jump.page);
+    slot?.scrollIntoView({ block: "start" });
+    // A neighboring target may already be mounted and decoded; it will not emit
+    // another load event. Release the jump lock before the next scroll.
+    const frame = requestAnimationFrame(() => {
+      const image = slot?.querySelector("img");
+      if (image?.complete && image.naturalWidth > 0) finishJump(jump.page);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [jump, finishJump]);
+  const decoded = (index: number, size: Dimensions) => {
+    sizes.current.set(index, size);
+    onDecoded(index, size);
+    if (pending.current === index) {
+      requestAnimationFrame(() => {
+        finishJump(index);
+      });
+    } else {
+      cancelAnimationFrame(frame.current);
+      frame.current = requestAnimationFrame(identify);
+    }
+  };
+  return (
+    <div
+      ref={canvas}
+      className="min-h-0 flex-1 overflow-auto overscroll-contain"
+      tabIndex={0}
+      aria-label="Vertical manga pages"
+      onWheel={() => {
+        pending.current = null;
+        setTarget(null);
+      }}
+      onPointerDown={() => {
+        pending.current = null;
+        setTarget(null);
+      }}
+      onScroll={() => {
+        cancelAnimationFrame(frame.current);
+        frame.current = requestAnimationFrame(identify);
+      }}
+    >
+      <div
+        className="mx-auto"
+        style={{
+          width: `${options.zoom}%`,
+          maxWidth: `${(900 * options.zoom) / 100}px`,
+        }}
+      >
+        {pages.map((page) => (
+          <ContinuousSlot
+            key={page.handle}
+            page={page}
+            active={nearby.has(page.ordinal) || target === page.ordinal}
+            size={sizes.current.get(page.ordinal)}
+            gap={options.layout === "continuous"}
+            onDecoded={(size) => decoded(page.ordinal, size)}
+            register={register}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ContinuousSlot({
+  page,
+  active,
+  size,
+  gap,
+  onDecoded,
+  register,
+}: {
+  page: PositionedPage;
+  active: boolean;
+  size?: Dimensions;
+  gap: boolean;
+  onDecoded: (size: Dimensions) => void;
+  register: (index: number, element: HTMLDivElement | null) => void;
+}) {
+  const [dimensions, setDimensions] = useState(size);
+  const ref = useCallback(
+    (element: HTMLDivElement | null) => register(page.ordinal, element),
+    [register, page.ordinal],
+  );
+  // Keep the measured aspect ratio when the decoded image is released offscreen.
+  return (
+    <div ref={ref} data-page={page.ordinal} className={gap ? "pb-4" : ""}>
+      <div
+        style={{
+          aspectRatio: dimensions
+            ? `${dimensions.width} / ${dimensions.height}`
+            : "2 / 3",
+          overflowAnchor: "auto",
+        }}
+      >
+        {active ? (
+          <PageImage
+            page={page}
+            options={{
+              layout: "webtoon",
+              direction: "ltr",
+              fit: "width",
+              zoom: 100,
+              firstPageAlone: false,
+            }}
+            height={0}
+            onDecoded={(value) => {
+              setDimensions(value);
+              onDecoded(value);
+            }}
+          />
+        ) : (
+          <div
+            className="h-full w-full"
+            aria-label={`Page ${page.ordinal + 1}`}
+          />
+        )}
       </div>
     </div>
   );
@@ -369,10 +734,10 @@ function PageImage({
   height,
   onDecoded,
 }: {
-  page: MangaPage & { ordinal: number };
+  page: PositionedPage;
   options: ReaderOptions;
   height: number;
-  onDecoded: () => void;
+  onDecoded: (size: Dimensions) => void;
 }) {
   const image = useQuery({
     queryKey: ["manga-image", page.handle],
@@ -383,49 +748,60 @@ function PageImage({
   });
   const [decodeError, setDecodeError] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  return (
-    <div className="flex min-w-0 flex-1 justify-center">
-      {image.isPending || image.isFetching ? (
-        <p role="status" className="p-8">
-          Loading page {page.ordinal + 1}…
+  if (image.isPending || image.isFetching)
+    return (
+      <p role="status" className="p-8">
+        Loading page {page.ordinal + 1}…
+      </p>
+    );
+  if (image.error || decodeError)
+    return (
+      <div role="alert" className="p-6">
+        <p>
+          {decodeError
+            ? "This image could not be decoded. Reading progress was not advanced."
+            : errorText(image.error)}
         </p>
-      ) : image.error || decodeError ? (
-        <div role="alert" className="p-6">
-          <p>
-            {decodeError
-              ? "This image could not be decoded. Reading progress was not advanced."
-              : errorText(image.error)}
-          </p>
-          <button
-            className="btn btn-sm mt-3"
-            onClick={() => {
-              setDecodeError(false);
-              setAttempt((n) => n + 1);
-              void image.refetch();
-            }}
-          >
-            Retry image
-          </button>
-        </div>
-      ) : (
-        <img
-          key={attempt}
-          src={image.data}
-          alt={`Page ${page.ordinal + 1}`}
-          className="max-w-full object-contain"
-          style={
-            options.fit === "height"
-              ? {
-                  maxHeight: height
-                    ? `${(Math.max(1, height - 16) * options.zoom) / 100}px`
-                    : "100%",
-                }
-              : { width: "100%", height: "auto" }
-          }
-          onLoad={onDecoded}
-          onError={() => setDecodeError(true)}
-        />
-      )}
-    </div>
+        <button
+          className="btn btn-sm mt-3"
+          onClick={() => {
+            setDecodeError(false);
+            setAttempt((old) => old + 1);
+            void image.refetch();
+          }}
+        >
+          Retry image
+        </button>
+      </div>
+    );
+  const maxHeight = height
+    ? (Math.max(1, height - 16) * options.zoom) / 100
+    : undefined;
+  return (
+    <img
+      key={attempt}
+      src={image.data}
+      alt={`Page ${page.ordinal + 1}`}
+      className={`block object-contain ${options.fit === "original" || options.fit === "height" ? "max-w-none" : "max-w-full"}`}
+      style={
+        options.fit === "width"
+          ? { width: "100%", height: "auto" }
+          : options.fit === "original"
+            ? { zoom: options.zoom / 100 }
+            : {
+                maxHeight,
+                ...(options.fit === "page"
+                  ? { maxWidth: "100%", width: "auto", height: "auto" }
+                  : {}),
+              }
+      }
+      onLoad={(event) =>
+        onDecoded({
+          width: event.currentTarget.naturalWidth,
+          height: event.currentTarget.naturalHeight,
+        })
+      }
+      onError={() => setDecodeError(true)}
+    />
   );
 }

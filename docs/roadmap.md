@@ -147,6 +147,7 @@ coverage, including failed and interrupted downloads.
 
 ## 7. Finish the manga experience
 
+- [x] Add continuous/Webtoon layouts, per-series preferences, immersive controls, fullscreen and a progress slider; see [reader checklist](manga-reader-checklist.md).
 - [x] Add a focused reading canvas, searchable chapter drawer and compact persistent page controls (desktop visual verification pending).
 - [x] Add next/previous chapter navigation and C#-backed Continue Reading entry points.
 - [x] Add left/right reading direction, double-page mode, fit/zoom and remembered reader preferences.

@@ -5,6 +5,7 @@ import { Page, PageHeader } from "@/components/layout/page";
 import { bridge } from "@/lib/bridge";
 import { chapterSequence } from "@/lib/manga-reader";
 import { PageReader } from "@/components/manga/page-reader";
+import { useReaderChrome } from "@/lib/use-reader-chrome";
 import type { MangaBook } from "../../../shared/manga";
 
 const errorText = (error: unknown) =>
@@ -159,7 +160,7 @@ function MangaBrowser({ provider }: { provider: string }) {
     </>
   );
 }
-function BookReader({
+export function BookReader({
   provider,
   book,
   onBack,
@@ -184,6 +185,8 @@ function BookReader({
   const [language, setLanguage] = useState("");
   const [scanlator, setScanlator] = useState("");
   const [chaptersOpen, setChaptersOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const chrome = useReaderChrome(chaptersOpen || settingsOpen);
   const [filter, setFilter] = useState("");
   const ordered = chapterSequence(chapters.data ?? [], language, scanlator);
   const languages = [
@@ -204,10 +207,33 @@ function BookReader({
   const chapterIndex = ordered.findIndex((c) => c.id === chapter);
   return (
     <section
+      ref={chrome.root}
       aria-label="Manga reader"
-      className="fixed inset-x-0 bottom-0 top-11 z-40 flex flex-col overflow-hidden bg-base-100"
+      className={`fixed inset-x-0 bottom-0 z-40 flex flex-col overflow-hidden bg-neutral-950 ${chrome.fullscreen ? "top-0" : "top-11"}`}
+      onPointerMove={chrome.wake}
+      onPointerDown={chrome.wake}
+      onFocusCapture={(event) =>
+        chrome.setFocused(
+          event.target.matches(":focus-visible") &&
+            !!event.target.closest("[data-reader-chrome]"),
+        )
+      }
+      onBlurCapture={(event) => {
+        if (
+          !(event.relatedTarget instanceof Element) ||
+          !event.relatedTarget.closest("[data-reader-chrome]")
+        )
+          chrome.setFocused(false);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") setChaptersOpen(false);
+      }}
     >
-      <header className="flex h-16 shrink-0 items-center gap-3 border-b rule px-4">
+      <header
+        data-reader-chrome
+        inert={!chrome.visible}
+        className={`z-30 flex h-16 shrink-0 items-center gap-3 border-b rule bg-base-100/95 px-4 backdrop-blur-xl transition-opacity ${chrome.immersive ? "absolute inset-x-0 top-0" : ""} ${chrome.visible ? "opacity-100" : "pointer-events-none opacity-0"}`}
+      >
         <button className="btn btn-ghost btn-sm" onClick={onBack}>
           ← Library
         </button>
@@ -247,10 +273,18 @@ function BookReader({
           Chapters
         </button>
       </header>
-      <div className="relative flex min-h-0 flex-1">
+      {chrome.error && (
+        <p role="alert" className="bg-base-100 px-4 py-2">
+          {chrome.error}
+        </p>
+      )}
+      <div
+        className={`relative flex min-h-0 flex-1 ${chrome.immersive && (chaptersOpen || settingsOpen) ? "pt-16" : ""}`}
+      >
         {chaptersOpen && (
           <aside
             id="reader-chapters"
+            data-reader-chrome
             className="absolute inset-y-0 left-0 z-30 flex w-80 max-w-full flex-col border-r rule bg-base-100 shadow-2xl sm:static sm:shrink-0"
           >
             <div className="border-b rule p-4">
@@ -369,6 +403,8 @@ function BookReader({
                     ? () => setSelected(ordered[chapterIndex + 1]!.id)
                     : undefined
                 }
+                chrome={chrome}
+                onSettingsChange={setSettingsOpen}
               />
             </>
           ) : (
@@ -387,12 +423,16 @@ function ChapterReader({
   chapter,
   start,
   onNextChapter,
+  chrome,
+  onSettingsChange,
 }: {
   provider: string;
   book: string;
   chapter: string;
   start: number;
   onNextChapter?: () => void;
+  chrome: ReturnType<typeof useReaderChrome>;
+  onSettingsChange: (open: boolean) => void;
 }) {
   const pages = useQuery({
     queryKey: ["manga", provider, book, chapter, "pages"],
@@ -419,6 +459,8 @@ function ChapterReader({
       pages={pages.data}
       start={start}
       onNextChapter={onNextChapter}
+      chrome={chrome}
+      onSettingsChange={onSettingsChange}
     />
   );
 }
