@@ -157,6 +157,7 @@ export class MangaService {
   async image(handle: string): Promise<string> {
     const r = this.handles.get(handle);
     if (!r) throw new Error("Page expired. Reopen the chapter.");
+    const provider = this.provider(r.providerId);
     const value = z
       .object({
         mimeType: z.enum([
@@ -172,12 +173,17 @@ export class MangaService {
           .regex(/^[A-Za-z0-9+/]*={0,2}$/),
       })
       .parse(
-        await this.provider(r.providerId).image({
+        await provider.image({
           url: r.url,
           method: "GET",
           headers: r.headers,
         }),
       );
+    if (
+      this.handles.get(handle) !== r ||
+      this.providers.get(r.providerId) !== provider
+    )
+      throw new Error("Manga source changed. Reopen the chapter.");
     return `data:${value.mimeType};base64,${value.data}`;
   }
   private progressKey(p: string, b: string) {

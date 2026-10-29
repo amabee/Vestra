@@ -1,5 +1,23 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  EyeOff,
+  Maximize,
+  Minimize,
+  Settings,
+} from "lucide-react";
+import { ReaderImages } from "@/lib/reader-images";
+import { ReaderProgress } from "./reader-progress";
 import { bridge } from "@/lib/bridge";
 import {
   adjacentPage,
@@ -15,6 +33,7 @@ import {
 import { editableTarget, type useReaderChrome } from "@/lib/use-reader-chrome";
 import type { MangaPage } from "../../../../shared/manga";
 
+const ImagesContext = createContext<ReaderImages | null>(null);
 type Chrome = ReturnType<typeof useReaderChrome>;
 type Dimensions = { width: number; height: number };
 type PositionedPage = MangaPage & { ordinal: number };
@@ -30,6 +49,8 @@ export function PageReader({
   onNextChapter,
   chrome,
   onSettingsChange,
+  settingsOpen,
+  chapterControl,
 }: {
   provider: string;
   book: string;
@@ -39,6 +60,8 @@ export function PageReader({
   onNextChapter?: () => void;
   chrome: Chrome;
   onSettingsChange: (open: boolean) => void;
+  settingsOpen: boolean;
+  chapterControl: ReactNode;
 }) {
   const [page, setPage] = useState(
     Math.max(0, Math.min(start, pages.length - 1)),
@@ -55,7 +78,25 @@ export function PageReader({
     }
   });
   const [optionsError, setOptionsError] = useState("");
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const setSettingsOpen = onSettingsChange;
+  const [images] = useState(
+    () => new ReaderImages((handle) => bridge.manga.image(handle)),
+  );
+  const imageLease = useRef(0);
+  useEffect(() => {
+    const lease = ++imageLease.current;
+    return () =>
+      queueMicrotask(() => {
+        // React development StrictMode immediately sets the effect up again.
+        if (imageLease.current === lease) images.dispose();
+      });
+  }, [images]);
+  const previousPosition = useRef(page);
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const pointerStart = useRef({ x: 0, y: 0 });
+  useEffect(() => () => clearTimeout(clickTimer.current), []);
   const [decoded, setDecoded] = useState<Set<number>>(() => new Set());
   const [recommendation, setRecommendation] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -88,18 +129,13 @@ export function PageReader({
       const next = Math.max(0, Math.min(position, pages.length - 1));
       setPage(next);
       setJump((old) => ({ page: next, serial: old.serial + 1 }));
-      chrome.wake();
     },
-    [pages.length, chrome.wake],
+    [pages.length],
   );
   const patch = (value: Partial<ReaderOptions>) => {
     setOptions((old) => ({ ...old, ...value }));
     setJump((old) => ({ page, serial: old.serial + 1 }));
   };
-  useEffect(() => {
-    onSettingsChange(settingsOpen);
-    return () => onSettingsChange(false);
-  }, [settingsOpen, onSettingsChange]);
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -140,7 +176,7 @@ export function PageReader({
         return;
       if (event.key.toLowerCase() === "s") {
         event.preventDefault();
-        setSettingsOpen((old) => !old);
+        setSettingsOpen(!settingsOpen);
         chrome.wake();
         return;
       }
@@ -175,265 +211,346 @@ export function PageReader({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [page, pages.length, options, vertical, go, chrome.wake]);
+  }, [
+    page,
+    pages.length,
+    options,
+    vertical,
+    go,
+    chrome.wake,
+    settingsOpen,
+    setSettingsOpen,
+  ]);
+  useEffect(() => {
+    const direction = page < previousPosition.current ? -1 : 1;
+    previousPosition.current = page;
+    const offsets = [1, 2, 3, 4, 5, 6, -1, -2];
+    images.prefetch(
+      offsets
+        .map((offset) => pages[page + offset * direction]?.handle)
+        .filter((value): value is string => !!value),
+    );
+  }, [page, pages, images]);
   const positioned = pages.map((value, ordinal) => ({ ...value, ordinal }));
   return (
-    <div
-      ref={content}
-      className="relative flex min-h-0 flex-1 flex-col bg-neutral-950 text-neutral-200"
-      onDoubleClick={(event) => {
-        if (
-          !(event.target instanceof Element) ||
-          !event.target.closest("button,input,select,aside,footer")
-        )
-          patch({ zoom: 100 });
-      }}
-    >
-      {settingsOpen && (
-        <aside
-          aria-label="Reader settings"
-          className="absolute bottom-20 right-3 top-3 z-20 w-80 max-w-[calc(100%_-_1.5rem)] overflow-y-auto rounded-xl border border-white/15 bg-neutral-900/95 p-4 text-sm shadow-2xl backdrop-blur-xl"
-          data-reader-chrome
-        >
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold">Reader settings</h3>
-            <button
-              className="btn btn-ghost btn-xs"
-              aria-label="Close reader settings"
-              onClick={() => setSettingsOpen(false)}
-            >
-              ✕
-            </button>
-          </div>
-          <p className="mt-1 text-xs text-neutral-400">
-            Remembered separately for this series.
-          </p>
-          <div className="grid gap-4 pt-4">
-            <label className="grid gap-1">
-              Layout
-              <select
-                className="select select-bordered select-sm w-full"
-                value={options.layout}
-                onChange={(e) =>
-                  patch({ layout: e.target.value as ReaderOptions["layout"] })
-                }
+    <ImagesContext.Provider value={images}>
+      <div
+        ref={content}
+        className="relative flex min-h-0 flex-1 flex-col bg-neutral-950 text-neutral-200"
+        onPointerDown={(event) => {
+          pointerStart.current = { x: event.clientX, y: event.clientY };
+        }}
+        onClick={(event) => {
+          if (
+            !(event.target instanceof Element) ||
+            !event.target.closest("[data-reader-canvas]") ||
+            event.target.closest("button,input,select,a") ||
+            window.getSelection()?.toString()
+          )
+            return;
+          if (
+            Math.hypot(
+              event.clientX - pointerStart.current.x,
+              event.clientY - pointerStart.current.y,
+            ) > 6
+          )
+            return;
+          clearTimeout(clickTimer.current);
+          if (event.detail < 2)
+            clickTimer.current = setTimeout(chrome.toggleControls, 200);
+        }}
+        onDoubleClick={(event) => {
+          clearTimeout(clickTimer.current);
+          if (
+            !(event.target instanceof Element) ||
+            !event.target.closest("button,input,select,aside,footer")
+          )
+            patch({ zoom: 100 });
+        }}
+      >
+        {settingsOpen && (
+          <aside
+            aria-label="Reader settings"
+            className="absolute bottom-24 right-4 top-20 z-40 w-80 max-w-[calc(100%_-_1.5rem)] overflow-y-auto rounded-xl border border-white/15 bg-neutral-900/95 p-4 text-sm shadow-2xl backdrop-blur-xl"
+            data-reader-chrome
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Reader settings</h3>
+              <button
+                className="btn btn-ghost btn-xs"
+                aria-label="Close reader settings"
+                onClick={() => setSettingsOpen(false)}
               >
-                <option value="single">Single page</option>
-                <option value="double">Double page</option>
-                <option value="continuous">Long strip / continuous</option>
-                <option value="webtoon">Webtoon · gapless vertical</option>
-              </select>
-            </label>
-            <label className="grid gap-1">
-              Reading direction
-              <select
-                className="select select-bordered select-sm w-full"
-                value={options.direction}
-                onChange={(e) =>
-                  patch({
-                    direction: e.target.value as ReaderOptions["direction"],
-                  })
-                }
-              >
-                <option value="ltr">Left to right →</option>
-                <option value="rtl">← Right to left</option>
-              </select>
-              <span className="text-xs text-neutral-400">
-                {vertical
-                  ? "Vertical reading stays top to bottom."
-                  : options.direction === "rtl"
-                    ? "← Next page · Previous page →"
-                    : "← Previous page · Next page →"}
-              </span>
-            </label>
-            <label className="grid gap-1">
-              Image fitting
-              <select
-                className="select select-bordered select-sm w-full"
-                disabled={vertical}
-                value={options.fit}
-                onChange={(e) =>
-                  patch({ fit: e.target.value as ReaderOptions["fit"] })
-                }
-              >
-                <option value="height">Fit height</option>
-                <option value="width">Fit width</option>
-                <option value="page">Fit page</option>
-                <option value="original">Original size</option>
-              </select>
-              {vertical && (
+                ✕
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-neutral-400">
+              Remembered separately for this series.
+            </p>
+            <div className="grid gap-4 pt-4">
+              <label className="grid gap-1">
+                Layout
+                <select
+                  className="select select-bordered select-sm w-full"
+                  value={options.layout}
+                  onChange={(e) =>
+                    patch({ layout: e.target.value as ReaderOptions["layout"] })
+                  }
+                >
+                  <option value="single">Single page</option>
+                  <option value="double">Double page</option>
+                  <option value="continuous">Long strip / continuous</option>
+                  <option value="webtoon">Webtoon · gapless vertical</option>
+                </select>
+              </label>
+              <label className="grid gap-1">
+                Reading direction
+                <select
+                  className="select select-bordered select-sm w-full"
+                  value={options.direction}
+                  onChange={(e) =>
+                    patch({
+                      direction: e.target.value as ReaderOptions["direction"],
+                    })
+                  }
+                >
+                  <option value="ltr">Left to right →</option>
+                  <option value="rtl">← Right to left</option>
+                </select>
                 <span className="text-xs text-neutral-400">
-                  Vertical layouts use the strip width. Adjust it with zoom.
+                  {vertical
+                    ? "Vertical reading stays top to bottom."
+                    : options.direction === "rtl"
+                      ? "← Next page · Previous page →"
+                      : "← Previous page · Next page →"}
                 </span>
+              </label>
+              <label className="grid gap-1">
+                Image fitting
+                <select
+                  className="select select-bordered select-sm w-full"
+                  disabled={vertical}
+                  value={options.fit}
+                  onChange={(e) =>
+                    patch({ fit: e.target.value as ReaderOptions["fit"] })
+                  }
+                >
+                  <option value="height">Fit height</option>
+                  <option value="width">Fit width</option>
+                  <option value="page">Fit page</option>
+                  <option value="original">Original size</option>
+                </select>
+                {vertical && (
+                  <span className="text-xs text-neutral-400">
+                    Vertical layouts use the strip width. Adjust it with zoom.
+                  </span>
+                )}
+              </label>
+              <label className="grid gap-2">
+                Zoom · {options.zoom}%
+                <input
+                  className="range range-xs"
+                  aria-label="Reader zoom"
+                  type="range"
+                  min={50}
+                  max={200}
+                  step={5}
+                  value={options.zoom}
+                  onChange={(e) => patch({ zoom: Number(e.target.value) })}
+                />
+              </label>
+              {options.layout === "double" && (
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-sm"
+                    checked={options.firstPageAlone}
+                    onChange={(e) =>
+                      patch({ firstPageAlone: e.target.checked })
+                    }
+                  />
+                  First page alone
+                </label>
               )}
-            </label>
-            <label className="grid gap-2">
-              Zoom · {options.zoom}%
-              <input
-                className="range range-xs"
-                aria-label="Reader zoom"
-                type="range"
-                min={50}
-                max={200}
-                step={5}
-                value={options.zoom}
-                onChange={(e) => patch({ zoom: Number(e.target.value) })}
-              />
-            </label>
-            {options.layout === "double" && (
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
                   className="checkbox checkbox-sm"
-                  checked={options.firstPageAlone}
-                  onChange={(e) => patch({ firstPageAlone: e.target.checked })}
+                  checked={chrome.immersive}
+                  onChange={(e) => chrome.setImmersive(e.target.checked)}
                 />
-                First page alone
+                Hide controls until the next page click
               </label>
-            )}
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                className="checkbox checkbox-sm"
-                checked={chrome.immersive}
-                onChange={(e) => chrome.setImmersive(e.target.checked)}
-              />
-              Immersive reading
-            </label>
-            <p className="text-xs leading-relaxed text-neutral-400">
-              ← / → pages · Space next page (scroll in vertical layouts) · F
-              fullscreen · S settings · I immersive · Esc close overlays
-              <br />
-              Ctrl + wheel zoom · Double-click page to reset zoom
-            </p>
+              <p className="text-xs leading-relaxed text-neutral-400">
+                ← / → pages · Space next page (scroll in vertical layouts) · F
+                fullscreen · S settings · I immersive · Esc close overlays
+                <br />
+                Click page to hide/show controls · Ctrl + wheel zoom ·
+                Double-click to reset zoom
+              </p>
+            </div>
+          </aside>
+        )}
+        {optionsError && (
+          <p role="alert" className="px-4 py-2 text-sm">
+            {optionsError}
+          </p>
+        )}
+        {progress.error && (
+          <p role="alert" className="px-4 py-2 text-sm">
+            Progress could not be saved: {progress.error}{" "}
+            <button className="btn btn-sm" onClick={progress.retry}>
+              Retry saving
+            </button>
+          </p>
+        )}
+        {recommendation && !dismissed && !vertical && chrome.visible && (
+          <div
+            className="absolute left-3 top-20 z-10 max-w-sm rounded-lg border border-white/15 bg-neutral-900/95 p-3 text-sm"
+            data-reader-chrome
+          >
+            This chapter has tall pages. Try Webtoon mode?
+            <div className="mt-2 flex gap-2">
+              <button
+                className="btn btn-primary btn-xs"
+                onClick={() => {
+                  patch({ layout: "webtoon" });
+                  setDismissed(true);
+                }}
+              >
+                Use Webtoon
+              </button>
+              <button
+                className="btn btn-ghost btn-xs"
+                onClick={() => setDismissed(true)}
+              >
+                Keep current layout
+              </button>
+            </div>
           </div>
-        </aside>
-      )}
-      {optionsError && (
-        <p role="alert" className="px-4 py-2 text-sm">
-          {optionsError}
-        </p>
-      )}
-      {progress.error && (
-        <p role="alert" className="px-4 py-2 text-sm">
-          Progress could not be saved: {progress.error}{" "}
-          <button className="btn btn-sm" onClick={progress.retry}>
-            Retry saving
-          </button>
-        </p>
-      )}
-      {recommendation && !dismissed && !vertical && (
-        <div
-          className="absolute left-3 top-3 z-10 max-w-sm rounded-lg border border-white/15 bg-neutral-900/95 p-3 text-sm"
+        )}
+        {vertical ? (
+          <ContinuousView
+            key={options.layout}
+            pages={positioned}
+            options={options}
+            jump={jump}
+            onPosition={setPage}
+            onDecoded={onDecoded}
+          />
+        ) : (
+          <SpreadView
+            key={visible.join(":")}
+            pages={visible.map((index) => positioned[index]!)}
+            options={options}
+            onDecoded={onDecoded}
+          />
+        )}
+        <footer
           data-reader-chrome
+          inert={!chrome.visible}
+          className={`absolute inset-x-0 bottom-0 z-30 border-t border-white/10 bg-neutral-900/95 px-4 py-3 text-sm backdrop-blur-xl transition-opacity ${chrome.visible ? "opacity-100" : "pointer-events-none opacity-0"}`}
         >
-          This chapter has tall pages. Try Webtoon mode?
-          <div className="mt-2 flex gap-2">
-            <button
-              className="btn btn-primary btn-xs"
-              onClick={() => {
-                patch({ layout: "webtoon" });
-                setDismissed(true);
+          <ReaderProgress
+            pages={pages}
+            page={first}
+            images={images}
+            onChange={go}
+          />
+          <div className="grid grid-cols-1 items-center gap-2 lg:grid-cols-[1fr_auto_1fr]">
+            <div className="hidden lg:block" aria-hidden="true" />
+            <div
+              data-reader-pagination
+              className="flex items-center justify-center gap-3"
+              style={{
+                flexDirection:
+                  options.direction === "rtl" ? "row-reverse" : "row",
               }}
             >
-              Use Webtoon
-            </button>
-            <button
-              className="btn btn-ghost btn-xs"
-              onClick={() => setDismissed(true)}
+              <button
+                className="btn btn-ghost btn-sm btn-square"
+                title="Previous page"
+                aria-label="Previous page"
+                disabled={first === 0}
+                onClick={() =>
+                  go(adjacentPage(page, pages.length, -1, options))
+                }
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+              <span className="min-w-32 text-center tabular-nums">
+                {visible.length > 1 ? `${first + 1}–${last + 1}` : first + 1} /{" "}
+                {pages.length} ·{" "}
+                {(((last + 1) / pages.length) * 100).toFixed(1)}%
+              </span>
+              <button
+                className="btn btn-ghost btn-sm btn-square"
+                title={
+                  last === pages.length - 1
+                    ? onNextChapter
+                      ? "Next chapter"
+                      : "Chapter complete"
+                    : "Next page"
+                }
+                aria-label={
+                  last === pages.length - 1 && onNextChapter
+                    ? "Next chapter"
+                    : "Next page"
+                }
+                disabled={last === pages.length - 1 && !onNextChapter}
+                onClick={() =>
+                  last === pages.length - 1
+                    ? onNextChapter?.()
+                    : go(adjacentPage(page, pages.length, 1, options))
+                }
+              >
+                <ChevronRight className="size-4" />
+              </button>
+            </div>
+            <div
+              data-reader-actions
+              className="flex items-center justify-end gap-1"
             >
-              Keep current layout
-            </button>
+              <button
+                className="btn btn-ghost btn-sm btn-square"
+                title="Settings (S)"
+                aria-label="Reader settings"
+                aria-expanded={settingsOpen}
+                onClick={() => setSettingsOpen(!settingsOpen)}
+              >
+                <Settings className="size-4" />
+              </button>
+              <button
+                className="btn btn-ghost btn-sm btn-square"
+                title="Hide controls (I) · click page to reveal"
+                aria-label="Immersive reading"
+                aria-pressed={chrome.immersive}
+                onClick={chrome.toggleControls}
+              >
+                <EyeOff className="size-4" />
+              </button>
+              <button
+                className="btn btn-ghost btn-sm btn-square"
+                title={
+                  chrome.fullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"
+                }
+                aria-label={
+                  chrome.fullscreen ? "Exit fullscreen" : "Fullscreen"
+                }
+                onClick={() => void chrome.toggleFullscreen()}
+              >
+                {chrome.fullscreen ? (
+                  <Minimize className="size-4" />
+                ) : (
+                  <Maximize className="size-4" />
+                )}
+              </button>
+              {chapterControl}
+            </div>
           </div>
-        </div>
-      )}
-      {vertical ? (
-        <ContinuousView
-          key={options.layout}
-          pages={positioned}
-          options={options}
-          jump={jump}
-          onPosition={setPage}
-          onDecoded={onDecoded}
-        />
-      ) : (
-        <SpreadView
-          key={visible.join(":")}
-          pages={visible.map((index) => positioned[index]!)}
-          options={options}
-          onDecoded={onDecoded}
-        />
-      )}
-      <footer
-        data-reader-chrome
-        inert={!chrome.visible}
-        className={`z-10 shrink-0 border-t border-white/10 bg-neutral-900/95 px-4 py-2 text-sm backdrop-blur-xl transition-opacity ${chrome.immersive ? "absolute inset-x-0 bottom-0" : ""} ${chrome.visible ? "opacity-100" : "pointer-events-none opacity-0"}`}
-      >
-        <input
-          className="range range-xs mb-2 block w-full"
-          aria-label="Reading progress"
-          aria-valuetext={`Page ${first + 1} of ${pages.length}`}
-          type="range"
-          min={1}
-          max={pages.length}
-          value={first + 1}
-          onChange={(e) => go(Number(e.target.value) - 1)}
-        />
-        <div
-          className="flex flex-wrap items-center justify-center gap-3"
-          style={{
-            flexDirection: options.direction === "rtl" ? "row-reverse" : "row",
-          }}
-        >
-          <button
-            className="btn btn-ghost btn-sm"
-            disabled={first === 0}
-            onClick={() => go(adjacentPage(page, pages.length, -1, options))}
-          >
-            ← Previous
-          </button>
-          <span className="tabular-nums">
-            {visible.length > 1 ? `${first + 1}–${last + 1}` : first + 1} /{" "}
-            {pages.length} · {(((last + 1) / pages.length) * 100).toFixed(1)}%
-          </span>
-          <button
-            className="btn btn-ghost btn-sm"
-            disabled={last === pages.length - 1 && !onNextChapter}
-            onClick={() =>
-              last === pages.length - 1
-                ? onNextChapter?.()
-                : go(adjacentPage(page, pages.length, 1, options))
-            }
-          >
-            {last === pages.length - 1
-              ? onNextChapter
-                ? "Next chapter →"
-                : "Chapter complete"
-              : "Next →"}
-          </button>
-          <button
-            className="btn btn-sm"
-            aria-expanded={settingsOpen}
-            onClick={() => setSettingsOpen(!settingsOpen)}
-          >
-            Settings
-          </button>
-          <button
-            className="btn btn-ghost btn-sm"
-            aria-pressed={chrome.immersive}
-            onClick={() => chrome.setImmersive(!chrome.immersive)}
-          >
-            Immersive
-          </button>
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={() => void chrome.toggleFullscreen()}
-          >
-            {chrome.fullscreen ? "Exit fullscreen" : "Fullscreen"}
-          </button>
-        </div>
-      </footer>
-    </div>
+        </footer>
+      </div>
+    </ImagesContext.Provider>
   );
 }
 
@@ -498,6 +615,7 @@ function SpreadView({
       className="min-h-0 flex-1 overflow-auto p-2"
       tabIndex={0}
       aria-label="Manga pages"
+      data-reader-canvas
     >
       <div
         className="mx-auto flex min-h-full items-start justify-center gap-2"
@@ -545,6 +663,19 @@ function ContinuousView({
   const sizes = useRef(new Map<number, Dimensions>());
   const observer = useRef<IntersectionObserver | null>(null);
   const frame = useRef(0);
+  useEffect(() => {
+    const interrupt = (event: KeyboardEvent) => {
+      if (
+        !editableTarget(event.target) &&
+        [" ", "PageDown", "PageUp", "ArrowDown", "ArrowUp"].includes(event.key)
+      ) {
+        pending.current = null;
+        setTarget(null);
+      }
+    };
+    window.addEventListener("keydown", interrupt);
+    return () => window.removeEventListener("keydown", interrupt);
+  }, []);
   const register = useCallback(
     (index: number, element: HTMLDivElement | null) => {
       const prior = slots.current.get(index);
@@ -634,6 +765,8 @@ function ContinuousView({
       className="min-h-0 flex-1 overflow-auto overscroll-contain"
       tabIndex={0}
       aria-label="Vertical manga pages"
+      aria-busy={target !== null}
+      data-reader-canvas
       onWheel={() => {
         pending.current = null;
         setTarget(null);
@@ -739,9 +872,10 @@ function PageImage({
   height: number;
   onDecoded: (size: Dimensions) => void;
 }) {
+  const images = useContext(ImagesContext)!;
   const image = useQuery({
     queryKey: ["manga-image", page.handle],
-    queryFn: () => bridge.manga.image(page.handle),
+    queryFn: () => images.load(page.handle),
     gcTime: 0,
     staleTime: Infinity,
     retry: false,

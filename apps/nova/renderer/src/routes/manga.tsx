@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { BookOpen, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 import { Link } from "react-router";
 import { Page, PageHeader } from "@/components/layout/page";
 import { bridge } from "@/lib/bridge";
@@ -186,7 +187,17 @@ export function BookReader({
   const [scanlator, setScanlator] = useState("");
   const [chaptersOpen, setChaptersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const chrome = useReaderChrome(chaptersOpen || settingsOpen);
+  const chrome = useReaderChrome();
+  const changeSettings = useCallback((open: boolean) => {
+    setSettingsOpen(open);
+    if (open) setChaptersOpen(false);
+  }, []);
+  useEffect(() => {
+    if (chrome.immersive) {
+      setChaptersOpen(false);
+      setSettingsOpen(false);
+    }
+  }, [chrome.immersive]);
   const [filter, setFilter] = useState("");
   const ordered = chapterSequence(chapters.data ?? [], language, scanlator);
   const languages = [
@@ -210,21 +221,6 @@ export function BookReader({
       ref={chrome.root}
       aria-label="Manga reader"
       className={`fixed inset-x-0 bottom-0 z-40 flex flex-col overflow-hidden bg-neutral-950 ${chrome.fullscreen ? "top-0" : "top-11"}`}
-      onPointerMove={chrome.wake}
-      onPointerDown={chrome.wake}
-      onFocusCapture={(event) =>
-        chrome.setFocused(
-          event.target.matches(":focus-visible") &&
-            !!event.target.closest("[data-reader-chrome]"),
-        )
-      }
-      onBlurCapture={(event) => {
-        if (
-          !(event.relatedTarget instanceof Element) ||
-          !event.relatedTarget.closest("[data-reader-chrome]")
-        )
-          chrome.setFocused(false);
-      }}
       onKeyDown={(event) => {
         if (event.key === "Escape") setChaptersOpen(false);
       }}
@@ -232,60 +228,38 @@ export function BookReader({
       <header
         data-reader-chrome
         inert={!chrome.visible}
-        className={`z-30 flex h-16 shrink-0 items-center gap-3 border-b rule bg-base-100/95 px-4 backdrop-blur-xl transition-opacity ${chrome.immersive ? "absolute inset-x-0 top-0" : ""} ${chrome.visible ? "opacity-100" : "pointer-events-none opacity-0"}`}
+        className={`absolute inset-x-0 top-0 z-30 grid h-16 grid-cols-[1fr_minmax(0,2fr)_1fr] items-center gap-3 border-b rule bg-base-100/90 px-4 backdrop-blur-xl transition-opacity ${chrome.visible ? "opacity-100" : "pointer-events-none opacity-0"}`}
       >
-        <button className="btn btn-ghost btn-sm" onClick={onBack}>
-          ← Library
-        </button>
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-sm font-semibold" title={book.title}>
+        <div>
+          <button className="btn btn-ghost btn-sm" onClick={onBack}>
+            ← Library
+          </button>
+        </div>
+        <div className="min-w-0 text-center">
+          <h2
+            data-reader-title
+            className="truncate text-sm font-semibold"
+            title={book.title}
+          >
             {book.title}
           </h2>
           <p className="truncate text-xs text-base-content/60">
-            {ordered[chapterIndex]?.title ||
-              (ordered[chapterIndex]
-                ? `Chapter ${ordered[chapterIndex]!.chapter}`
-                : "Choose a chapter")}
+            {ordered[chapterIndex]?.title || "Choose a chapter"}
           </p>
         </div>
-        <button
-          className="btn btn-ghost btn-sm"
-          disabled={chapterIndex <= 0}
-          onClick={() => setSelected(ordered[chapterIndex - 1]!.id)}
-          aria-label="Previous chapter"
-        >
-          ← Chapter
-        </button>
-        <button
-          className="btn btn-ghost btn-sm"
-          disabled={chapterIndex < 0 || chapterIndex === ordered.length - 1}
-          onClick={() => setSelected(ordered[chapterIndex + 1]!.id)}
-          aria-label="Next chapter"
-        >
-          Chapter →
-        </button>
-        <button
-          className="btn btn-sm"
-          aria-expanded={chaptersOpen}
-          aria-controls="reader-chapters"
-          onClick={() => setChaptersOpen(!chaptersOpen)}
-        >
-          Chapters
-        </button>
+        <div aria-hidden="true" />
       </header>
       {chrome.error && (
         <p role="alert" className="bg-base-100 px-4 py-2">
           {chrome.error}
         </p>
       )}
-      <div
-        className={`relative flex min-h-0 flex-1 ${chrome.immersive && (chaptersOpen || settingsOpen) ? "pt-16" : ""}`}
-      >
+      <div className="relative flex min-h-0 flex-1">
         {chaptersOpen && (
           <aside
             id="reader-chapters"
             data-reader-chrome
-            className="absolute inset-y-0 left-0 z-30 flex w-80 max-w-full flex-col border-r rule bg-base-100 shadow-2xl sm:static sm:shrink-0"
+            className="absolute bottom-24 right-4 z-40 flex max-h-[70vh] w-80 max-w-[calc(100%_-_2rem)] flex-col overflow-hidden rounded-xl border rule bg-base-100/95 shadow-2xl backdrop-blur-xl"
           >
             <div className="border-b rule p-4">
               <div className="mb-3 flex items-center justify-between">
@@ -299,6 +273,26 @@ export function BookReader({
                   aria-label="Close chapters"
                 >
                   ✕
+                </button>
+              </div>
+              <div className="mb-3 flex gap-2">
+                <button
+                  className="btn btn-ghost btn-sm flex-1"
+                  disabled={chapterIndex <= 0}
+                  aria-label="Previous chapter"
+                  onClick={() => setSelected(ordered[chapterIndex - 1]!.id)}
+                >
+                  <ChevronLeft className="size-4" /> Previous
+                </button>
+                <button
+                  className="btn btn-ghost btn-sm flex-1"
+                  disabled={
+                    chapterIndex < 0 || chapterIndex === ordered.length - 1
+                  }
+                  aria-label="Next chapter"
+                  onClick={() => setSelected(ordered[chapterIndex + 1]!.id)}
+                >
+                  Next <ChevronRight className="size-4" />
                 </button>
               </div>
               <input
@@ -404,7 +398,29 @@ export function BookReader({
                     : undefined
                 }
                 chrome={chrome}
-                onSettingsChange={setSettingsOpen}
+                settingsOpen={settingsOpen}
+                onSettingsChange={changeSettings}
+                chapterControl={
+                  <button
+                    className="btn btn-ghost btn-sm max-w-44"
+                    title="Choose chapter"
+                    aria-label="Choose chapter"
+                    aria-expanded={chaptersOpen}
+                    aria-controls="reader-chapters"
+                    onClick={() => {
+                      setChaptersOpen(!chaptersOpen);
+                      setSettingsOpen(false);
+                    }}
+                  >
+                    <BookOpen className="size-4 shrink-0" />
+                    <span className="truncate">
+                      {ordered[chapterIndex]
+                        ? `Ch. ${ordered[chapterIndex]!.chapter}`
+                        : "Chapters"}
+                    </span>
+                    <ChevronUp className="size-3 shrink-0" />
+                  </button>
+                }
               />
             </>
           ) : (
@@ -425,6 +441,8 @@ function ChapterReader({
   onNextChapter,
   chrome,
   onSettingsChange,
+  settingsOpen,
+  chapterControl,
 }: {
   provider: string;
   book: string;
@@ -433,6 +451,8 @@ function ChapterReader({
   onNextChapter?: () => void;
   chrome: ReturnType<typeof useReaderChrome>;
   onSettingsChange: (open: boolean) => void;
+  settingsOpen: boolean;
+  chapterControl: ReactNode;
 }) {
   const pages = useQuery({
     queryKey: ["manga", provider, book, chapter, "pages"],
@@ -461,6 +481,8 @@ function ChapterReader({
       onNextChapter={onNextChapter}
       chrome={chrome}
       onSettingsChange={onSettingsChange}
+      settingsOpen={settingsOpen}
+      chapterControl={chapterControl}
     />
   );
 }

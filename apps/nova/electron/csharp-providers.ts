@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import type { ManagedSource } from "./source-manager";
 import { CSharpProviderSession } from "./csharp-worker";
+import { createImagePool, type CSharpImagePool } from "./csharp-image-pool";
 import { resolveWorkerTarget } from "./worker-target";
 import { csharpMangaProgress } from "./csharp-manga-progress";
 import { transpileProvider } from "./provider-transpile";
@@ -51,6 +52,7 @@ interface SeanimeEpisode {
 }
 
 let worker: CSharpProviderSession | null = null;
+let imagePool: CSharpImagePool | null = null;
 let shuttingDown = false;
 const mangaRegistrations = new Set<string>();
 const registrations = new Map<
@@ -58,17 +60,20 @@ const registrations = new Map<
   { sourceId: string; adapterId: string }
 >();
 
+function workerTarget() {
+  return resolveWorkerTarget({
+    packaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    appPath: app.getAppPath(),
+    platform: process.platform,
+    arch: process.arch,
+    dllOverride: process.env.VESTRA_CSHARP_SERVER_DLL,
+  });
+}
 function clientForSources(): CSharpProviderSession {
   if (shuttingDown) throw new Error("Source runtime is shutting down.");
   return (worker ??= new CSharpProviderSession(
-    resolveWorkerTarget({
-      packaged: app.isPackaged,
-      resourcesPath: process.resourcesPath,
-      appPath: app.getAppPath(),
-      platform: process.platform,
-      arch: process.arch,
-      dllOverride: process.env.VESTRA_CSHARP_SERVER_DLL,
-    }),
+    workerTarget(),
     resolve(resolveDataDir(), "csharp-provider-store"),
   ));
 }
@@ -99,7 +104,10 @@ export async function activateCSharpSource(
       id,
       definition.name,
       call,
-      (request) => client.request({ kind: "image", request }),
+      (request) => {
+        if (shuttingDown) throw new Error("Image runtime is shutting down.");
+        return (imagePool ??= createImagePool(workerTarget())).image(request);
+      },
       csharpMangaProgress(client, id),
     );
     mangaRegistrations.add(id);
@@ -309,4 +317,6 @@ export function stopCSharpProviders(): void {
   registrations.clear();
   worker?.stop();
   worker = null;
+  imagePool?.stop();
+  imagePool = null;
 }

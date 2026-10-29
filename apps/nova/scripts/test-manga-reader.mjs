@@ -39,7 +39,7 @@ after(async () => {
   await rm(scratch, { recursive: true, force: true });
 });
 const images = [];
-function register(service, id = "manga", backend = client) {
+function register(service, id = "manga", backend = client, imageOverride) {
   service.register(
     id,
     "Fixture",
@@ -66,6 +66,7 @@ function register(service, id = "manga", backend = client) {
       })[method],
     async (request) => {
       images.push(request);
+      if (imageOverride) return imageOverride(request);
       return { mimeType: "image/png", data: "AAE=" };
     },
     csharpMangaProgress(backend, id),
@@ -145,6 +146,32 @@ test("non-raster results are refused before reaching renderer", async () => {
     csharpMangaProgress(client, "manga"),
   );
   await assert.rejects(s.image(pages[0].handle));
+});
+test("disabling or replacing a source rejects its pending image downloads", async () => {
+  for (const action of ["disable", "replace"]) {
+    const service = new MangaService(new NodeDriver(join(scratch, action)));
+    let release;
+    register(
+      service,
+      "manga",
+      client,
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    await service.search("manga", "x");
+    await service.chapters("manga", "book");
+    const pages = await service.pages("manga", "book", "chapter");
+    const pending = assert.rejects(
+      service.image(pages[0].handle),
+      /source changed/,
+    );
+    if (action === "disable") service.unregister("manga");
+    else register(service);
+    release({ mimeType: "image/png", data: "AAE=" });
+    await pending;
+  }
 });
 
 test("legacy progress imports into C# once and the recovery copy is preserved", async () => {

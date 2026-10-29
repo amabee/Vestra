@@ -51,7 +51,7 @@ try {
   await build({
     stdin: {
       contents: `
-      import React, { useState } from 'react';
+      import React, { StrictMode, useState } from 'react';
       import { createRoot } from 'react-dom/client';
       import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
       import { BookReader } from './renderer/src/routes/manga';
@@ -62,7 +62,7 @@ try {
         const [book, choose] = useState('a'); f.choose = choose;
         return <BookReader key={book} provider="fixture" book={{id:book,title:'Fixture '+book}} onBack={() => { f.exited = true; }} />;
       }
-      createRoot(document.getElementById('root')).render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><Fixture /></QueryClientProvider>);
+      createRoot(document.getElementById('root')).render(<StrictMode><QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><Fixture /></QueryClientProvider></StrictMode>);
     `,
       resolveDir: nova,
       loader: "tsx",
@@ -104,7 +104,7 @@ try {
       chapters: async () => [{id:'one',title:'Chapter 1',chapter:'1',index:0},{id:'two',title:'Chapter 2',chapter:'2',index:1}],
       progress: async () => null,
       pages: async (_p,_b,c) => Array.from({length:40},(_,index)=>({handle:c+'-'+index,index})),
-      image: async (handle) => { const f=window.readerFixture; f.calls.push(handle); if(f.fail && handle==='one-5') throw new Error('Fixture image failure'); return ${JSON.stringify("data:image/png;base64," + png.toString("base64"))}; },
+      image: async (handle) => { const f=window.readerFixture; f.calls.push(handle); if(f.slow===handle) await new Promise(resolve=>{f.releaseSlow=resolve;}); if(f.fail && handle==='one-5') throw new Error('Fixture image failure'); return ${JSON.stringify("data:image/png;base64," + png.toString("base64"))}; },
       save: async (_p,b,c,page) => { window.readerFixture.saves.push({book:b,chapter:c,page}); },
     }}};
   </script><script src="fixture.js"></script></body></html>`,
@@ -141,6 +141,7 @@ try {
         await until('window.readerFixture.saves.some(s=>s.page===14)');
         await key('ArrowRight');
         await until('window.readerFixture.saves.some(s=>s.page===15)');
+        await until('document.querySelector("[aria-label^=Vertical]").getAttribute("aria-busy")==="false"');
         await run('document.querySelector("[aria-label^=Vertical]").scrollBy({top:4200})');
         await until('window.readerFixture.saves.some(s=>s.page>15)');
         assert.ok(await run('document.querySelectorAll("img").length < 12'));
@@ -153,16 +154,48 @@ try {
         await run('document.querySelector("[aria-label^=Vertical]").dispatchEvent(new MouseEvent("dblclick",{bubbles:true}))');
         await until('Object.values(localStorage).every(value=>JSON.parse(value).zoom===100)');
         console.log('PASS Space scrolls the vertical canvas and wheel zoom/reset persists per series');
+        await run('window.readerFixture.slow="one-29"');
+        await jump(30);
+        await until('typeof window.readerFixture.releaseSlow==="function"');
+        await key(' ');
+        await until('document.querySelector("[aria-label^=Vertical]").getAttribute("aria-busy")==="false"');
+        await until('document.querySelector("[aria-label^=Vertical]").getBoundingClientRect().top-document.querySelectorAll("[data-page]")[29].getBoundingClientRect().top>100');
+        await run('window.readerFixture.releaseSlow()');
+        await until('document.querySelectorAll("[data-page]")[29].querySelector("img")?.complete');
+        assert.ok(await run('document.querySelector("[aria-label^=Vertical]").getBoundingClientRect().top-document.querySelectorAll("[data-page]")[29].getBoundingClientRect().top>100'));
+        console.log('PASS keyboard scrolling interrupts a pending image jump instead of snapping back');
         await key('s');
         await until('document.querySelector("aside[aria-label^=Reader]")');
         await key('Escape');
         await until('!document.querySelector("aside[aria-label^=Reader]")');
-        await run('[...document.querySelectorAll("button")].find(e=>e.textContent==="Immersive").click()');
-        await pause(2800);
-        assert.equal(await run('document.querySelector("header").inert'),true);
+        const clickPage=()=>run('(()=>{const e=document.querySelector("[data-reader-canvas]");e.dispatchEvent(new PointerEvent("pointerdown",{clientX:100,clientY:150,bubbles:true}));e.dispatchEvent(new MouseEvent("click",{detail:1,clientX:100,clientY:150,bubbles:true}));})()');
+        const canvasHeight=await run('document.querySelector("[data-reader-canvas]").clientHeight');
+        await clickPage();
+        await until('document.querySelector("header").inert');
         await run('document.querySelector("section").dispatchEvent(new PointerEvent("pointermove",{bubbles:true}))');
+        await pause(2600);
+        assert.equal(await run('document.querySelector("header").inert'),true);
+        assert.equal(await run('document.querySelector("[data-reader-canvas]").clientHeight'),canvasHeight);
+        await clickPage();
         await until('!document.querySelector("header").inert');
-        console.log('PASS settings shortcuts and immersive hide/reveal controls');
+        console.log('PASS page click hides/reveals controls without timers, pointer reveal or canvas resizing');
+        assert.equal(await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Immersive reading").textContent'), '');
+        assert.equal(await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Reader settings").textContent'), '');
+        assert.ok(await run('(()=>{const r=document.querySelector("[data-reader-title]").getBoundingClientRect();return Math.abs(r.left+r.width/2-innerWidth/2)<2;})()'));
+        assert.ok(await run('(()=>{const r=document.querySelector("[data-reader-pagination]").getBoundingClientRect();return Math.abs(r.left+r.width/2-innerWidth/2)<2;})()'));
+        await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Choose chapter").click()');
+        await until('document.querySelector("#reader-chapters")');
+        assert.ok(await run('document.querySelector("#reader-chapters").getBoundingClientRect().bottom < document.querySelector("[data-reader-actions]").getBoundingClientRect().top'));
+        if(process.env.VESTRA_READER_SCREENSHOT) require('node:fs').writeFileSync(process.env.VESTRA_READER_SCREENSHOT,(await win.webContents.capturePage()).toPNG());
+        await key('Escape');
+        console.log('PASS centered title/pagination, icon controls and bottom-right upward chapter menu');
+        const savedBefore=await run('JSON.stringify(window.readerFixture.saves)');
+        await run('(()=>{const e=document.querySelector("input[aria-label^=Reading]"),r=e.getBoundingClientRect();e.dispatchEvent(new PointerEvent("pointermove",{pointerType:"mouse",clientX:r.left+r.width/2,bubbles:true}));})()');
+        await until('document.querySelector("[role=tooltip] img")?.complete');
+        assert.ok(await run('document.querySelector("[role=tooltip]").textContent.includes("Page 21")'));
+        assert.equal(await run('JSON.stringify(window.readerFixture.saves)'),savedBefore);
+        await run('document.querySelector("input[aria-label^=Reading]").parentElement.dispatchEvent(new PointerEvent("pointerleave",{bubbles:false}))');
+        console.log('PASS progress hover displays the requested page thumbnail without changing reading progress');
         await run('window.readerFixture.choose("b")');
         await until('document.body.textContent.includes("Fixture b") && !document.querySelector("[aria-label^=Vertical]")');
         await until('document.body.textContent.includes("Try Webtoon mode?")');
