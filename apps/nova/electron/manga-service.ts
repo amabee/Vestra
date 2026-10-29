@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
+import type { MangaCoverCache } from "./manga-cover-cache";
 import type { StorageDriver } from "@vestra/storage";
 import type {
   MangaBook,
@@ -85,7 +86,29 @@ export class MangaService {
   private counts = new Map<string, number>();
   private writes: Promise<void> = Promise.resolve();
   private coverLookups = new Map<string, Promise<MangaBook>>();
-  constructor(private readonly driver: StorageDriver) {}
+  private coverImages = new Map<string, Promise<string>>();
+  private warmQueue = new Set<string>();
+  private warming = 0;
+  constructor(
+    private readonly driver: StorageDriver,
+    private coverCache?: MangaCoverCache,
+  ) {}
+  private warm(books: MangaBook[]) {
+    for (const book of books.slice(0, 8))
+      if (book.cover && this.warmQueue.size < 24)
+        this.warmQueue.add(book.cover);
+    while (this.warming < 2 && this.warmQueue.size) {
+      const handle = this.warmQueue.values().next().value!;
+      this.warmQueue.delete(handle);
+      this.warming++;
+      void this.image(handle)
+        .catch(() => undefined)
+        .finally(() => {
+          this.warming--;
+          this.warm([]);
+        });
+    }
+  }
   register(
     id: string,
     name: string,
@@ -157,13 +180,15 @@ export class MangaService {
   async recent(id: string): Promise<MangaRecent> {
     await this.writes;
     const result = await this.provider(id).progress.recent();
-    return {
+    const managed = {
       ...result,
       entries: result.entries.map((entry) => ({
         book: this.remember(id, bookSchema.parse(entry.book), entry.artwork),
         progress: entry.progress,
       })),
     };
+    if (this.coverCache) this.warm(managed.entries.map((entry) => entry.book));
+    return managed;
   }
   async search(id: string, query: string): Promise<MangaBook[]> {
     const rows = z
@@ -171,7 +196,7 @@ export class MangaService {
       .max(2000)
       .parse(await this.provider(id).call("search", [{ query, year: 0 }]));
     // Leave room for recent titles and another small result set in the grant cache.
-    return rows.slice(0, 400).map((row) => {
+    const managed = rows.slice(0, 400).map((row) => {
       let artwork: MangaArtwork | undefined;
       if (row.image) {
         try {
@@ -184,6 +209,8 @@ export class MangaService {
       }
       return this.remember(id, row, artwork);
     });
+    if (this.coverCache) this.warm(managed);
+    return managed;
   }
   async chapters(id: string, book: string): Promise<MangaChapter[]> {
     const key = this.book(id, book);
@@ -224,8 +251,11 @@ export class MangaService {
       if (uri.protocol !== "https:" || uri.username || uri.password)
         throw new Error("Source returned an invalid cover URL.");
       const artwork = { url: row.image, headers: row.imageHeaders ?? {} };
+      if (refresh)
+        await this.coverCache?.invalidate(id, artwork).catch(() => undefined);
       if (refresh && known.cover) this.covers.delete(known.cover);
       const managed = this.remember(id, known, artwork);
+      if (this.coverCache) this.warm([managed]);
       // Artwork enrichment preserves the reading timestamp/page and creates no history entry.
       if (provider.progress.setCover) {
         const write = this.writes.then(() =>
@@ -280,33 +310,65 @@ export class MangaService {
     const r = this.handles.get(handle) ?? this.covers.get(handle);
     if (!r) throw new Error("Page expired. Reopen the chapter.");
     const provider = this.provider(r.providerId);
-    const value = z
-      .object({
-        mimeType: z.enum([
-          "image/jpeg",
-          "image/png",
-          "image/webp",
-          "image/gif",
-          "image/avif",
-        ]),
-        data: z
-          .string()
-          .max(2796204)
-          .regex(/^[A-Za-z0-9+/]*={0,2}$/),
+    const valid = () =>
+      (this.handles.get(handle) ?? this.covers.get(handle)) === r &&
+      this.providers.get(r.providerId) === provider;
+    const cover = this.covers.get(handle) === r;
+    if (cover) {
+      const pending = this.coverImages.get(handle);
+      if (pending) return pending;
+    }
+    const fetch = async () => {
+      if (cover) {
+        const cached = await this.coverCache
+          ?.get(r.providerId, r)
+          .catch(() => null);
+        if (!valid())
+          throw new Error("Manga source changed. Reopen the library.");
+        if (cached) return cached;
+      }
+      const value = z
+        .object({
+          mimeType: z.enum([
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "image/gif",
+            "image/avif",
+          ]),
+          data: z
+            .string()
+            .max(2796204)
+            .regex(/^[A-Za-z0-9+/]*={0,2}$/),
+        })
+        .parse(
+          await provider.image({
+            url: r.url,
+            method: "GET",
+            headers: r.headers,
+          }),
+        );
+      if (!valid())
+        throw new Error("Manga source changed. Reopen the chapter.");
+      const data = `data:${value.mimeType};base64,${value.data}`;
+      if (cover)
+        await this.coverCache
+          ?.put(r.providerId, r, data)
+          .catch(() => undefined);
+      if (!valid())
+        throw new Error("Manga source changed. Reopen the library.");
+      return data;
+    };
+    if (!cover) return fetch();
+    const result = fetch();
+    this.coverImages.set(handle, result);
+    void result
+      .finally(() => {
+        if (this.coverImages.get(handle) === result)
+          this.coverImages.delete(handle);
       })
-      .parse(
-        await provider.image({
-          url: r.url,
-          method: "GET",
-          headers: r.headers,
-        }),
-      );
-    if (
-      (this.handles.get(handle) ?? this.covers.get(handle)) !== r ||
-      this.providers.get(r.providerId) !== provider
-    )
-      throw new Error("Manga source changed. Reopen the chapter.");
-    return `data:${value.mimeType};base64,${value.data}`;
+      .catch(() => undefined);
+    return result;
   }
   private progressKey(p: string, b: string) {
     return (

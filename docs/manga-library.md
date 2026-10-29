@@ -6,6 +6,15 @@ read date. Searching replaces that shelf with results; clearing search restores 
 Cards open the existing reader, and its Library button returns to the current
 search. Sources remain available through one icon link rather than another panel.
 
+Cover bytes now have a main-process memory cache and a persistent disk cache.
+The cache is scoped to provider, URL and headers, expires after seven days, and is
+bounded to 32 MiB in memory / 128 MiB on disk (64 / 512 entries respectively).
+First-shelf artwork starts warming before the renderer requests it; duplicate
+requests share one download. Retry Cover invalidates saved bytes. Cache failures
+fall back to the normal guarded image fetch. Chapter pages are not stored here.
+`node apps/nova/scripts/test-manga-cover-cache.mjs` verifies restart reuse without
+another source download, expiry, corrupt/oversized recovery, bounds and refresh.
+
 Cover artwork comes from each provider's `image` and optional `imageHeaders` search
 fields. Main registers separate cover handles, so loading library artwork cannot
 evict a full reader's page handles. The renderer receives opaque handles and raster

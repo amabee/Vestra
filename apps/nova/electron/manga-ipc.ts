@@ -1,10 +1,15 @@
 import { ipcMain } from "electron";
 import { z } from "zod";
-import { getDriver } from "./services";
+import { getDriver, resolveDataDir } from "./services";
+import { join } from "node:path";
+import { MangaCoverCache } from "./manga-cover-cache";
 import { MangaService } from "./manga-service";
 let service: MangaService | null = null;
 export function getMangaService(): MangaService {
-  return (service ??= new MangaService(getDriver()));
+  return (service ??= new MangaService(
+    getDriver(),
+    new MangaCoverCache(join(resolveDataDir(), "manga-covers")),
+  ));
 }
 const text = z.string().min(1).max(4096);
 export function registerMangaIpc(): void {
