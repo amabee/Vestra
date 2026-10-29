@@ -73,12 +73,12 @@ function MangaBrowser({ provider }: { provider: string }) {
   });
   if (book)
     return (
-      <>
-        <button className="btn btn-ghost mb-4" onClick={() => setBook(null)}>
-          ← Browse manga
-        </button>
-        <BookReader key={book.id} provider={provider} book={book} />
-      </>
+      <BookReader
+        key={book.id}
+        provider={provider}
+        book={book}
+        onBack={() => setBook(null)}
+      />
     );
   return (
     <>
@@ -159,7 +159,15 @@ function MangaBrowser({ provider }: { provider: string }) {
     </>
   );
 }
-function BookReader({ provider, book }: { provider: string; book: MangaBook }) {
+function BookReader({
+  provider,
+  book,
+  onBack,
+}: {
+  provider: string;
+  book: MangaBook;
+  onBack: () => void;
+}) {
   const chapters = useQuery({
     queryKey: ["manga", provider, book.id, "chapters"],
     queryFn: () => bridge.manga.chapters(provider, book.id),
@@ -175,6 +183,8 @@ function BookReader({ provider, book }: { provider: string; book: MangaBook }) {
   const [selected, setSelected] = useState("");
   const [language, setLanguage] = useState("");
   const [scanlator, setScanlator] = useState("");
+  const [chaptersOpen, setChaptersOpen] = useState(false);
+  const [filter, setFilter] = useState("");
   const ordered = chapterSequence(chapters.data ?? [], language, scanlator);
   const languages = [
     ...new Set(
@@ -193,111 +203,181 @@ function BookReader({ provider, book }: { provider: string; book: MangaBook }) {
   const chapter = ordered.some((c) => c.id === selected) ? selected : fallback;
   const chapterIndex = ordered.findIndex((c) => c.id === chapter);
   return (
-    <section>
-      <h2 className="text-xl font-semibold">{book.title}</h2>
-      {(languages.length > 1 || scanlators.length > 1) && (
-        <div className="flex flex-wrap gap-3 py-3">
-          {languages.length > 1 && (
-            <label className="flex items-center gap-2 text-sm">
-              Language
-              <select
-                className="select select-bordered select-sm"
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-              >
-                <option value="">All languages</option>
-                {languages.map((value) => (
-                  <option key={value}>{value}</option>
+    <section
+      aria-label="Manga reader"
+      className="fixed inset-x-0 bottom-0 top-11 z-40 flex flex-col overflow-hidden bg-base-100"
+    >
+      <header className="flex h-16 shrink-0 items-center gap-3 border-b rule px-4">
+        <button className="btn btn-ghost btn-sm" onClick={onBack}>
+          ← Library
+        </button>
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-sm font-semibold" title={book.title}>
+            {book.title}
+          </h2>
+          <p className="truncate text-xs text-base-content/60">
+            {ordered[chapterIndex]?.title ||
+              (ordered[chapterIndex]
+                ? `Chapter ${ordered[chapterIndex]!.chapter}`
+                : "Choose a chapter")}
+          </p>
+        </div>
+        <button
+          className="btn btn-ghost btn-sm"
+          disabled={chapterIndex <= 0}
+          onClick={() => setSelected(ordered[chapterIndex - 1]!.id)}
+          aria-label="Previous chapter"
+        >
+          ← Chapter
+        </button>
+        <button
+          className="btn btn-ghost btn-sm"
+          disabled={chapterIndex < 0 || chapterIndex === ordered.length - 1}
+          onClick={() => setSelected(ordered[chapterIndex + 1]!.id)}
+          aria-label="Next chapter"
+        >
+          Chapter →
+        </button>
+        <button
+          className="btn btn-sm"
+          aria-expanded={chaptersOpen}
+          aria-controls="reader-chapters"
+          onClick={() => setChaptersOpen(!chaptersOpen)}
+        >
+          Chapters
+        </button>
+      </header>
+      <div className="relative flex min-h-0 flex-1">
+        {chaptersOpen && (
+          <aside
+            id="reader-chapters"
+            className="absolute inset-y-0 left-0 z-30 flex w-80 max-w-full flex-col border-r rule bg-base-100 shadow-2xl sm:static sm:shrink-0"
+          >
+            <div className="border-b rule p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="font-semibold">
+                  Chapters{" "}
+                  <span className="text-base-content/50">{ordered.length}</span>
+                </h3>
+                <button
+                  className="btn btn-ghost btn-xs"
+                  onClick={() => setChaptersOpen(false)}
+                  aria-label="Close chapters"
+                >
+                  ✕
+                </button>
+              </div>
+              <input
+                className="input input-bordered input-sm w-full"
+                aria-label="Find chapter"
+                placeholder="Find chapter…"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+              />
+              {(languages.length > 1 || scanlators.length > 1) && (
+                <div className="flex flex-wrap gap-3 py-3">
+                  {languages.length > 1 && (
+                    <label className="flex items-center gap-2 text-sm">
+                      Language
+                      <select
+                        className="select select-bordered select-sm"
+                        value={language}
+                        onChange={(e) => setLanguage(e.target.value)}
+                      >
+                        <option value="">All languages</option>
+                        {languages.map((value) => (
+                          <option key={value}>{value}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  {scanlators.length > 1 && (
+                    <label className="flex items-center gap-2 text-sm">
+                      Scanlator
+                      <select
+                        className="select select-bordered select-sm"
+                        value={scanlator}
+                        onChange={(e) => setScanlator(e.target.value)}
+                      >
+                        <option value="">All scanlators</option>
+                        {scanlators.map((value) => (
+                          <option key={value}>{value}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </div>
+              )}
+            </div>
+            <nav
+              aria-label="Chapters"
+              className="min-h-0 flex-1 overflow-y-auto p-2"
+            >
+              {ordered
+                .filter((c) =>
+                  `${c.title} ${c.chapter}`
+                    .toLowerCase()
+                    .includes(filter.toLowerCase()),
+                )
+                .map((c) => (
+                  <button
+                    key={c.id}
+                    aria-current={c.id === chapter ? "true" : undefined}
+                    className={`mb-1 block w-full rounded-lg p-3 text-left text-sm ${c.id === chapter ? "bg-primary/15 text-primary" : "hover:bg-base-200"}`}
+                    onClick={() => {
+                      setSelected(c.id);
+                      setChaptersOpen(false);
+                    }}
+                  >
+                    <span className="block">
+                      {c.title || `Chapter ${c.chapter}`}
+                    </span>
+                    <span className="text-xs opacity-60">
+                      {[c.language, c.scanlator].filter(Boolean).join(" · ")}
+                    </span>
+                  </button>
                 ))}
-              </select>
-            </label>
+            </nav>
+          </aside>
+        )}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {chapters.error && <p role="alert">{errorText(chapters.error)}</p>}
+          {progress.error && (
+            <p role="alert">
+              Could not read saved progress: {errorText(progress.error)}
+            </p>
           )}
-          {scanlators.length > 1 && (
-            <label className="flex items-center gap-2 text-sm">
-              Scanlator
-              <select
-                className="select select-bordered select-sm"
-                value={scanlator}
-                onChange={(e) => setScanlator(e.target.value)}
-              >
-                <option value="">All scanlators</option>
-                {scanlators.map((value) => (
-                  <option key={value}>{value}</option>
-                ))}
-              </select>
-            </label>
+          {chapters.isPending ||
+          progress.isPending ||
+          chapters.isFetching ||
+          progress.isFetching ? (
+            <p role="status" className="py-5">
+              Loading chapters…
+            </p>
+          ) : ordered.length ? (
+            <>
+              <ChapterReader
+                key={chapter}
+                provider={provider}
+                book={book.id}
+                chapter={chapter}
+                start={
+                  progress.data?.chapterId === chapter ? progress.data.page : 0
+                }
+                onNextChapter={
+                  chapterIndex >= 0 && chapterIndex < ordered.length - 1
+                    ? () => setSelected(ordered[chapterIndex + 1]!.id)
+                    : undefined
+                }
+              />
+            </>
+          ) : (
+            !chapters.error && (
+              <p className="py-5">No chapters match the current selection.</p>
+            )
           )}
         </div>
-      )}
-      {chapters.error && <p role="alert">{errorText(chapters.error)}</p>}
-      {progress.error && (
-        <p role="alert">
-          Could not read saved progress: {errorText(progress.error)}
-        </p>
-      )}
-      {chapters.isPending ||
-      progress.isPending ||
-      chapters.isFetching ||
-      progress.isFetching ? (
-        <p role="status" className="py-5">
-          Loading chapters…
-        </p>
-      ) : ordered.length ? (
-        <>
-          <label className="flex items-center gap-3 py-4">
-            Chapter
-            <select
-              aria-label="Chapter"
-              className="select select-bordered max-w-lg"
-              value={chapter}
-              onChange={(e) => setSelected(e.target.value)}
-            >
-              {ordered.map((c, i) => (
-                <option key={c.id} value={c.id}>
-                  {c.title || `Chapter ${c.chapter}`}{" "}
-                  {c.language ? `· ${c.language}` : ""}{" "}
-                  {c.scanlator ? `· ${c.scanlator}` : ""} ({i + 1}/
-                  {ordered.length})
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="flex justify-between gap-3 pb-4">
-            <button
-              className="btn btn-sm"
-              disabled={chapterIndex <= 0}
-              onClick={() => setSelected(ordered[chapterIndex - 1]!.id)}
-            >
-              Previous chapter
-            </button>
-            <button
-              className="btn btn-sm"
-              disabled={chapterIndex < 0 || chapterIndex === ordered.length - 1}
-              onClick={() => setSelected(ordered[chapterIndex + 1]!.id)}
-            >
-              Next chapter
-            </button>
-          </div>
-          <ChapterReader
-            key={chapter}
-            provider={provider}
-            book={book.id}
-            chapter={chapter}
-            start={
-              progress.data?.chapterId === chapter ? progress.data.page : 0
-            }
-            onNextChapter={
-              chapterIndex >= 0 && chapterIndex < ordered.length - 1
-                ? () => setSelected(ordered[chapterIndex + 1]!.id)
-                : undefined
-            }
-          />
-        </>
-      ) : (
-        !chapters.error && (
-          <p className="py-5">No chapters match the current selection.</p>
-        )
-      )}
+      </div>
     </section>
   );
 }

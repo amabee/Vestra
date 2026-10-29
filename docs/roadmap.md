@@ -147,6 +147,7 @@ coverage, including failed and interrupted downloads.
 
 ## 7. Finish the manga experience
 
+- [x] Add a focused reading canvas, searchable chapter drawer and compact persistent page controls (desktop visual verification pending).
 - [x] Add next/previous chapter navigation and C#-backed Continue Reading entry points.
 - [x] Add left/right reading direction, double-page mode, fit/zoom and remembered reader preferences.
 - [x] Add language/scanlator filtering, page jumps and separate image-decode/save retry controls.
