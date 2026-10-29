@@ -1,6 +1,7 @@
 export interface MangaBook {
   id: string;
   title: string;
+  cover?: string;
 }
 export interface MangaChapter {
   id: string;

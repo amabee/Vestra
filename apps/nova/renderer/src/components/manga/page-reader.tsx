@@ -195,7 +195,7 @@ export function PageReader({
         if (canvas)
           canvas.scrollBy({
             top: canvas.clientHeight * 0.85,
-            behavior: "smooth",
+            behavior: "instant",
           });
         return;
       }

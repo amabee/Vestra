@@ -9,6 +9,10 @@ import type {
   ReadingProgress,
 } from "../shared/manga";
 type Call = (method: string, args: unknown[]) => Promise<unknown>;
+export interface MangaArtwork {
+  url: string;
+  headers: Record<string, string>;
+}
 export interface ReadingProgressRepository {
   read(book: string): Promise<ReadingProgress | null>;
   save(
@@ -17,13 +21,26 @@ export interface ReadingProgressRepository {
     page: number,
     pageCount: number,
     title: string,
+    cover?: MangaArtwork,
   ): Promise<void>;
-  recent(): Promise<MangaRecent>;
+  recent(): Promise<
+    Omit<MangaRecent, "entries"> & {
+      entries: {
+        book: MangaBook;
+        progress: ReadingProgress;
+        artwork?: MangaArtwork;
+      }[];
+    }
+  >;
   import(book: string, progress: ReadingProgress): Promise<ReadingProgress>;
 }
 const bookSchema = z.object({
   id: z.string().min(1).max(4096),
   title: z.string().min(1).max(4096),
+});
+const searchBookSchema = bookSchema.extend({
+  image: z.string().max(4096).nullish(),
+  imageHeaders: z.record(z.string(), z.string()).nullish(),
 });
 const chapterSchema = z.object({
   id: z.string().min(1).max(4096),
@@ -57,6 +74,8 @@ export class MangaService {
     }
   >();
   private books = new Map<string, MangaBook>();
+  private artwork = new Map<string, MangaArtwork>();
+  private covers = new Map<string, MangaArtwork & { providerId: string }>();
   private chaptersByBook = new Map<string, MangaChapter[]>();
   private handles = new Map<
     string,
@@ -78,6 +97,8 @@ export class MangaService {
     this.providers.delete(id);
     for (const [k, v] of this.handles)
       if (v.providerId === id) this.handles.delete(k);
+    for (const [k, v] of this.covers)
+      if (v.providerId === id) this.covers.delete(k);
   }
   list() {
     return [...this.providers].map(([id, p]) => ({ id, name: p.name }));
@@ -95,29 +116,72 @@ export class MangaService {
     if (!this.books.has(key)) throw new Error("Search for this manga again.");
     return key;
   }
-  private remember(provider: string, book: MangaBook) {
+  private remember(
+    provider: string,
+    book: MangaBook,
+    artwork?: MangaArtwork,
+  ): MangaBook {
     const key = this.key(provider, book.id);
+    const previous = this.books.get(key);
+    const saved = artwork ?? this.artwork.get(key);
+    let cover = previous?.cover;
+    if (
+      saved &&
+      (!cover ||
+        !this.covers.has(cover) ||
+        JSON.stringify(saved) !== JSON.stringify(this.artwork.get(key)))
+    ) {
+      if (cover) this.covers.delete(cover);
+      cover = randomUUID();
+      this.covers.set(cover, { ...saved, providerId: provider });
+      this.artwork.set(key, saved);
+    }
     this.books.delete(key);
-    if (this.books.size >= 500)
-      this.books.delete(this.books.keys().next().value!);
-    this.books.set(key, book);
+    if (this.books.size >= 500) {
+      const oldest = this.books.keys().next().value!;
+      const old = this.books.get(oldest)!;
+      if (old.cover) this.covers.delete(old.cover);
+      this.artwork.delete(oldest);
+      this.books.delete(oldest);
+    }
+    const managed = {
+      id: book.id,
+      title: book.title,
+      ...(cover ? { cover } : {}),
+    };
+    this.books.set(key, managed);
+    return managed;
   }
   async recent(id: string): Promise<MangaRecent> {
     await this.writes;
     const result = await this.provider(id).progress.recent();
-    for (const entry of result.entries)
-      this.remember(id, bookSchema.parse(entry.book));
-    return result;
+    return {
+      ...result,
+      entries: result.entries.map((entry) => ({
+        book: this.remember(id, bookSchema.parse(entry.book), entry.artwork),
+        progress: entry.progress,
+      })),
+    };
   }
   async search(id: string, query: string): Promise<MangaBook[]> {
     const rows = z
-      .array(bookSchema)
+      .array(searchBookSchema)
       .max(2000)
       .parse(await this.provider(id).call("search", [{ query, year: 0 }]));
-    for (const row of rows) {
-      this.remember(id, row);
-    }
-    return rows;
+    // Leave room for recent titles and another small result set in the grant cache.
+    return rows.slice(0, 400).map((row) => {
+      let artwork: MangaArtwork | undefined;
+      if (row.image) {
+        try {
+          const uri = new URL(row.image);
+          if (uri.protocol === "https:" && !uri.username && !uri.password)
+            artwork = { url: row.image, headers: row.imageHeaders ?? {} };
+        } catch {
+          /* A missing/broken cover must not hide an otherwise usable title. */
+        }
+      }
+      return this.remember(id, row, artwork);
+    });
   }
   async chapters(id: string, book: string): Promise<MangaChapter[]> {
     const key = this.book(id, book);
@@ -155,7 +219,7 @@ export class MangaService {
     });
   }
   async image(handle: string): Promise<string> {
-    const r = this.handles.get(handle);
+    const r = this.handles.get(handle) ?? this.covers.get(handle);
     if (!r) throw new Error("Page expired. Reopen the chapter.");
     const provider = this.provider(r.providerId);
     const value = z
@@ -180,7 +244,7 @@ export class MangaService {
         }),
       );
     if (
-      this.handles.get(handle) !== r ||
+      (this.handles.get(handle) ?? this.covers.get(handle)) !== r ||
       this.providers.get(r.providerId) !== provider
     )
       throw new Error("Manga source changed. Reopen the chapter.");
@@ -216,8 +280,9 @@ export class MangaService {
       return Promise.reject(new Error("Invalid reading position."));
     const repository = this.provider(p).progress;
     const title = this.books.get(this.key(p, b))!.title;
+    const cover = this.artwork.get(this.key(p, b));
     const result = this.writes.then(() =>
-      repository.save(b, chapterId, page, count, title),
+      repository.save(b, chapterId, page, count, title, cover),
     );
     this.writes = result.catch(() => undefined);
     return result;

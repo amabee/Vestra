@@ -152,7 +152,8 @@ coverage, including failed and interrupted downloads.
 - [x] Add next/previous chapter navigation and C#-backed Continue Reading entry points.
 - [x] Add left/right reading direction, double-page mode, fit/zoom and remembered reader preferences.
 - [x] Add language/scanlator filtering, page jumps and separate image-decode/save retry controls.
-- [ ] Add cover handling and host-side search ranking where required.
+- [x] Add provider cover art, a compact library grid and persisted Continue Reading artwork.
+- [ ] Add host-side search ranking where required.
 - [ ] Implement persistent chapter downloads and offline reading.
 - [ ] Verify chapter ordering, language/scanlator selection and changing page counts.
 - [ ] Verify downloaded-image integrity, retry behavior and progress consistency.

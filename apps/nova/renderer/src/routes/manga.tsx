@@ -1,8 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { BookOpen, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
-import { Link } from "react-router";
-import { Page, PageHeader } from "@/components/layout/page";
+import { MangaLibrary } from "@/components/manga/manga-library";
 import { bridge } from "@/lib/bridge";
 import { chapterSequence } from "@/lib/manga-reader";
 import { PageReader } from "@/components/manga/page-reader";
@@ -12,153 +11,17 @@ import type { MangaBook } from "../../../shared/manga";
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 export function MangaRoute() {
-  const sources = useQuery({
-    queryKey: ["manga", "sources"],
-    queryFn: bridge.manga.sources,
-    refetchInterval: (q) => (q.state.data?.length ? false : 2000),
-  });
-  const [selected, setSelected] = useState("");
-  const id = sources.data?.some((source) => source.id === selected)
-    ? selected
-    : sources.data?.[0]?.id || "";
   return (
-    <Page>
-      <PageHeader
-        eyebrow="Library"
-        title="Manga"
-        lead="Search, read and continue where you left off."
-      />
-      {sources.error && <p role="alert">{errorText(sources.error)}</p>}
-      {!sources.data?.length ? (
-        <p className="py-8 text-base-content/60">
-          No manga sources are connected.{" "}
-          <Link className="link" to="/sources">
-            Add a manga source
-          </Link>{" "}
-          to start reading.
-        </p>
-      ) : (
-        <>
-          <label className="flex items-center gap-3 py-4">
-            Source
-            <select
-              className="select select-bordered"
-              value={id}
-              onChange={(e) => setSelected(e.target.value)}
-            >
-              {sources.data.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <MangaBrowser key={id} provider={id} />
-        </>
-      )}
-    </Page>
-  );
-}
-function MangaBrowser({ provider }: { provider: string }) {
-  const [input, setInput] = useState("");
-  const [query, setQuery] = useState("");
-  const [book, setBook] = useState<MangaBook | null>(null);
-  const recent = useQuery({
-    queryKey: ["manga", provider, "recent"],
-    queryFn: () => bridge.manga.recent(provider),
-    enabled: book === null,
-  });
-  const results = useQuery({
-    queryKey: ["manga", provider, "search", query],
-    queryFn: () => bridge.manga.search(provider, query),
-    enabled: query.length > 0,
-  });
-  if (book)
-    return (
-      <BookReader
-        key={book.id}
-        provider={provider}
-        book={book}
-        onBack={() => setBook(null)}
-      />
-    );
-  return (
-    <>
-      {recent.error && (
-        <p role="alert" className="py-3">
-          Could not load recent reading: {errorText(recent.error)}
-        </p>
-      )}
-      {!!recent.data?.entries.length && (
-        <section className="pb-6">
-          <h2 className="text-lg font-semibold">Continue reading</h2>
-          <div className="grid gap-2 py-3 sm:grid-cols-2">
-            {recent.data.entries.map((entry) => (
-              <button
-                key={entry.book.id}
-                className="rounded-lg border rule p-4 text-left hover:bg-base-200"
-                onClick={() => setBook(entry.book)}
-              >
-                <span className="block font-medium">{entry.book.title}</span>
-                <span className="text-sm text-base-content/60">
-                  Page {entry.progress.page + 1} ·{" "}
-                  {new Date(entry.progress.updatedAt).toLocaleDateString()}
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-      {(!!recent.data?.unreadable || recent.data?.truncated) && (
-        <p role="status" className="py-3 text-sm">
-          Some saved reading entries could not be listed. You can still search
-          for the title to open it.
-        </p>
-      )}
-      <form
-        className="flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setQuery(input.trim());
-        }}
-      >
-        <input
-          aria-label="Search manga"
-          className="input input-bordered flex-1"
-          placeholder="Search manga titles"
-          maxLength={500}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
+    <MangaLibrary
+      renderReader={(provider, book, onBack) => (
+        <BookReader
+          key={book.id}
+          provider={provider}
+          book={book}
+          onBack={onBack}
         />
-        <button className="btn btn-primary" disabled={!input.trim()}>
-          Search
-        </button>
-      </form>
-      {results.isFetching && (
-        <p role="status" className="py-4">
-          Searching…
-        </p>
       )}
-      {results.error && (
-        <p role="alert" className="py-4">
-          {errorText(results.error)}
-        </p>
-      )}
-      {query && results.data?.length === 0 && (
-        <p className="py-4">No matching manga found.</p>
-      )}
-      <div className="grid gap-2 py-5 sm:grid-cols-2">
-        {results.data?.map((b) => (
-          <button
-            key={b.id}
-            className="rounded-lg border rule p-4 text-left hover:bg-base-200"
-            onClick={() => setBook(b)}
-          >
-            {b.title}
-          </button>
-        ))}
-      </div>
-    </>
+    />
   );
 }
 export function BookReader({

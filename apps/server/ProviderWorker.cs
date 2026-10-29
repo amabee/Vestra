@@ -51,7 +51,8 @@ internal static class ProviderWorker
                         "progress:recent" => progress.Recent(command.GetProperty("providerId").GetString()!),
                         "progress:save" => progress.Save(command.GetProperty("providerId").GetString()!, command.GetProperty("bookId").GetString()!,
                             command.GetProperty("chapterId").GetString()!, command.GetProperty("page").GetInt32(), command.GetProperty("pageCount").GetInt32(),
-                            command.TryGetProperty("title", out var title) ? title.GetString() : null),
+                            command.TryGetProperty("title", out var title) ? title.GetString() : null,
+                            command.TryGetProperty("cover", out var cover) ? cover.Deserialize<ReadingCover>(ProviderRuntime.JsonOptions) : null),
                         "progress:import" => progress.Import(command.GetProperty("providerId").GetString()!, command.GetProperty("bookId").GetString()!,
                             command.GetProperty("progress").Deserialize<ReadingPosition>(ProviderRuntime.JsonOptions) ?? throw new ArgumentException("Missing reading position.")),
                         _ => throw new ArgumentException("Unknown worker command.")

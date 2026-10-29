@@ -147,6 +147,57 @@ test("non-raster results are refused before reaching renderer", async () => {
   );
   await assert.rejects(s.image(pages[0].handle));
 });
+test("covers use opaque image handles with headers and restore from C# recent reading", async () => {
+  const backend = session(join(scratch, "csharp-covers"));
+  const service = new MangaService(new NodeDriver(join(scratch, "covers")));
+  const call = async (method) =>
+    ({
+      search: [
+        {
+          id: "book",
+          title: "Cover manga",
+          image: "https://images.example/cover.jpg",
+          imageHeaders: { Referer: "https://manga.example/" },
+        },
+      ],
+      findChapters: [
+        { id: "chapter", chapter: "1", title: "Chapter 1", index: 0 },
+      ],
+      findChapterPages: [{ url: "https://images.example/page.jpg", index: 0 }],
+    })[method];
+  const requests = [];
+  const registerCover = (target) =>
+    target.register(
+      "manga",
+      "Covers",
+      call,
+      async (request) => {
+        requests.push(request);
+        return { mimeType: "image/png", data: "AAE=" };
+      },
+      csharpMangaProgress(backend, "manga"),
+    );
+  registerCover(service);
+  const [book] = await service.search("manga", "cover");
+  assert.match(book.cover, /^[\da-f-]{36}$/);
+  assert.deepEqual(Object.keys(book).sort(), ["cover", "id", "title"]);
+  await service.image(book.cover);
+  assert.equal(requests[0].headers.Referer, "https://manga.example/");
+  await service.chapters("manga", "book");
+  await service.pages("manga", "book", "chapter");
+  await service.save("manga", "book", "chapter", 0);
+  const next = new MangaService(new NodeDriver(join(scratch, "covers")));
+  registerCover(next);
+  const recent = await next.recent("manga");
+  assert.equal(recent.entries[0].book.title, "Cover manga");
+  assert.notEqual(recent.entries[0].book.cover, book.cover);
+  assert.equal("artwork" in recent.entries[0], false);
+  assert.equal("url" in recent.entries[0].book, false);
+  await next.image(recent.entries[0].book.cover);
+  assert.equal(requests[1].url, "https://images.example/cover.jpg");
+  next.unregister("manga");
+  await assert.rejects(next.image(recent.entries[0].book.cover), /expired/);
+});
 test("disabling or replacing a source rejects its pending image downloads", async () => {
   for (const action of ["disable", "replace"]) {
     const service = new MangaService(new NodeDriver(join(scratch, action)));
