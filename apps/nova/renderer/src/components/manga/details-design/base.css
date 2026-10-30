@@ -1,0 +1,36 @@
+html,
+body {
+  overflow-x: clip;
+}
+.manga-info {
+  color: var(--color-base-content);
+  font-family: var(--font-sans);
+  font-size: var(--manga-info-text-md);
+  line-height: 1.5;
+}
+.manga-info :where(button, a, input, select):focus-visible,
+.manga-bookmark:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+.manga-info :where(button, a, input, select) {
+  min-height: 2.75rem;
+}
+.manga-info :where(button, a):active:not(:disabled),
+.manga-bookmark:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.manga-info button:disabled,
+.manga-bookmark:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+@media (prefers-reduced-motion: reduce) {
+  .manga-info *,
+  .manga-info *::before,
+  .manga-info *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

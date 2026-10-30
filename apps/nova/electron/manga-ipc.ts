@@ -4,6 +4,7 @@ import { getDriver, resolveDataDir } from "./services";
 import { join } from "node:path";
 import { MangaCoverCache } from "./manga-cover-cache";
 import { MangaDiscovery } from "./manga-discovery";
+import { MangaTitleResolver } from "./manga-title-resolver";
 import { MangaDetails } from "./manga-details";
 import type { MangaBookmarkRepository } from "./manga-bookmarks";
 import { MangaService } from "./manga-service";
@@ -25,6 +26,29 @@ export function registerMangaIpc(
   const details = new MangaDetails(getDriver(), (id, url) =>
     api.catalogueCover(id, url),
   );
+  const resolver = new MangaTitleResolver(getDriver(), api, (id) =>
+    details.get(id),
+  );
+  ipcMain.handle("manga:resolve", (_e, p, selection) => {
+    const provider = z.string().min(1).max(120).parse(p);
+    const input = z
+      .discriminatedUnion("kind", [
+        z.object({
+          kind: z.literal("catalogue"),
+          id: z.number().int().positive(),
+        }),
+        z.object({
+          kind: z.literal("source"),
+          source: z.string().min(1).max(120),
+          id: text,
+          title: z.string().max(500).optional(),
+        }),
+      ])
+      .parse(selection);
+    return input.kind === "catalogue"
+      ? resolver.catalogue(provider, input.id)
+      : resolver.source(provider, input.source, input.id, input.title);
+  });
   const discovery = new MangaDiscovery(getDriver(), (id, url) =>
     api.catalogueCover(id, url),
   );

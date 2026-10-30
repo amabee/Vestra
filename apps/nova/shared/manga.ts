@@ -61,3 +61,7 @@ export interface MangaBookmark {
   book: MangaBook;
   savedAt: string;
 }
+
+export type MangaSelection =
+  | { kind: "catalogue"; id: number }
+  | { kind: "source"; source: string; id: string; title?: string };

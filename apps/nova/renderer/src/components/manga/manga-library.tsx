@@ -48,12 +48,14 @@ export function MangaLibrary({ renderReader }: { renderReader: OpenReader }) {
     refetchInterval: (q) => (q.state.data?.length ? false : 2000),
   });
   const [params, setParams] = useSearchParams();
-  const [selected, setSelected] = useState("");
-  const id =
-    params.get("source") ||
-    (sources.data?.some((source) => source.id === selected)
-      ? selected
-      : sources.data?.[0]?.id || "");
+  const id = params.get("source") || sources.data?.[0]?.id || "";
+  useEffect(() => {
+    if (id && !params.has("source")) {
+      const next = new URLSearchParams(params);
+      next.set("source", id);
+      setParams(next, { replace: true });
+    }
+  }, [id, params, setParams]);
   return (
     <div
       className="mx-auto max-w-[1480px] px-6 py-8 lg:px-10"
@@ -111,7 +113,6 @@ export function MangaLibrary({ renderReader }: { renderReader: OpenReader }) {
                   className="select select-ghost select-sm min-w-0 max-w-52 bg-transparent text-sm focus:outline-none"
                   value={id}
                   onChange={(event) => {
-                    setSelected(event.target.value);
                     setParams({ source: event.target.value });
                   }}
                 >
@@ -165,7 +166,8 @@ function MangaShelf({
   const openBook = (value: MangaBook, origin = provider) => {
     setBook(value);
     change({
-      source: origin,
+      source: provider || origin,
+      bookSource: origin,
       book: value.id,
       title: value.title.slice(0, 500),
       catalogue: null,
@@ -175,6 +177,8 @@ function MangaShelf({
   };
   const openCatalogue = (value: MangaDiscoveryTitle) =>
     change({
+      source: provider || null,
+      bookSource: null,
       catalogue: String(value.id),
       book: null,
       title: null,
@@ -229,13 +233,34 @@ function MangaShelf({
       </button>
     );
   };
+  const originProvider = params.get("bookSource") || provider;
   const activeBook = useQuery({
-    queryKey: ["manga", provider, "book", bookId],
+    queryKey: [
+      "manga",
+      provider,
+      "resolved-book",
+      catalogueId || null,
+      originProvider,
+      bookId,
+    ],
     queryFn: () =>
-      bridge.manga.book(provider, bookId!, params.get("title") || undefined),
-    enabled: !!bookId,
-    initialData: book?.id === bookId ? book : undefined,
-    staleTime: Infinity,
+      bridge.manga.resolve(
+        provider,
+        catalogueId
+          ? { kind: "catalogue", id: catalogueId }
+          : {
+              kind: "source",
+              source: originProvider,
+              id: bookId!,
+              title: params.get("title") || undefined,
+            },
+      ),
+    enabled: !!provider && (!!bookId || !!catalogueId),
+    initialData:
+      !catalogueId && originProvider === provider && book?.id === bookId
+        ? book
+        : undefined,
+    staleTime: 5 * 60_000,
     retry: false,
   });
   const [images] = useState(
@@ -266,29 +291,15 @@ function MangaShelf({
   if (bookId || catalogueId) {
     const back = () =>
       change(
-        { book: null, catalogue: null, title: null, read: null, chapter: null },
+        {
+          book: null,
+          bookSource: null,
+          catalogue: null,
+          title: null,
+          read: null,
+          chapter: null,
+        },
         true,
-      );
-    if (bookId && !activeBook.data)
-      return (
-        <div className="manga-info">
-          <button className="btn btn-ghost" onClick={back}>
-            Library
-          </button>
-          {activeBook.isPending ? (
-            <p role="status">Loading manga…</p>
-          ) : (
-            <div role="alert">
-              <p>{errorText(activeBook.error)}</p>
-              <button className="btn" onClick={() => void activeBook.refetch()}>
-                Retry
-              </button>
-              <Link className="btn btn-ghost" to="/sources">
-                Manage sources
-              </Link>
-            </div>
-          )}
-        </div>
       );
     if (reading && activeBook.data)
       return renderReader(
@@ -298,7 +309,7 @@ function MangaShelf({
         params.get("chapter") || undefined,
       );
     const kind = bookId ? "source" : "catalogue",
-      origin = bookId ? provider : "anilist",
+      origin = bookId ? originProvider : "anilist",
       id = bookId || String(catalogueId);
     return (
       <>
@@ -307,8 +318,14 @@ function MangaShelf({
           provider={provider}
           sourceName={sourceName}
           images={images}
-          book={bookId ? activeBook.data : undefined}
+          book={activeBook.data ?? undefined}
           catalogueId={bookId ? undefined : catalogueId}
+          fallbackTitle={params.get("title") || undefined}
+          resolving={!!provider && activeBook.isPending}
+          resolutionError={
+            activeBook.error ? errorText(activeBook.error) : undefined
+          }
+          onRetryResolution={() => void activeBook.refetch()}
           saved={isSaved(kind, origin, id)}
           saving={saved.isPending || bookmark.isPending}
           onBookmark={() =>

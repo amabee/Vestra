@@ -93,6 +93,7 @@ interface RawBridge {
       saved: boolean,
     ) => Promise<unknown>;
     book: (p: string, id: string, title?: string) => Promise<unknown>;
+    resolve: (p: string, selection: unknown) => Promise<unknown>;
     info: (p: string, id: string) => Promise<unknown>;
     details: (id: number) => Promise<unknown>;
     discover: (filters: unknown) => Promise<unknown>;
@@ -445,6 +446,13 @@ export const bridge = {
     book: (p: string, id: string, title?: string) =>
       raw().manga.book(p, id, title) as Promise<
         import("../../../shared/manga").MangaBook
+      >,
+    resolve: (
+      p: string,
+      selection: import("../../../shared/manga").MangaSelection,
+    ) =>
+      raw().manga.resolve(p, selection) as Promise<
+        import("../../../shared/manga").MangaBook | null
       >,
     info: (p: string, id: string) =>
       raw().manga.info(p, id) as Promise<

@@ -46,6 +46,8 @@ const api = {
       invoke("manga:bookmark", kind, source, id, saved),
     book: (p: string, id: string, title?: string) =>
       invoke("manga:book", p, id, title),
+    resolve: (p: string, selection: unknown) =>
+      invoke("manga:resolve", p, selection),
     info: (p: string, id: string) => invoke("manga:info", p, id),
     details: (id: number) => invoke("manga:details", id),
     discover: (filters: unknown) => invoke("manga:discover", filters),

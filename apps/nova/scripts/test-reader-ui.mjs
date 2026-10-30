@@ -55,16 +55,17 @@ try {
       import { createRoot } from 'react-dom/client';
       import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
       import { BookReader, MangaRoute } from './renderer/src/routes/manga';
-      import { MemoryRouter } from 'react-router';
+      import { MemoryRouter, useNavigate } from 'react-router';
       import { seriesOptionsKey } from './renderer/src/lib/manga-reader';
       const f = window.readerFixture;
       localStorage.setItem(seriesOptionsKey('fixture','a'), JSON.stringify({layout:'webtoon'}));
       function Fixture() {
-        const [book, choose] = useState('a'); f.choose = choose;
+        f.navigate = useNavigate();
+        const [book, choose] = useState(location.search.includes('details=1')?'__library__':'a'); f.choose = choose;
         if(book==='__library__') return <MangaRoute />;
         return <BookReader key={book} provider="fixture" book={{id:book,title:'Fixture '+book}} onBack={() => { f.exited = true; }} />;
       }
-      createRoot(document.getElementById('root')).render(<StrictMode><QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><MemoryRouter><Fixture /></MemoryRouter></QueryClientProvider></StrictMode>);
+      createRoot(document.getElementById('root')).render(<StrictMode><QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><MemoryRouter initialEntries={[location.search.includes("details=1")?"/?source=fixture&book=result-0&title=A%20Quiet%20Journey":"/"]}><Fixture /></MemoryRouter></QueryClientProvider></StrictMode>);
     `,
       resolveDir: nova,
       loader: "tsx",
@@ -112,6 +113,12 @@ try {
       bookmarks: async () => window.readerFixture.saved??[],
       bookmark: async (kind,source,id,saved) => {const f=window.readerFixture;f.saved??=[];f.saved=f.saved.filter(entry=>!(entry.kind===kind&&entry.source===source&&entry.book.id===id));if(saved)f.saved.push({kind,source,book:{id,title:kind==='catalogue'?(id==='102'?'Popular Korean Tale':'Popular Adventure'):'A Quiet Journey',cover:kind==='catalogue'?'catalogue-'+id:'fixture-cover-0'},savedAt:'2026-10-30T00:00:00Z'});},
       book: async (_p,id,title) => ({id,title:title||'A Quiet Journey',cover:'fixture-cover-0'}),
+      resolve: async (provider,selection) => {
+        const f=window.readerFixture;f.resolutions??=[];f.resolutions.push({provider,selection});
+        if(f.resolveFailure) throw new Error('Source matching unavailable');
+        if(f.resolveEmpty)return null;
+        return {id:selection.kind==='catalogue'?provider+'-catalogue-'+selection.id:(selection.source===provider?selection.id:provider+'-cross-source'),title:selection.kind==='catalogue'?(selection.id===102?'Popular Korean Tale':'Popular Adventure'):(selection.title||'A Quiet Journey'),cover:provider+'-details-cover'};
+      },
       info: async () => ({id:101,title:'A Quiet Journey',cover:'catalogue-info',genres:['Action','Fantasy'],origin:'JP',status:'RELEASING',score:85,description:'A catalogue synopsis supplied by the metadata service.',chapters:2,volumes:1,year:2025,titles:['A Quiet Journey']}),
       details: async (id) => ({id,title:id===102?'Popular Korean Tale':'Popular Adventure',cover:'catalogue-'+id,genres:['Action','Fantasy'],origin:id===102?'KR':'JP',status:'FINISHED',score:85,description:'A catalogue synopsis supplied by the metadata service.',chapters:2,volumes:1,year:2025,titles:['Popular Adventure']}),
       catalogueCover: async (id) => 'catalogue-refreshed-'+id,
@@ -128,7 +135,7 @@ try {
       sources: async () => [{id:'fixture',name:'Manga source'},{id:'second',name:'Second source'}],
       search: async (provider,query) => { const f=window.readerFixture; f.searches??=[]; f.searches.push({provider,query}); if(query==='none')return []; return Array.from({length:9},(_,index)=>({id:'result-'+index,title:['A Quiet Journey','The Last Horizon','City of Lanterns','After the Rain','Moonlit Garden','A New Beginning','Paper Worlds','Beyond the Clouds','Small Adventures'][index],...(index===2?{}:{cover:provider+'-cover-'+index})})); },
       recent: async () => ({entries:[{book:{id:'recent-a',title:'A Quiet Journey',cover:'cover-recent'},progress:{chapterId:'one',page:13,updatedAt:'2026-10-29T16:00:00Z'}},{book:{id:'recent-b',title:'City of Lanterns'},progress:{chapterId:'one',page:3,updatedAt:'2026-10-29T12:00:00Z'}},{book:{id:'recent-c',title:'After the Rain',cover:'cover-broken'},progress:{chapterId:'one',page:0,updatedAt:'2026-10-28T16:00:00Z'}}],unreadable:0,truncated:false}),
-      chapters: async () => [{id:'one',title:'Chapter 1',chapter:'1',index:0},{id:'two',title:'Chapter 2',chapter:'2',index:1}],
+      chapters: async (provider,book) => {const f=window.readerFixture;f.chapterCalls??=[];f.chapterCalls.push({provider,book}); if(f.chapterFailure)throw new Error("Chapter failure"); if(f.chapterEmpty)return [];return [{id:'one',title:'Chapter 1',chapter:'1',index:0},{id:'two',title:'Chapter 2',chapter:'2',index:1}];},
       progress: async () => null,
       pages: async (_p,_b,c) => Array.from({length:40},(_,index)=>({handle:c+'-'+index,index})),
       image: async (handle) => { const f=window.readerFixture; f.calls.push(handle); if(handle==='cover-broken'||handle==='fixture-cover-3')return 'data:image/png;base64,AAE='; if(f.slow===handle) await new Promise(resolve=>{f.releaseSlow=resolve;}); if(f.fail && handle==='one-5') throw new Error('Fixture image failure'); return ${JSON.stringify("data:image/png;base64," + png.toString("base64"))}; },
@@ -268,11 +275,17 @@ try {
         assert.equal(await run('(()=>{const r=document.querySelector(".manga-info__art").getBoundingClientRect();return Math.abs(r.width/r.height-2/3)<0.01})()'),true);
         if(process.env.VESTRA_DETAILS_SCREENSHOT) {
           for (const width of [1440,375]) {
-            win.setSize(width,1000); await pause(200);
-            assert.equal(await run('document.documentElement.scrollWidth<=window.innerWidth'),true);
-            require('node:fs').writeFileSync(process.env.VESTRA_DETAILS_SCREENSHOT.replace('.png','-'+width+'.png'),(await win.webContents.capturePage()).toPNG());
+            const shot=new BrowserWindow({show:false,width,height:1000,webPreferences:{offscreen:true,backgroundThrottling:false,sandbox:true,contextIsolation:true}});
+            await shot.loadURL('${pathToFileURL(join(scratch, "index.html")).href}?details=1');
+            for(let count=0;count<100;count++) {
+              if(await shot.webContents.executeJavaScript('!!document.querySelector(".manga-info__chapter") && !!document.querySelector(".manga-info__art img")?.naturalWidth')) break;
+              await pause(50);
+            }
+            assert.equal(await shot.webContents.executeJavaScript('document.documentElement.scrollWidth<=window.innerWidth'),true);
+            await pause(200);
+            require('node:fs').writeFileSync(process.env.VESTRA_DETAILS_SCREENSHOT.replace('.png','-'+width+'.png'),(await shot.webContents.capturePage()).toPNG());
+            shot.destroy();
           }
-          win.setSize(1100,850); await pause(100);
         }
         await run('[...document.querySelectorAll("button")].find(e=>e.textContent.trim()==="Start reading").click()');
         await until('document.querySelector("[data-reader-title]")?.textContent==="A Quiet Journey"');
@@ -307,10 +320,15 @@ try {
         await until('document.querySelector("[data-manga-details]").textContent.includes("Popular Korean Tale")');
         await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Bookmark Popular Korean Tale").click()');
         await until('window.readerFixture.saved?.some(entry=>entry.kind==="catalogue"&&entry.book.id==="102")');
-        await run('[...document.querySelectorAll("button")].find(e=>e.textContent.trim().startsWith("Find in ")).click()');
-        await until('window.readerFixture.searches.at(-1).query==="Popular Korean Tale"');
+        await until('window.readerFixture.chapterCalls.some(c=>c.provider==="fixture"&&c.book==="fixture-catalogue-102")');
+        await until('document.querySelector(".manga-info__chapter")');
         assert.equal(await run('!!document.querySelector("[data-reader-title]")'),false);
-        console.log('PASS discovery filters/pagination reset correctly and selecting a catalogue title searches its source');
+        assert.equal(await run('[...document.querySelectorAll("button")].some(e=>e.textContent.trim().startsWith("Find in "))'),false);
+        await selectFilter('Chapter order','newest');
+        assert.equal(await run('document.querySelector(".manga-info__chapter").getAttribute("aria-label")'),'Open Chapter 2');
+        await run('[...document.querySelectorAll("[data-manga-details] button")].find(e=>e.textContent.trim()==="Library").click()');
+        await until('[...document.querySelectorAll("button")].some(e=>e.textContent.trim().startsWith("Bookmarks"))');
+        console.log('PASS catalogue details automatically resolve the selected source and load sortable chapters');
         await run('[...document.querySelectorAll("button")].find(e=>e.textContent.trim().startsWith("Bookmarks")).click()');
         await until('document.querySelector("section[aria-label$=bookmarks]")');
         assert.ok(await run('document.body.textContent.includes("Popular Korean Tale") && document.body.textContent.includes("A Quiet Journey")'));
@@ -318,6 +336,49 @@ try {
         await until('!window.readerFixture.saved.some(entry=>entry.kind==="source"&&entry.book.id==="result-0")');
         console.log('PASS source/catalogue details precede reading, bookmarks do not mark read, and the saved shelf removes bookmarks');
 
+
+        await run('[...document.querySelectorAll("button")].find(e=>e.textContent.trim()==="Browse").click()');
+        await selectFilter('Manga source','second');
+        await until('document.querySelector("select[aria-label^=Manga]")?.value==="second"');
+        await until('[...document.querySelectorAll("button")].some(e=>e.getAttribute("aria-label")==="Details for Popular Adventure")');
+        await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Details for Popular Adventure").click()');
+        await until('window.readerFixture.chapterCalls.some(c=>c.provider==="second"&&c.book==="second-catalogue-101")');
+        await until('document.querySelector(".manga-info__chapter")');
+        assert.equal(await run('document.querySelector(".manga-info__provider").textContent'),'Second source');
+        assert.equal(await run('document.querySelector("[data-manga-details] select[aria-label^=Manga]")'),null);
+        await run('document.querySelector(".manga-info__chapter").click()');
+        await until('document.querySelector("[data-reader-title]")?.textContent==="Popular Adventure"');
+        await run('[...document.querySelectorAll("button")].find(e=>e.textContent.includes("Details")).click()');
+        await until('document.querySelector("[data-manga-details]")');
+        await run('[...document.querySelectorAll("[data-manga-details] button")].find(e=>e.textContent.trim()==="Library").click()');
+        await until('document.querySelector("select[aria-label^=Manga]")?.value==="second"');
+        assert.equal(await run('document.querySelector("select[aria-label^=Manga]").value'),'second');
+        console.log('PASS changing the library provider drives catalogue matching, chapters and reader without another selector');
+        await run('window.readerFixture.navigate("/?source=second&catalogue=997")');
+        await until('window.readerFixture.chapterCalls.some(c=>c.provider==="second"&&c.book==="second-catalogue-997")');
+        await until('document.querySelector(".manga-info__chapter")');
+        assert.equal(await run('document.querySelector(".manga-info__provider").textContent'),'Second source');
+        await run('window.readerFixture.resolveFailure=true;window.readerFixture.navigate("/?source=second&catalogue=998")');
+        await until('document.querySelector("[data-manga-details]").textContent.includes("Manga could not be matched")');
+        assert.equal(await run('!!document.querySelector(".manga-info__chapter")'),false);
+        await run('window.readerFixture.resolveFailure=false;[...document.querySelectorAll("button")].find(e=>e.textContent.includes("Retry matching")).click()');
+        await until('document.querySelector(".manga-info__chapter")');
+        await run('window.readerFixture.resolveEmpty=true;window.readerFixture.navigate("/?source=second&catalogue=999")');
+        await until('document.querySelector("[data-manga-details]").textContent.includes("No matching manga in Second source")');
+        assert.equal(await run('!!document.querySelector(".manga-info__chapter")'),false);
+        console.log('PASS direct catalogue links preserve the selected provider; matching failures retry and unavailable titles have an honest empty state');
+        await run('window.readerFixture.resolveEmpty=false;window.readerFixture.chapterFailure=true;window.readerFixture.navigate("/?source=second&catalogue=1001")');
+        await until('document.querySelector("[data-manga-details]").textContent.includes("Chapters could not load")');
+        await run('window.readerFixture.chapterFailure=false;[...document.querySelectorAll("button")].find(e=>e.textContent.trim()==="Retry chapters").click()');
+        await until('document.querySelectorAll(".manga-info__chapter").length===2');
+        await run('window.readerFixture.chapterEmpty=true;window.readerFixture.navigate("/?source=second&catalogue=1002")');
+        await until('document.querySelector("[data-manga-details]").textContent.includes("No chapters available")');
+        await run('window.readerFixture.chapterEmpty=false;[...document.querySelectorAll("button")].find(e=>e.textContent.trim()==="Refresh chapters").click()');
+        await until('document.querySelectorAll(".manga-info__chapter").length===2');
+        await run('(()=>{const e=document.querySelector("input[placeholder^=Find]");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(e,"2");e.dispatchEvent(new Event("input",{bubbles:true}));})()');
+        await until('document.querySelectorAll(".manga-info__chapter").length===1');
+        assert.equal(await run('document.querySelector(".manga-info__chapter").getAttribute("aria-label")'),'Open Chapter 2');
+        console.log('PASS chapter failures retry, empty lists refresh, and chapter search filters the available list');
 
         win.destroy(); app.exit(0);
       } catch(error) {console.error(error);win.destroy();app.exit(1);}

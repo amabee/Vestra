@@ -254,10 +254,20 @@ export class MangaService {
     image: (r: unknown) => Promise<unknown>,
     progress: ReadingProgressRepository,
   ) {
+    if (this.providers.has(id)) this.unregister(id);
     this.providers.set(id, { name, call, image, progress });
   }
   unregister(id: string) {
     this.providers.delete(id);
+    for (const key of this.books.keys())
+      if (JSON.parse(key)[0] === id) {
+        this.books.delete(key);
+        this.artwork.delete(key);
+      }
+    for (const key of this.chaptersByBook.keys())
+      if (JSON.parse(key)[0] === id) this.chaptersByBook.delete(key);
+    for (const key of this.counts.keys())
+      if (JSON.parse(key)[0] === id) this.counts.delete(key);
     for (const [k, v] of this.handles)
       if (v.providerId === id) this.handles.delete(k);
     for (const [k, v] of this.covers)
@@ -328,11 +338,39 @@ export class MangaService {
     if (this.coverCache) this.warm(managed.entries.map((entry) => entry.book));
     return managed;
   }
+  sourceVersion(id: string): object {
+    return this.provider(id);
+  }
+  async matchTitles(id: string, titles: string[]): Promise<MangaBook | null> {
+    const normalise = (value: string) =>
+      value
+        .normalize("NFKC")
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, "");
+    const names = new Set(titles.map(normalise).filter(Boolean));
+    const tried = new Set<string>();
+    for (const title of titles.slice(0, 4)) {
+      if (!normalise(title) || tried.has(normalise(title))) continue;
+      tried.add(normalise(title));
+      const rows = await this.search(id, title.slice(0, 500));
+      const matches = rows.filter((row) => names.has(normalise(row.title)));
+      const unique = [...new Map(matches.map((row) => [row.id, row])).values()];
+      if (unique.length > 1)
+        throw new Error(
+          "This source has multiple matching editions. An automatic match would be ambiguous.",
+        );
+      if (unique.length === 1) return unique[0]!;
+    }
+    return null;
+  }
   async search(id: string, query: string): Promise<MangaBook[]> {
+    const provider = this.provider(id);
     const rows = z
       .array(searchBookSchema)
       .max(2000)
-      .parse(await this.provider(id).call("search", [{ query, year: 0 }]));
+      .parse(await provider.call("search", [{ query, year: 0 }]));
+    if (this.providers.get(id) !== provider)
+      throw new Error("Manga source changed. Reopen the library.");
     // Leave room for recent titles and another small result set in the grant cache.
     const managed = rows.slice(0, 400).map((row) => {
       let artwork: MangaArtwork | undefined;
@@ -352,10 +390,13 @@ export class MangaService {
   }
   async chapters(id: string, book: string): Promise<MangaChapter[]> {
     const key = this.book(id, book);
+    const provider = this.provider(id);
     const rows = z
       .array(chapterSchema)
       .max(10000)
-      .parse(await this.provider(id).call("findChapters", [book]));
+      .parse(await provider.call("findChapters", [book]));
+    if (this.providers.get(id) !== provider)
+      throw new Error("Manga source changed. Reopen the library.");
     if (this.chaptersByBook.size >= 20 && !this.chaptersByBook.has(key))
       this.chaptersByBook.delete(this.chaptersByBook.keys().next().value!);
     this.chaptersByBook.set(key, rows);
