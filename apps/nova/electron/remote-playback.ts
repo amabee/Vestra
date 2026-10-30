@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { StreamResult } from "@vestra/extension-host";
 import { z } from "zod";
+import { automaticVariant } from "./mpv/stream-policy";
 
 const remoteSchema = z.object({
   url: z
@@ -188,18 +189,24 @@ export async function remoteQualities(
 }
 export async function resolveRemotePlayback(
   locator: string,
+  recovery = false,
 ): Promise<RemotePlayback> {
   const entry = entries.get(locator) ?? qualityEntries.get(locator);
   if (!entry) throw new Error("Stream expired. Resolve this episode again.");
   const rows = await variants(entry);
   const selected = entry.selected
     ? rows.find((row) => row.key === entry.selected)
-    : rows[0];
+    : automaticVariant(rows, recovery ? 480 : 720);
   if (!selected)
     throw new Error(
       "The selected stream quality is no longer available. Choose another quality.",
     );
   return selected.playback;
+}
+
+export function isAutomaticStream(locator: string): boolean {
+  const entry = entries.get(locator) ?? qualityEntries.get(locator);
+  return Boolean(entry && !entry.selected);
 }
 
 /** A playback failure must not pin a stale signed URL across explicit retries. */

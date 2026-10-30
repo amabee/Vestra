@@ -22,6 +22,7 @@
     "test:streamplay": "node apps/nova/scripts/test-streamplay.mjs",
     "test:streamplay:live": "node apps/nova/scripts/test-streamplay.mjs --live",
     "test:anime:live": "node apps/nova/scripts/test-anime-servers.mjs --live --native",
+    "test:anime:buffering": "node apps/nova/scripts/test-stream-buffering.mjs",
     "test:anime:repair": "node apps/nova/scripts/test-playback-repair.mjs && node apps/nova/scripts/test-player-loading-ui.mjs",
     "test:anime:ui": "node apps/nova/scripts/test-anime-ui.mjs",
     "test:server:compat": "pnpm run build:server && node apps/nova/scripts/check-provider-compat.mjs",

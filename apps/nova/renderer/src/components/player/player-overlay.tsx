@@ -216,7 +216,8 @@ export function PlayerOverlay() {
           const state = usePlayer.getState();
           if (
             state.queue[state.index]?.locator !== streamSourceLocator ||
-            !choices.some((choice) => choice.locator === locator)
+            (locator !== streamSourceLocator &&
+              !choices.some((choice) => choice.locator === locator))
           )
             return;
           state.open(item, state.queue, state.index, positionRef.current, {

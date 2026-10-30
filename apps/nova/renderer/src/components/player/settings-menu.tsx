@@ -141,7 +141,7 @@ export function SettingsMenu({
               value={
                 activeStream && activeStream !== streamSource
                   ? "Selected"
-                  : "Auto"
+                  : "Auto � balanced"
               }
               onClick={() => setPage("quality")}
             />
@@ -446,14 +446,18 @@ function QualityList({
 
   return (
     <>
+      <Option
+        label="Auto � balanced"
+        selected={activeStream === streamSource}
+        onSelect={() => {
+          void bridge.player.setQuality(streamSource).catch(() => undefined);
+        }}
+      />
       {state.choices.map((choice) => (
         <Option
           key={choice.locator}
           label={choice.label}
-          selected={
-            activeStream === choice.locator ||
-            (activeStream === streamSource && choice === state.choices[0])
-          }
+          selected={activeStream === choice.locator}
           onSelect={() => {
             void bridge.player
               .setQuality(choice.locator)

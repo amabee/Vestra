@@ -1,3 +1,4 @@
+import { probePlayableStream } from "./probe-stream";
 import { extractStreamplay, streamplayEmbed } from "./streamplay";
 import { resolveEpisodeServers } from "./episode-servers";
 import { safeFetch } from "./safe-fetch";
@@ -195,42 +196,7 @@ export async function activateCSharpSource(
               );
             }
           },
-          async (result) => {
-            const videoSources = [];
-            const failures = [];
-            for (const video of result.videoSources) {
-              signal?.throwIfAborted();
-              if (video.type !== "hls") {
-                videoSources.push(video);
-                continue;
-              }
-              try {
-                const response = await safeFetch({
-                  url: video.url,
-                  headers: { ...result.headers, ...video.headers },
-                  maxBytes: 1048576,
-                  timeoutMs: 7000,
-                });
-                if (response.status < 200 || response.status >= 300)
-                  throw new Error(`Video manifest HTTP ${response.status}`);
-                if (!response.body.trimStart().startsWith("#EXTM3U"))
-                  throw new Error(
-                    "The server returned a web page instead of an HLS video manifest.",
-                  );
-                videoSources.push(video);
-              } catch (error) {
-                failures.push(
-                  error instanceof Error ? error.message : String(error),
-                );
-              }
-            }
-            if (!videoSources.length)
-              throw new Error(
-                failures.join(" ") ||
-                  "This server returned no supported videos.",
-              );
-            return { ...result, videoSources };
-          },
+          (result) => probePlayableStream(result, safeFetch, signal),
           signal,
         );
       }

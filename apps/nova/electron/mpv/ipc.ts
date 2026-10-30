@@ -8,6 +8,7 @@ import { MpvSession, locateMpv, type MpvState } from "./session";
 import { MpvSurface } from "./surface";
 import {
   resolveRemotePlayback,
+  isAutomaticStream,
   invalidateRemotePlayback,
 } from "../remote-playback";
 
@@ -201,7 +202,16 @@ export function registerMpvIpc(): void {
     });
 
     if (revision !== openRevision) return session.state;
-    await session.load(filePath, startSeconds, remote);
+    await session.load(
+      filePath,
+      startSeconds,
+      remote,
+      Boolean(streamLocator && isAutomaticStream(streamLocator)),
+      false,
+      streamLocator
+        ? () => resolveRemotePlayback(streamLocator, true)
+        : undefined,
+    );
     return session.state;
   });
 

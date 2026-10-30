@@ -12,7 +12,10 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const scratch = await mkdtemp(join(tmpdir(), "vestra-remote-"));
 await build({
-  entryPoints: [join(root, "electron/remote-playback.ts")],
+  stdin: {
+    contents: `export * from "./electron/remote-playback"; export {STREAM_CACHE_ARGS} from "./electron/mpv/stream-policy";`,
+    resolveDir: root,
+  },
   bundle: true,
   platform: "node",
   format: "cjs",
@@ -27,6 +30,7 @@ const {
   registerDeferredVariants,
   remoteQualities,
   streamVariants,
+  STREAM_CACHE_ARGS,
 } = createRequire(import.meta.url)(join(scratch, "remote.cjs"));
 after(() => rm(scratch, { recursive: true, force: true }));
 test("opaque handles preserve headers/subtitles and reject arbitrary renderer URLs", async () => {
@@ -161,6 +165,7 @@ test(
       process.env.VESTRA_TEST_MPV,
       [
         "--no-config",
+        ...STREAM_CACHE_ARGS,
         "--idle=yes",
         "--pause=yes",
         "--vo=null",
@@ -229,6 +234,11 @@ test(
         "X-Vestra-Test: required",
       ]);
       await command("set_property", "options/sub-files", [`${base}/en.vtt`]);
+      await command("set_property", "options/hls-bitrate", 3000000);
+      assert.equal(
+        await command("get_property", "options/hls-bitrate"),
+        3000000,
+      );
       await command("loadfile", `${base}/index.m3u8`, "replace");
       let tracks = [];
       for (let i = 0; i < 60; i++) {
