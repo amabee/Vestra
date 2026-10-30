@@ -11,6 +11,7 @@ import {
   Bookmark,
   BookmarkCheck,
   Check,
+  ExternalLink,
   Film,
   Play,
   RotateCcw,
@@ -20,8 +21,13 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { bridge } from "@/lib/bridge";
 import { keys, useBookmarks, useProgress, useWatchlist } from "@/lib/queries";
 import { usePlayer } from "@/lib/player-store";
-import { StreamQuality } from "@/components/player/stream-quality";
 import "./anime-details.css";
+
+/** Dropdown value for the owned local files of this anime. */
+const LOCAL_SOURCE = "local";
+
+/** Dropdown value for the deep links to the provider's own pages. */
+const LINK_SOURCE = "links";
 
 export function AnimeDetails() {
   const { source, kind, id } = useParams();
@@ -35,7 +41,27 @@ export function AnimeDetails() {
     queryFn: bridge.anime.sources,
     refetchInterval: 5000,
   });
-  const selected = params.get("source") ?? extensions.data?.[0]?.id ?? "";
+  const localFiles = useQuery({
+    queryKey: ["anime-local-files", identity],
+    queryFn: () => bridge.media.resolvePlayback(ref! as MediaItem, "builtin"),
+    enabled: !!ref,
+    staleTime: 30000,
+    retry: false,
+  });
+  const localList = (localFiles.data ?? []).filter(
+    (entry) => entry.kind === "file",
+  );
+  const linkList = (localFiles.data ?? []).filter(
+    (entry) => entry.kind === "external",
+  );
+  const hasLocal = localList.length > 0;
+  const hasLinks = linkList.length > 0;
+  const selected =
+    params.get("source") ??
+    extensions.data?.[0]?.id ??
+    (hasLocal ? LOCAL_SOURCE : "");
+  const localMode = selected === LOCAL_SOURCE;
+  const linkMode = selected === LINK_SOURCE;
   const available = extensions.data?.find((row) => row.id === selected);
   useEffect(() => {
     if (!params.get("source") && selected)
@@ -68,7 +94,7 @@ export function AnimeDetails() {
   const [limit, setLimit] = useState(50);
   const [failedCovers, setFailedCovers] = useState<string[]>([]);
   const data = details.data;
-  const queue = episodes.data?.queue ?? [];
+  const queue = localMode ? localList : (episodes.data?.queue ?? []);
   const query = params.get("episode") ?? "";
   const filter = params.get("filter") ?? "all";
   const descending = params.get("order") === "newest";
@@ -84,8 +110,12 @@ export function AnimeDetails() {
     );
     setLimit(50);
   };
-  const keyFor = (entry: PlaybackSource) =>
-    entry.progressId ? `${identity}#${entry.progressId}` : identity;
+  const episodeId = (entry: PlaybackSource) =>
+    entry.progressId ?? entry.fileId ?? null;
+  const keyFor = (entry: PlaybackSource) => {
+    const id = episodeId(entry);
+    return id ? `${identity}#${id}` : identity;
+  };
   const saved = (entry: PlaybackSource): WatchProgress | undefined =>
     progress.data?.[keyFor(entry)];
   const mark = useMutation({
@@ -98,7 +128,7 @@ export function AnimeDetails() {
     }) =>
       bridge.progress.save({
         ref: ref!,
-        episodeId: entry.progressId ?? null,
+        episodeId: episodeId(entry),
         positionSeconds: watched ? saved(entry)?.durationSeconds || 1 : 0,
         durationSeconds: saved(entry)?.durationSeconds || 1,
       }),
@@ -108,7 +138,7 @@ export function AnimeDetails() {
     mutationFn: (entry: PlaybackSource) =>
       bridge.bookmarks.toggle({
         ref: ref!,
-        episodeId: entry.progressId ?? null,
+        episodeId: episodeId(entry),
       }),
     onSuccess: () => cache.invalidateQueries({ queryKey: keys.bookmarks }),
   });
@@ -124,9 +154,10 @@ export function AnimeDetails() {
   });
   const play = (index: number, quality?: string, startAt?: number) => {
     const entry = queue[index];
-    if (!episodes.data || !entry) return;
+    const item = localMode ? (data ?? ref) : episodes.data?.item;
+    if (!item || !entry) return;
     player.open(
-      episodes.data.item,
+      item as MediaItem,
       queue,
       index,
       startAt ?? null,
@@ -174,7 +205,13 @@ export function AnimeDetails() {
       : data?.images.poster && !failedCovers.includes(data.images.poster)
         ? data.images.poster
         : null;
-  const busy = episodes.isFetching;
+  const backdrop =
+    [episodes.data?.item.images.backdrop, data?.images.backdrop].find(
+      (url): url is string => !!url && !failedCovers.includes(url),
+    ) ?? cover;
+  const busy = !localMode && episodes.isFetching;
+  const watchedCount = queue.filter((entry) => saved(entry)?.completed).length;
+
   if (!ref)
     return (
       <div className="anime-details">
@@ -196,7 +233,20 @@ export function AnimeDetails() {
         </button>
         <Link to="/extensions">Manage extensions</Link>
       </nav>
-      <header className="anime-heading">
+
+      <header className={`anime-hero${backdrop ? " anime-hero-backdrop" : ""}`}>
+        <div className="anime-backdrop" aria-hidden="true">
+          {backdrop ? (
+            <img
+              key={backdrop}
+              src={backdrop}
+              alt=""
+              referrerPolicy="no-referrer"
+              decoding="async"
+              onError={() => setFailedCovers((values) => [...values, backdrop])}
+            />
+          ) : null}
+        </div>
         <div className="anime-poster">
           {cover ? (
             <img
@@ -218,6 +268,7 @@ export function AnimeDetails() {
             </div>
           )}
         </div>
+
         <div className="anime-introduction">
           {details.isPending ? (
             <div
@@ -282,7 +333,7 @@ export function AnimeDetails() {
             <button
               type="button"
               className="anime-primary"
-              disabled={!queue.length || busy || !available}
+              disabled={!queue.length || busy || (!localMode && !available)}
               onClick={() =>
                 play(
                   first,
@@ -298,7 +349,7 @@ export function AnimeDetails() {
                 ? "Finding episodes…"
                 : resumeIndex >= 0
                   ? `Resume episode ${queue[first]?.episode ?? first + 1}`
-                  : `Play Episode ${queue[first]?.episode ?? 1}`}
+                  : `Play episode ${queue[first]?.episode ?? 1}`}
             </button>
             <button
               type="button"
@@ -306,14 +357,9 @@ export function AnimeDetails() {
               disabled={library.isPending || !data}
               onClick={() => library.mutate()}
             >
-              {inLibrary ? <BookmarkCheck size={17} /> : <Bookmark size={17} />}{" "}
+              {inLibrary ? <BookmarkCheck size={17} /> : <Bookmark size={17} />}
               {inLibrary ? "In library" : "Add to library"}
             </button>
-            <Link
-              to={`?${new URLSearchParams({ ...Object.fromEntries(params), files: "1" })}`}
-            >
-              Local files and other playback
-            </Link>
           </div>
           {library.error && (
             <p role="alert" className="anime-error">
@@ -322,6 +368,7 @@ export function AnimeDetails() {
           )}
         </div>
       </header>
+
       <section
         className="anime-episodes"
         aria-labelledby="anime-episodes-title"
@@ -331,22 +378,28 @@ export function AnimeDetails() {
             <h2 id="anime-episodes-title">Episodes</h2>
             <p>
               {queue.length
-                ? `${queue.length} available, ${queue.filter((entry) => saved(entry)?.completed).length} watched`
-                : "Choose an installed extension to watch"}
+                ? `${queue.length} available, ${watchedCount} watched`
+                : linkMode
+                  ? "Open a link in your browser"
+                  : "Choose a playback source to watch"}
             </p>
           </div>
           <label className="anime-source-label">
-            Streaming extension
+            Playback source
             <select
               aria-label="Streaming extension"
               value={selected}
               onChange={(event) => patch("source", event.target.value)}
-              disabled={extensions.isPending || !extensions.data?.length}
+              disabled={
+                !hasLocal &&
+                !hasLinks &&
+                (extensions.isPending || !extensions.data?.length)
+              }
             >
-              {!selected && <option value="">No extensions available</option>}
-              {selected && !available && (
+              {!selected && <option value="">No sources available</option>}
+              {selected && !available && !localMode && !linkMode && (
                 <option value={selected} disabled>
-                  Selected extension unavailable
+                  Selected source unavailable
                 </option>
               )}
               {extensions.data?.map((extension) => (
@@ -354,25 +407,30 @@ export function AnimeDetails() {
                   {extension.name}
                 </option>
               ))}
+              {hasLocal && <option value={LOCAL_SOURCE}>Local files</option>}
+              {hasLinks && <option value={LINK_SOURCE}>Other links</option>}
             </select>
           </label>
         </div>
-        {extensions.isPending ? (
+
+        {linkMode ? (
+          <LinkList links={linkList} />
+        ) : !localMode && extensions.isPending ? (
           <EpisodeSkeleton />
-        ) : extensions.error ? (
+        ) : !localMode && extensions.error ? (
           <div className="anime-message" role="alert">
             <p>Extensions could not be loaded. {extensions.error.message}</p>
             <button type="button" onClick={() => void extensions.refetch()}>
               Retry extensions
             </button>
           </div>
-        ) : !extensions.data?.length ? (
+        ) : !localMode && !extensions.data?.length ? (
           <div className="anime-message">
             <h3>No anime extensions enabled</h3>
             <p>Install or enable an anime extension to load episodes.</p>
             <Link to="/extensions">Open Extensions</Link>
           </div>
-        ) : !available ? (
+        ) : !localMode && !available ? (
           <div className="anime-message" role="alert">
             <p>
               This extension was disabled or removed. Select an available
@@ -380,9 +438,9 @@ export function AnimeDetails() {
             </p>
             <Link to="/extensions">Manage extensions</Link>
           </div>
-        ) : episodes.isPending || busy ? (
+        ) : !localMode && (episodes.isPending || busy) ? (
           <EpisodeSkeleton />
-        ) : episodes.error ? (
+        ) : !localMode && episodes.error ? (
           <div className="anime-message" role="alert">
             <h3>Episodes could not be loaded</h3>
             <p>{episodes.error.message}</p>
@@ -390,9 +448,9 @@ export function AnimeDetails() {
               Retry episodes
             </button>
           </div>
-        ) : !episodes.data ? (
+        ) : !localMode && !episodes.data ? (
           <div className="anime-message">
-            <h3>No matching title on {available.name}</h3>
+            <h3>No matching title on {available?.name ?? "this extension"}</h3>
             <p>
               This extension did not return a unique match for this anime.
               Choose another extension or search its titles.
@@ -403,14 +461,21 @@ export function AnimeDetails() {
           </div>
         ) : !queue.length ? (
           <div className="anime-message">
-            <h3>No episodes published by this extension</h3>
-            <button type="button" onClick={() => void episodes.refetch()}>
-              Refresh episodes
+            <h3>
+              {localMode
+                ? "No local files for this anime"
+                : "No episodes published by this extension"}
+            </h3>
+            <button
+              type="button"
+              onClick={() => void (localMode ? localFiles : episodes).refetch()}
+            >
+              {localMode ? "Refresh files" : "Refresh episodes"}
             </button>
           </div>
         ) : (
           <>
-            {episodes.data.providerTitle && (
+            {episodes.data?.providerTitle && (
               <p className="anime-provider-title">
                 Listed as {episodes.data.providerTitle}
               </p>
@@ -419,7 +484,6 @@ export function AnimeDetails() {
               <label>
                 Find episode
                 <input
-                  aria-label="Find episode"
                   type="search"
                   value={query}
                   placeholder="Number or title"
@@ -441,13 +505,19 @@ export function AnimeDetails() {
                 Order
                 <select
                   value={descending ? "newest" : "oldest"}
-                  onChange={(event) => patch("order", event.target.value)}
+                  onChange={(event) =>
+                    patch(
+                      "order",
+                      event.target.value === "newest" ? "newest" : "",
+                    )
+                  }
                 >
-                  <option value="oldest">Oldest first</option>
-                  <option value="newest">Newest first</option>
+                  <option value="oldest">First to last</option>
+                  <option value="newest">Last to first</option>
                 </select>
               </label>
             </div>
+
             {(mark.error || bookmark.error) && (
               <p role="alert" className="anime-error">
                 {(mark.error ?? bookmark.error)?.message}
@@ -467,21 +537,16 @@ export function AnimeDetails() {
                 </button>
               </div>
             )}
-            {!visible.length ? (
+            {visible.length === 0 ? (
               <div className="anime-message">
-                <p>No episodes match these filters.</p>
+                <h3>No episodes match these filters</h3>
                 <button
                   type="button"
                   onClick={() => {
-                    setParams(
-                      (current) => {
-                        const next = new URLSearchParams(current);
-                        next.delete("episode");
-                        next.delete("filter");
-                        return next;
-                      },
-                      { replace: true },
-                    );
+                    const next = new URLSearchParams(params);
+                    next.delete("episode");
+                    next.delete("filter");
+                    setParams(next, { replace: true });
                     setLimit(50);
                   }}
                 >
@@ -493,9 +558,11 @@ export function AnimeDetails() {
                 {visible.slice(0, limit).map(({ entry, index }) => {
                   const watched = saved(entry)?.completed;
                   const current =
-                    !!entry.progressId &&
-                    selectedEntry?.progressId === entry.progressId;
+                    !!episodeId(entry) &&
+                    !!selectedEntry &&
+                    episodeId(selectedEntry) === episodeId(entry);
                   const isBookmarked = !!bookmarks.data?.[keyFor(entry)];
+                  const number = entry.episode ?? index + 1;
                   return (
                     <li
                       key={entry.locator}
@@ -503,13 +570,10 @@ export function AnimeDetails() {
                       aria-current={current ? "true" : undefined}
                     >
                       <span className="anime-episode-number">
-                        {String(entry.episode ?? index + 1).padStart(2, "0")}
+                        {String(number).padStart(2, "0")}
                       </span>
                       <div className="anime-episode-name">
-                        <h3>
-                          {entry.label ??
-                            `Episode ${entry.episode ?? index + 1}`}
-                        </h3>
+                        <h3>{entry.label ?? `Episode ${number}`}</h3>
                         <span>
                           {current
                             ? "Now playing"
@@ -521,14 +585,9 @@ export function AnimeDetails() {
                         </span>
                       </div>
                       <div className="anime-row-actions">
-                        <StreamQuality
-                          locator={entry.locator}
-                          busy={false}
-                          onSelect={(quality) => play(index, quality)}
-                        />
                         <button
                           type="button"
-                          aria-label={`${isBookmarked ? "Remove bookmark for" : "Bookmark"} episode ${entry.episode ?? index + 1}`}
+                          aria-label={`${isBookmarked ? "Remove bookmark for" : "Bookmark"} episode ${number}`}
                           aria-pressed={isBookmarked}
                           disabled={
                             bookmark.isPending ||
@@ -545,7 +604,7 @@ export function AnimeDetails() {
                         </button>
                         <button
                           type="button"
-                          aria-label={`Mark episode ${entry.episode ?? index + 1} ${watched ? "unwatched" : "watched"}`}
+                          aria-label={`Mark episode ${number} ${watched ? "unwatched" : "watched"}`}
                           aria-pressed={!!watched}
                           disabled={
                             mark.isPending ||
@@ -565,7 +624,19 @@ export function AnimeDetails() {
                         <button
                           type="button"
                           className="anime-play-episode"
-                          aria-label={`Play episode ${entry.episode ?? index + 1}`}
+                          aria-label={`Play episode ${number}`}
+                          onPointerEnter={() => {
+                            if (entry.locator.startsWith("vestra-stream://"))
+                              void bridge.media
+                                .streamQualities(entry.locator)
+                                .catch(() => undefined);
+                          }}
+                          onFocus={() => {
+                            if (entry.locator.startsWith("vestra-stream://"))
+                              void bridge.media
+                                .streamQualities(entry.locator)
+                                .catch(() => undefined);
+                          }}
                           onClick={() => play(index)}
                         >
                           <Play size={15} />
@@ -590,6 +661,34 @@ export function AnimeDetails() {
         )}
       </section>
     </article>
+  );
+}
+
+function LinkList({ links }: { links: PlaybackSource[] }) {
+  return (
+    <ol className="anime-episode-list">
+      {links.map((link, index) => (
+        <li key={link.locator}>
+          <span className="anime-episode-number">
+            {String(index + 1).padStart(2, "0")}
+          </span>
+          <div className="anime-episode-name">
+            <h3>{link.label ?? link.kind}</h3>
+            <span>{link.kind}</span>
+          </div>
+          <div className="anime-row-actions">
+            <button
+              type="button"
+              className="anime-play-episode"
+              onClick={() => void bridge.shell.openExternal(link.locator)}
+            >
+              <ExternalLink size={15} />
+              <span>Open</span>
+            </button>
+          </div>
+        </li>
+      ))}
+    </ol>
   );
 }
 

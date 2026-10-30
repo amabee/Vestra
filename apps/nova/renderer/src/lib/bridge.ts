@@ -215,6 +215,8 @@ interface RawBridge {
     drag: (payload: unknown) => Promise<unknown>;
     toggleMaximize: () => Promise<unknown>;
     setInteractive: (interactive: boolean) => Promise<unknown>;
+    setQuality: (locator: string) => Promise<unknown>;
+    onQuality: (listener: (locator: string) => void) => () => void;
     onNowPlaying: (listener: (value: unknown) => void) => () => void;
     onCommand: (listener: (command: string) => void) => () => void;
   };
@@ -331,6 +333,8 @@ export interface MpvChapter {
 }
 
 export interface MpvState {
+  loading?: boolean;
+  buffering?: boolean;
   running: boolean;
   idle: boolean;
   paused: boolean;
@@ -358,6 +362,8 @@ export interface MpvStatus {
 
 /** What the controls window shows that mpv cannot tell it. */
 export interface NowPlaying {
+  loading?: boolean;
+  playbackError?: string | null;
   title: string;
   episodeLabel: string | null;
   index: number;
@@ -375,10 +381,19 @@ export interface NowPlaying {
   autoSkip: boolean;
   /** Counts up per playback, so replaying one episode is not one session. */
   sessionId: number;
+  /** The add-on stream this episode came from, when it offers qualities. */
+  streamSource: string | null;
+  /** The stream playing now: the source itself, or the chosen quality. */
+  activeStream: string | null;
 }
 
 export type PlayerCommand =
-  "next" | "previous" | "close" | "toggle-fullscreen" | "open-settings";
+  | "retry"
+  | "next"
+  | "previous"
+  | "close"
+  | "toggle-fullscreen"
+  | "open-settings";
 
 /** An opening or ending range, from AniSkip. */
 export interface SkipInterval {
@@ -872,5 +887,13 @@ export const bridge = {
 
     onCommand: (listener: (command: PlayerCommand) => void): (() => void) =>
       raw().player.onCommand((command) => listener(command as PlayerCommand)),
+
+    /** Ask the catalogue window to play the episode on another quality. */
+    setQuality: async (locator: string): Promise<void> => {
+      await raw().player.setQuality(locator);
+    },
+
+    onQuality: (listener: (locator: string) => void): (() => void) =>
+      raw().player.onQuality(listener),
   },
 };

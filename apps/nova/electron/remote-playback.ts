@@ -87,6 +87,7 @@ export function streamVariants(
 type Entry = {
   resolve: () => Promise<RemoteVariant[]>;
   selected?: string;
+  validate?: () => void;
   choices: Map<string, string>;
 };
 const entries = new Map<string, Entry>();
@@ -103,7 +104,18 @@ const variantSchema = z.object({
   label: z.string().min(1).max(240),
   playback: remoteSchema,
 });
-async function variants(entry: Entry): Promise<RemoteVariant[]> {
+/**
+ * Resolved variants per source resolver. Kept briefly so a background warm-up
+ * and the real Quality list or playback share one
+ * request. Only successful results are kept; a failure is retried next time.
+ */
+const VARIANT_CACHE_MS = 3 * 60_000;
+const variantCache = new WeakMap<
+  () => Promise<RemoteVariant[]>,
+  { at: number; pending: Promise<RemoteVariant[]> }
+>();
+
+async function loadVariants(entry: Entry): Promise<RemoteVariant[]> {
   const rows = z
     .array(variantSchema)
     .min(1)
@@ -111,6 +123,26 @@ async function variants(entry: Entry): Promise<RemoteVariant[]> {
     .parse(await entry.resolve());
   if (new Set(rows.map((row) => row.key)).size !== rows.length)
     throw new Error("Stream rendition identifiers must be unique.");
+  return rows;
+}
+
+async function variants(entry: Entry): Promise<RemoteVariant[]> {
+  entry.validate?.();
+  const cached = variantCache.get(entry.resolve);
+  if (cached && Date.now() - cached.at < VARIANT_CACHE_MS) {
+    const rows = await cached.pending;
+    entry.validate?.();
+    return rows;
+  }
+  const pending = loadVariants(entry);
+  const record = { at: Date.now(), pending };
+  variantCache.set(entry.resolve, record);
+  pending.catch(() => {
+    if (variantCache.get(entry.resolve) === record)
+      variantCache.delete(entry.resolve);
+  });
+  const rows = await pending;
+  entry.validate?.();
   return rows;
 }
 /** Renderer receives an opaque handle; guest URLs stay in main. */
@@ -130,8 +162,9 @@ export function registerDeferredPlayback(
 }
 export function registerDeferredVariants(
   resolve: () => Promise<RemoteVariant[]>,
+  validate?: () => void,
 ): string {
-  return register({ resolve, choices: new Map() });
+  return register({ resolve, validate, choices: new Map() });
 }
 export async function remoteQualities(
   locator: string,
@@ -144,6 +177,7 @@ export async function remoteQualities(
     if (!selected || !qualityEntries.has(selected)) {
       selected = register({
         resolve: entry.resolve,
+        validate: entry.validate,
         choices: entry.choices,
         selected: row.key,
       });
@@ -166,6 +200,12 @@ export async function resolveRemotePlayback(
       "The selected stream quality is no longer available. Choose another quality.",
     );
   return selected.playback;
+}
+
+/** A playback failure must not pin a stale signed URL across explicit retries. */
+export function invalidateRemotePlayback(locator: string): void {
+  const entry = entries.get(locator) ?? qualityEntries.get(locator);
+  if (entry) variantCache.delete(entry.resolve);
 }
 
 export function remoteLoadOptions(remote?: RemotePlayback): {

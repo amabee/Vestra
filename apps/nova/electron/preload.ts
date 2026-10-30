@@ -170,6 +170,8 @@ const api = {
     toggleMaximize: (): Promise<unknown> => invoke("player:toggle-maximize"),
     setInteractive: (interactive: boolean): Promise<unknown> =>
       invoke("player:set-interactive", interactive),
+    setQuality: (locator: string): Promise<unknown> =>
+      invoke("player:set-quality", { locator }),
     onNowPlaying: (listener: (value: unknown) => void): (() => void) => {
       const wrapped = (_event: unknown, value: unknown) => listener(value);
       ipcRenderer.on("player:now-playing", wrapped);
@@ -180,6 +182,12 @@ const api = {
         listener(String(command));
       ipcRenderer.on("player:command", wrapped);
       return () => ipcRenderer.off("player:command", wrapped);
+    },
+    onQuality: (listener: (locator: string) => void): (() => void) => {
+      const wrapped = (_event: unknown, locator: unknown) =>
+        listener(String(locator));
+      ipcRenderer.on("player:quality", wrapped);
+      return () => ipcRenderer.off("player:quality", wrapped);
     },
   },
 

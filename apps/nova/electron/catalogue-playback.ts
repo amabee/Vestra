@@ -14,6 +14,7 @@ export async function resolveCataloguePlayback(
   ref: MediaRef,
   selectedSource?: string,
 ) {
+  const builtinsOnly = selectedSource === "builtin";
   const signal = AbortSignal.timeout(15000);
   const context = { signal, timeoutMs: 15000 };
   const provider = providers.forRef(ref);
@@ -22,11 +23,16 @@ export async function resolveCataloguePlayback(
     item = (await provider?.getDetails?.(ref, context)) ?? null;
   } catch (error) {
     // Local-file adapters can still resolve an offline catalogue reference.
-    if (selectedSource) throw error;
+    if (selectedSource && !builtinsOnly) throw error;
   }
   let adapterIds: string[] | undefined;
   let selectedAdapter: string | undefined;
-  if (ref.kind === "anime" && selectedSource) {
+  if (builtinsOnly) {
+    adapterIds = adapters
+      .all()
+      .filter((adapter) => !adapter.id.startsWith("ext-stream-"))
+      .map((adapter) => adapter.id);
+  } else if (ref.kind === "anime" && selectedSource) {
     const source = streams
       .supporting("anime")
       .find((row) => row.id === selectedSource);

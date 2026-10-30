@@ -119,6 +119,8 @@ export interface MpvChapter {
 }
 
 export interface MpvState {
+  loading: boolean;
+  buffering: boolean;
   running: boolean;
   idle: boolean;
   paused: boolean;
@@ -144,6 +146,8 @@ export interface MpvState {
 }
 
 const INITIAL_STATE: MpvState = {
+  loading: false,
+  buffering: false,
   running: false,
   idle: true,
   paused: true,
@@ -176,6 +180,7 @@ const OBSERVED = {
   subDelay: 10,
   subScale: 11,
   chapterList: 12,
+  pausedForCache: 13,
 } as const;
 
 export interface MpvOptions {
@@ -331,6 +336,7 @@ export class MpvSession {
       ["mute", OBSERVED.mute],
       ["track-list", OBSERVED.trackList],
       ["chapter-list", OBSERVED.chapterList],
+      ["paused-for-cache", OBSERVED.pausedForCache],
       ["eof-reached", OBSERVED.eofReached],
       ["sub-visibility", OBSERVED.subVisibility],
       ["speed", OBSERVED.speed],
@@ -353,6 +359,9 @@ export class MpvSession {
         case "duration":
           if (typeof event.data === "number")
             this.#emit({ duration: event.data });
+          break;
+        case "paused-for-cache":
+          this.#emit({ buffering: event.data === true });
           break;
         case "pause":
           if (typeof event.data === "boolean")
@@ -397,8 +406,11 @@ export class MpvSession {
     }
 
     switch (event.event) {
+      case "start-file":
+        this.#emit({ loading: true, buffering: false });
+        break;
       case "file-loaded":
-        this.#emit({ idle: false, ended: false, error: null });
+        this.#emit({ idle: false, loading: false, ended: false, error: null });
         {
           const revision = this.#subtitles.revision;
           void this.#media(() => this.#subtitles.attach(this.#require())).then(
@@ -416,6 +428,8 @@ export class MpvSession {
         }
         break;
       case "end-file":
+        if (event.reason !== "stop")
+          this.#emit({ loading: false, buffering: false });
         // "eof" is a normal finish; anything else is a real failure worth
         // showing rather than silently returning to an idle screen.
         if (event.reason && event.reason !== "eof" && event.reason !== "stop") {
@@ -448,6 +462,9 @@ export class MpvSession {
       if (!this.#subtitles.current(revision)) return;
       const connection = this.#require();
       this.#emit({
+        loading: true,
+        buffering: false,
+        chapters: [],
         ended: false,
         error: null,
         subtitleError: null,

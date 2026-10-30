@@ -22,6 +22,7 @@ const {
   registerRemotePlayback,
   registerDeferredPlayback,
   resolveRemotePlayback,
+  invalidateRemotePlayback,
   remoteLoadOptions,
   registerDeferredVariants,
   remoteQualities,
@@ -50,7 +51,10 @@ test("opaque handles preserve headers/subtitles and reject arbitrary renderer UR
   assert.equal(calls, 0);
   await resolveRemotePlayback(deferred);
   await resolveRemotePlayback(deferred);
-  assert.equal(calls, 2, "replay must refresh signed URLs");
+  assert.equal(calls, 1, "warm playback shares a fresh signature");
+  invalidateRemotePlayback(deferred);
+  await resolveRemotePlayback(deferred);
+  assert.equal(calls, 2, "failed-media retry refreshes signed URLs");
   assert.deepEqual(remoteLoadOptions(), { headers: [], subtitles: [] });
   assert.throws(() =>
     registerRemotePlayback({
@@ -60,7 +64,13 @@ test("opaque handles preserve headers/subtitles and reject arbitrary renderer UR
   );
 });
 
-test("quality choices hide URLs, refresh signatures and preserve the chosen rendition after reordering", async () => {
+test("quality choices hide URLs, refresh expired signatures and preserve the chosen rendition after reordering", async (t) => {
+  const originalNow = Date.now;
+  let clock = originalNow();
+  Date.now = () => clock;
+  t.after(() => {
+    Date.now = originalNow;
+  });
   let token = 0;
   let reverse = false;
   let removed = false;
@@ -90,11 +100,13 @@ test("quality choices hide URLs, refresh signatures and preserve the chosen rend
   assert.equal("url" in choices[0], false);
   const full = choices.find((row) => row.label.startsWith("1080p"));
   reverse = true;
+  clock += 180001;
   const playback = await resolveRemotePlayback(full.locator);
   assert.match(playback.url, /1080p.*token=2/);
   assert.equal(playback.headers["X-Quality"], "1080p");
   assert.equal(playback.headers.Referer, "https://origin.example");
   removed = true;
+  invalidateRemotePlayback(full.locator);
   await assert.rejects(
     resolveRemotePlayback(full.locator),
     /no longer available/,

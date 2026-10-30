@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { bridge } from "@/lib/bridge";
 import { usePlayer } from "@/lib/player-store";
-import { StreamQuality } from "@/components/player/stream-quality";
 import type { AnimeSourceTitle } from "../../../../shared/anime";
 
 export function AnimeSources() {
@@ -109,7 +108,14 @@ function SourceSearch({ source }: { source: string }) {
       </form>
       {search.error && (
         <p role="alert" className="pt-4 text-error">
-          {search.error.message}
+          {search.error.message}{" "}
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => search.variables && search.mutate(search.variables)}
+          >
+            Retry search
+          </button>
         </p>
       )}
       {search.data?.length === 0 && (
@@ -212,11 +218,6 @@ function SourceEpisodes({
                   <span className="min-w-0 flex-1 truncate text-sm">
                     {episode.label}
                   </span>
-                  <StreamQuality
-                    locator={episode.locator}
-                    busy={false}
-                    onSelect={(quality) => play(index, quality)}
-                  />
                   <button
                     className="btn btn-primary btn-sm"
                     onClick={() => play(index)}

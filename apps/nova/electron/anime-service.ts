@@ -12,12 +12,17 @@ import type {
 } from "@vestra/extension-host";
 import { registerDeferredVariants, streamVariants } from "./remote-playback";
 import type { AnimeSourceEpisodes, AnimeSourceTitle } from "../shared/anime";
+import { TtlCache } from "./ttl-cache";
+
+/** Search results stay fresh for five minutes. */
+const SEARCH_TTL_MS = 5 * 60 * 1000;
 
 export class AnimeService {
   private titles = new Map<
     string,
     { source: StreamSourceProvider; anime: Anime }
   >();
+  private searches = new WeakMap<StreamSourceProvider, TtlCache<Anime[]>>();
   constructor(private registry: StreamSourceRegistry) {}
   list() {
     return this.registry
@@ -36,13 +41,30 @@ export class AnimeService {
       .supporting("anime")
       .find((row) => row.id === id);
     if (!source) throw new Error("This anime source is unavailable.");
-    const rows = await source.search(
-      query,
-      { limit: 50 },
-      { signal: AbortSignal.timeout(15000), timeoutMs: 15000 },
+    let cache = this.searches.get(source);
+    if (!cache) {
+      cache = new TtlCache<Anime[]>(SEARCH_TTL_MS);
+      this.searches.set(source, cache);
+    }
+    const rows = await cache.run(
+      query.toLowerCase(),
+      async () => {
+        const results = await source.search(
+          query,
+          { limit: 50 },
+          {
+            signal: AbortSignal.timeout(15000),
+            timeoutMs: 15000,
+          },
+        );
+        this.requireCurrent(source);
+        return results.slice(0, 50);
+      },
+      (rows) => rows.length > 0,
     );
     this.requireCurrent(source);
-    return rows.slice(0, 50).map((anime) => {
+    // Cache data, never expiring renderer handles. Reissue valid handles on every search.
+    return rows.map((anime) => {
       const handle = randomUUID();
       if (this.titles.size >= 100)
         this.titles.delete(this.titles.keys().next().value!);
@@ -50,6 +72,7 @@ export class AnimeService {
       return { handle, title: anime.title };
     });
   }
+
   async resolve(
     id: string,
     item: MediaItem,
@@ -111,20 +134,23 @@ export class AnimeService {
       label: episode.title || `Episode ${episode.number}`,
       priority: 80,
       ...(Number.isInteger(episode.number) ? { episode: episode.number } : {}),
-      locator: registerDeferredVariants(async () => {
-        this.requireCurrent(source);
-        const results = await source.getStreams(episode.id, {
-          signal: AbortSignal.timeout(15000),
-          timeoutMs: 15000,
-        });
-        this.requireCurrent(source);
-        const variants = streamVariants(results);
-        if (!variants.length)
-          throw new Error(
-            "The source returned no playable video for this episode.",
-          );
-        return variants;
-      }),
+      locator: registerDeferredVariants(
+        async () => {
+          this.requireCurrent(source);
+          const results = await source.getStreams(episode.id, {
+            signal: AbortSignal.timeout(15000),
+            timeoutMs: 15000,
+          });
+          this.requireCurrent(source);
+          const variants = streamVariants(results);
+          if (!variants.length)
+            throw new Error(
+              "The source returned no playable video for this episode.",
+            );
+          return variants;
+        },
+        () => this.requireCurrent(source),
+      ),
     }));
     const item = mediaItemSchema.parse({
       source: source.id,

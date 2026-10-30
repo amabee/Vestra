@@ -100,7 +100,7 @@ export function createStreamSourceAdapter(
           if (!variants.length)
             throw new Error("This episode has no playable stream.");
           return variants;
-        });
+        }, requireCurrent);
         playable.push({
           kind: "stream",
           locator,

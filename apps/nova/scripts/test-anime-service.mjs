@@ -106,6 +106,40 @@ test("disabled or replaced sources invalidate results and pending playback closu
     /expired/,
   );
 });
+
+test("cached stream and quality results still reject removed providers", async () => {
+  const f = fixture();
+  const [title] = await f.service.search(f.source.id, "Battle");
+  const { queue } = await f.service.episodes(title.handle);
+  const qualities = await remoteQualities(queue[0].locator);
+  await resolveRemotePlayback(qualities[0].locator);
+  assert.equal(f.calls(), 1, "quality list and playback share extraction");
+  f.registry.unregister(f.source.id);
+  await assert.rejects(
+    resolveRemotePlayback(queue[0].locator),
+    /changed|disabled/,
+  );
+  await assert.rejects(
+    resolveRemotePlayback(qualities[0].locator),
+    /changed|disabled/,
+  );
+});
+
+test("cached searches issue fresh handles after eviction and provider replacement", async () => {
+  const f = fixture();
+  const [first] = await f.service.search(f.source.id, "Battle");
+  for (let i = 0; i < 101; i++)
+    await f.service.search(f.source.id, `title ${i}`);
+  await assert.rejects(f.service.episodes(first.handle), /expired/);
+  const [fresh] = await f.service.search(f.source.id, "Battle");
+  assert.notEqual(fresh.handle, first.handle);
+  assert.equal((await f.service.episodes(fresh.handle)).queue.length, 1);
+  const replacement = fixture().source;
+  f.registry.unregister(f.source.id);
+  f.registry.register(replacement);
+  const [replaced] = await f.service.search(replacement.id, "Battle");
+  assert.equal((await f.service.episodes(replaced.handle)).queue.length, 1);
+});
 test("opening quality choices cannot evict episode handles from a full queue", async () => {
   const f = fixture();
   const [title] = await f.service.search(f.source.id, "Battle");
@@ -147,6 +181,40 @@ function catalogueFixture() {
   );
   return { ...f, ref, item, providers, adapters };
 }
+
+test("details built-in source discovery never searches streaming extensions", async () => {
+  const f = catalogueFixture();
+  let searched = false;
+  f.adapters.register({
+    id: "ext-stream-slow",
+    name: "Slow",
+    isAvailable: () => true,
+    canHandle: () => true,
+    resolve: async () => {
+      searched = true;
+      throw Error("Must not run");
+    },
+  });
+  f.adapters.register({
+    id: "local",
+    name: "Local",
+    isAvailable: () => true,
+    canHandle: () => true,
+    resolve: async () => [
+      { kind: "file", locator: "owned.mp4", priority: 100, mimeType: null },
+    ],
+  });
+  const queue = await resolveCataloguePlayback(
+    f.providers,
+    f.adapters,
+    f.registry,
+    f.ref,
+    "builtin",
+  );
+  assert.equal(searched, false);
+  assert.equal(queue.length, 1);
+  assert.equal(queue[0].kind, "file");
+});
 test("a catalogue reference is enriched before matching the selected provider and preserves local sources", async () => {
   const f = catalogueFixture();
   let unrelatedCalls = 0;

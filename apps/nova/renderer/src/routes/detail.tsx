@@ -23,7 +23,6 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { Notice, Page, SectionRule } from "@/components/layout/page";
 import { bridge } from "@/lib/bridge";
-import { StreamQuality } from "@/components/player/stream-quality";
 import { usePlayer } from "@/lib/player-store";
 import {
   keys,
@@ -771,16 +770,6 @@ function EpisodeCard({
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
-        <StreamQuality
-          locator={entry.source.locator}
-          busy={busy}
-          onSelect={(choice) =>
-            onPlay(
-              partial ? Math.floor(watch?.positionSeconds ?? 0) : 0,
-              choice,
-            )
-          }
-        />
         <CardAction
           label={
             entry.bookmarked
@@ -903,7 +892,6 @@ function SourceRow({
         </p>
       </div>
 
-      <StreamQuality locator={playback.locator} busy={busy} onSelect={onPlay} />
       <button
         type="button"
         disabled={busy}

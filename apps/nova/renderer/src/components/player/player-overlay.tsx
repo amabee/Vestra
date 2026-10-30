@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
+import { VideoLoader } from "./video-loader";
 import { bridge } from "@/lib/bridge";
 import { usePlayer } from "@/lib/player-store";
 import { useSettings } from "@/lib/queries";
@@ -64,9 +65,13 @@ export function PlayerOverlay() {
   const fileId = useFileId(source?.locator);
   const progressId = fileId ?? source?.progressId ?? null;
   const [opening, setOpening] = useState(false);
+  const [openedSession, setOpenedSession] = useState<number | null>(null);
   const renditionOverrides = usePlayer((state) => state.renditionOverrides);
-  const streamLocator = source?.locator.startsWith("vestra-stream://")
-    ? (renditionOverrides[source.locator] ?? source.locator)
+  const streamSourceLocator = source?.locator.startsWith("vestra-stream://")
+    ? source.locator
+    : null;
+  const streamLocator = streamSourceLocator
+    ? (renditionOverrides[streamSourceLocator] ?? streamSourceLocator)
     : undefined;
   const decision = useEngineDecision(fileId, Boolean(streamLocator));
 
@@ -115,12 +120,16 @@ export function PlayerOverlay() {
    * appearing halfway through an episode and never during the opening.
    */
   const placement = useMemo(() => {
-    if (source?.episode != null) {
+    if (
+      source?.episode != null &&
+      Number.isInteger(source.episode) &&
+      source.episode > 0
+    ) {
       return { season: source.season ?? 1, episode: source.episode };
     }
 
-    // Nothing parsed: assume a single-season release, numbered in order.
-    return { season: 1, episode: queue.length > 1 ? index + 1 : 1 };
+    // Unknown numbering must not borrow the timing of the queue position.
+    return { season: 1, episode: null };
   }, [source?.season, source?.episode, queue.length, index]);
 
   /**
@@ -133,6 +142,8 @@ export function PlayerOverlay() {
    * The episode's real duration is sent along so the lookup can be rejected
    * when it does not plausibly belong to this file.
    */
+  const playbackCurrent =
+    openedSession === sessionId && !opening && !mpv.loading;
   const skipTimes = useQuery({
     queryKey: [
       "skip-times",
@@ -140,18 +151,27 @@ export function PlayerOverlay() {
       item?.sourceId,
       placement.season,
       placement.episode,
+      progressId,
+      Math.round(mpv.duration),
     ],
     queryFn: () =>
       bridge.media.skipTimes({
         source: item?.source ?? "",
         sourceId: item?.sourceId ?? "",
         seasonNumber: placement.season,
-        episodeNumber: placement.episode,
+        episodeNumber: placement.episode ?? 1,
         episodeLengthSeconds: Math.round(mpv.duration),
       }),
-    enabled: Boolean(item) && skipSegments && mpv.duration > 0,
+    enabled:
+      item?.source === "anilist" &&
+      placement.episode !== null &&
+      skipSegments &&
+      playbackCurrent &&
+      mpv.duration > 0,
     retry: false,
-    staleTime: Number.POSITIVE_INFINITY,
+    staleTime: 60000,
+    refetchInterval: (query) =>
+      query.state.data?.length === 0 ? 60000 : false,
   });
 
   /**
@@ -164,16 +184,49 @@ export function PlayerOverlay() {
    */
   const skips = useMemo(
     () =>
-      preferChapters(
-        skipRangesFromChapters(mpv.chapters, mpv.duration),
-        skipTimes.data ?? [],
-      ),
-    [mpv.chapters, mpv.duration, skipTimes.data],
+      playbackCurrent
+        ? preferChapters(
+            skipRangesFromChapters(mpv.chapters, mpv.duration),
+            skipTimes.data ?? [],
+          )
+        : [],
+    [mpv.chapters, mpv.duration, skipTimes.data, playbackCurrent],
   );
 
   /* ---------------------------------------------------------------------- *
    * Feeding the controls window
    * ---------------------------------------------------------------------- */
+
+  /**
+   * A quality picked in the controls window.
+   *
+   * Reopens the same episode on the chosen stream, starting where playback
+   * was. The position is read from mpv at the moment of the choice, so the
+   * switch picks up where the viewer is rather than the start of the file.
+   */
+  const positionRef = useLatest(
+    usingMpv ? mpv.position : (videoRef.current?.currentTime ?? 0),
+  );
+  useEffect(() => {
+    return bridge.player.onQuality((locator) => {
+      if (!item || !streamSourceLocator) return;
+      void bridge.media
+        .streamQualities(streamSourceLocator)
+        .then((choices) => {
+          const state = usePlayer.getState();
+          if (
+            state.queue[state.index]?.locator !== streamSourceLocator ||
+            !choices.some((choice) => choice.locator === locator)
+          )
+            return;
+          state.open(item, state.queue, state.index, positionRef.current, {
+            ...state.renditionOverrides,
+            [streamSourceLocator]: locator,
+          });
+        })
+        .catch(() => undefined);
+    });
+  }, [item, streamSourceLocator, positionRef]);
 
   useEffect(() => {
     if (!item) return;
@@ -187,15 +240,23 @@ export function PlayerOverlay() {
         engine: usingMpv ? "mpv" : "builtin",
         // Chapter-derived ranges carry no id; the wire format says so rather
         // than leaving the field absent.
-        skips: skipSegments
-          ? skips.map((skip) => ({ ...skip, skipId: skip.skipId ?? null }))
-          : [],
+        loading: opening,
+        playbackError: failed,
+        skips:
+          skipSegments && !opening && !mpv.loading
+            ? skips.map((skip) => ({ ...skip, skipId: skip.skipId ?? null }))
+            : [],
         autoSkip: autoSkipSegments,
         sessionId,
+        streamSource: streamSourceLocator,
+        activeStream: streamLocator ?? null,
       })
       .catch(() => undefined);
   }, [
     item,
+    opening,
+    failed,
+    mpv.loading,
     episodeLabel,
     index,
     queue.length,
@@ -204,6 +265,8 @@ export function PlayerOverlay() {
     skipSegments,
     autoSkipSegments,
     sessionId,
+    streamSourceLocator,
+    streamLocator,
   ]);
 
   /**
@@ -215,6 +278,18 @@ export function PlayerOverlay() {
   useEffect(() => {
     return bridge.player.onCommand((command) => {
       switch (command) {
+        case "retry": {
+          const state = usePlayer.getState();
+          if (state.item)
+            state.open(
+              state.item,
+              state.queue,
+              state.index,
+              state.startAt,
+              state.renditionOverrides,
+            );
+          break;
+        }
         case "next":
           next();
           break;
@@ -494,6 +569,7 @@ export function PlayerOverlay() {
           height: Math.round(box?.height ?? 0),
         },
       });
+      if (!cancelled) setOpenedSession(sessionId);
     })()
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -517,6 +593,36 @@ export function PlayerOverlay() {
     decision.ready,
     decision.needsMpv,
     sessionId,
+  ]);
+
+  const nearEpisodeEnd = mpv.duration > 0 && mpv.duration - mpv.position <= 90;
+  useEffect(() => {
+    const upcoming = queue[index + 1];
+    if (
+      !usingMpv ||
+      !nearEpisodeEnd ||
+      opening ||
+      mpv.loading ||
+      mpv.idle ||
+      mpv.duration <= 0 ||
+      !upcoming?.locator.startsWith("vestra-stream://")
+    )
+      return;
+    const timer = setTimeout(() => {
+      void bridge.media
+        .streamQualities(upcoming.locator)
+        .catch(() => undefined);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [
+    queue,
+    index,
+    usingMpv,
+    nearEpisodeEnd,
+    opening,
+    mpv.loading,
+    mpv.idle,
+    mpv.duration,
   ]);
 
   // Leaving the player packs both extra windows away; mpv itself keeps running
@@ -631,13 +737,10 @@ export function PlayerOverlay() {
 
       {decision.needsMpv ? <MpvMissing reasons={decision.reasons} /> : null}
 
-      {opening && !error && (
-        <div
-          className="absolute inset-0 grid place-items-center bg-base-100"
-          role="status"
-        >
-          <p>Resolving episode and opening video…</p>
-        </div>
+      {(opening || mpv.loading || mpv.buffering) && !error && (
+        <VideoLoader
+          label={mpv.buffering ? "Buffering video" : "Preparing your episode"}
+        />
       )}
 
       {error && !decision.needsMpv ? (
