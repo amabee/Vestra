@@ -14,6 +14,15 @@ import {
 } from "./csharp-providers";
 import { getDriver } from "./services";
 
+let remoteService: RemoteSourceService | undefined;
+let initialization: Promise<void> | undefined;
+export async function prepareProviderExtension(url: string, document: unknown) {
+  await initialization;
+  if (!remoteService)
+    throw new Error("The provider installer is still starting. Try again.");
+  return remoteService.prepare(url, undefined, document);
+}
+
 export function registerSourceIpc(): void {
   const manager = new SourceManager(getDriver(), {
     activate: activateCSharpSource,
@@ -22,6 +31,8 @@ export function registerSourceIpc(): void {
   });
   const ready = manager.initialize(readLegacyCSharpSources);
   const remote = new RemoteSourceService(manager, downloadSourceArtifact);
+  remoteService = remote;
+  initialization = ready;
   void ready.catch((error) =>
     console.error("[nova] source initialization failed", error),
   );

@@ -721,8 +721,12 @@ export const bridge = {
       (await raw().extensions.browse()) as BrowseResult,
 
     /** Reads the manifest so the user can see what they are agreeing to. */
-    prepare: async (candidate: InstallCandidate): Promise<InstallPlan> =>
-      (await raw().extensions.prepare(candidate)) as InstallPlan,
+    prepare: async (
+      candidate: InstallCandidate,
+    ): Promise<import("../../../shared/extensions").ExtensionReview> =>
+      (await raw().extensions.prepare(
+        candidate,
+      )) as import("../../../shared/extensions").ExtensionReview,
 
     install: async (request: {
       candidate: InstallCandidate;

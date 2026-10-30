@@ -1,3 +1,4 @@
+import { extractStreamplay, streamplayEmbed } from "./streamplay";
 import { resolveEpisodeServers } from "./episode-servers";
 import { safeFetch } from "./safe-fetch";
 import { readFile, stat } from "node:fs/promises";
@@ -180,7 +181,20 @@ export async function activateCSharpSource(
         return resolveEpisodeServers(
           settings.episodeServers,
           definition.preferredServer,
-          (server) => call("findEpisodeServer", [episode, server], signal),
+          async (server) => {
+            try {
+              return await call("findEpisodeServer", [episode, server], signal);
+            } catch (error) {
+              const embed = streamplayEmbed(error);
+              if (!embed) throw error;
+              return extractStreamplay(
+                embed,
+                server,
+                episode.url ?? "",
+                signal,
+              );
+            }
+          },
           async (result) => {
             const videoSources = [];
             const failures = [];

@@ -1,3 +1,5 @@
+import { RemoteSourceReview } from "@/components/sources/remote-source";
+import type { RemoteSourcePlan } from "../../../shared/sources";
 import { ProviderExtensions } from "@/components/extensions/provider-extensions";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PERMISSION_DESCRIPTORS } from "@vestra/extension-host/permissions";
@@ -16,7 +18,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   Notice,
@@ -61,6 +63,17 @@ function folderOf(manifestPath: string): string {
 export function ExtensionsRoute() {
   const queryClient = useQueryClient();
   const [reviewing, setReviewing] = useState<InstallPlan | null>(null);
+  const [providerReview, setProviderReview] = useState<RemoteSourcePlan | null>(
+    null,
+  );
+  const reviewRegion = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (providerReview) reviewRegion.current?.focus();
+  }, [providerReview?.token]);
+  const managed = useQuery({
+    queryKey: ["managed-sources"],
+    queryFn: bridge.sources.list,
+  });
 
   const installed = useQuery({
     queryKey: ["extensions", "installed"],
@@ -91,6 +104,8 @@ export function ExtensionsRoute() {
   const refresh = () => {
     for (const queryKey of [
       ["extensions"],
+      ["managed-sources"],
+      ["manga"],
       ["anime-sources"],
       ["playback"],
       ["source-episodes"],
@@ -107,9 +122,26 @@ export function ExtensionsRoute() {
   const prepare = useMutation({
     mutationFn: (candidate: InstallCandidate) =>
       bridge.extensions.prepare(candidate),
-    onSuccess: setReviewing,
+    onSuccess: (review) => {
+      installProvider.reset();
+      if (review.kind === "provider") {
+        setReviewing(null);
+        setProviderReview(review.plan);
+      } else {
+        setProviderReview(null);
+        setReviewing(review.plan);
+      }
+    },
   });
 
+  const installProvider = useMutation({
+    mutationFn: ({ token, hosts }: { token: string; hosts: string[] }) =>
+      bridge.sources.applyRemote(token, hosts),
+    onSuccess: () => {
+      setProviderReview(null);
+      refresh();
+    },
+  });
   const install = useMutation({
     mutationFn: (input: { candidate: InstallCandidate; granted: string[] }) =>
       bridge.extensions.install(input),
@@ -127,7 +159,10 @@ export function ExtensionsRoute() {
   const pickUnpacked = useMutation({
     mutationFn: () => bridge.extensions.pickUnpacked(),
     onSuccess: (plan) => {
-      if (plan) setReviewing(plan);
+      if (plan) {
+        setProviderReview(null);
+        setReviewing(plan);
+      }
     },
   });
 
@@ -151,7 +186,10 @@ export function ExtensionsRoute() {
     onSuccess: refresh,
   });
 
-  const installedIds = new Set((installed.data ?? []).map((entry) => entry.id));
+  const installedIds = new Set([
+    ...(installed.data ?? []).map((entry) => entry.id),
+    ...(managed.data ?? []).map((entry) => entry.id),
+  ]);
   const runningIds = new Set(running.data ?? []);
 
   return (
@@ -162,6 +200,30 @@ export function ExtensionsRoute() {
         lead="Install and manage anime, manga and catalogue extensions in one place."
       />
 
+      {providerReview && (
+        <div
+          ref={reviewRegion}
+          tabIndex={-1}
+          role="region"
+          aria-label="Review extension installation"
+          className="mt-8"
+        >
+          <RemoteSourceReview
+            key={providerReview.token}
+            plan={providerReview}
+            busy={installProvider.isPending}
+            onCancel={() => setProviderReview(null)}
+            onApply={(hosts) =>
+              installProvider.mutate({ token: providerReview.token, hosts })
+            }
+          />
+          {installProvider.error && (
+            <p role="alert" className="text-error">
+              {installProvider.error.message}
+            </p>
+          )}
+        </div>
+      )}
       <div className="mt-8">
         <ProviderExtensions />
       </div>
@@ -180,7 +242,12 @@ export function ExtensionsRoute() {
           trailing={
             <button
               type="button"
-              disabled={pickUnpacked.isPending}
+              disabled={
+                pickUnpacked.isPending ||
+                installProvider.isPending ||
+                install.isPending ||
+                installUnpacked.isPending
+              }
               onClick={() => pickUnpacked.mutate()}
               title="Review an extension from a folder on this machine"
               className="flex items-center gap-1.5 rounded-field border rule px-2.5 py-1 text-xs transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-40"
@@ -319,7 +386,12 @@ export function ExtensionsRoute() {
                 key={`${entry.registryUrl}:${entry.id}`}
                 entry={entry}
                 installed={installedIds.has(entry.id)}
-                busy={prepare.isPending}
+                busy={
+                  prepare.isPending ||
+                  installProvider.isPending ||
+                  install.isPending ||
+                  installUnpacked.isPending
+                }
                 onReview={() =>
                   prepare.mutate({
                     id: entry.id,
@@ -480,13 +552,10 @@ function AvailableRow({
   const health = healthOf(entry);
 
   /*
-    Some registries put the code's URL in the manifest rather than the listing.
-    Vestra needs it up front — it is what the integrity fingerprint is taken
-    of, and what "pinned to a commit" is judged from — so a listing without one
-    cannot be installed. Better to say so on the row than to fail after a click
-    with a validation error about a URL the user never saw.
+    A registry may contain only a manifest URL. Preview resolves the payload
+    and execution format from that manifest before presenting permissions.
   */
-  const installable = support.supported && entry.payloadURI.length > 0;
+  const installable = support.supported && entry.manifestURI.length > 0;
 
   return (
     <article className="flex items-start gap-4 rounded-box border rule bg-base-200/40 px-4 py-3">
@@ -521,9 +590,8 @@ function AvailableRow({
 
         {support.supported && !installable ? (
           <p className="mt-2 max-w-[70ch] text-xs text-base-content/50">
-            This listing does not say where its code lives, so Vestra has
-            nothing to fingerprint. That is a gap in the registry entry rather
-            than anything about the extension itself.
+            This listing has no manifest URL. Ask its author to publish an
+            installation manifest.
           </p>
         ) : null}
       </div>
@@ -539,7 +607,7 @@ function AvailableRow({
         </button>
       ) : (
         <span className="meta shrink-0 self-center">
-          {support.supported ? "No code listed" : "Not installable"}
+          {support.supported ? "No manifest listed" : "Not installable"}
         </span>
       )}
     </article>

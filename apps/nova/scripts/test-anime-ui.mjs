@@ -53,8 +53,8 @@ try {
     const queue=[1,2].map(n=>({kind:'stream',locator:'vestra-stream://fixture-'+n,mimeType:null,label:'Episode '+n,priority:80,episode:n}));
     window.fixture.managed=[{id:'existing-provider',name:'Existing Anime Extension',type:'onlinestream-provider',hosts:['source.example'],preferences:{},enabled:true,status:'ready',servers:[],versions:[],sourceHash:'a'.repeat(64)}];
     window.fixtureBridge={
-      sources:{list:async()=>fixture.managed,update:async(id,options)=>{fixture.managed=fixture.managed.map(row=>row.id===id?{...row,...options,status:options.enabled?'ready':'disabled'}:row);},pick:async()=>null},
-      extensions:{installed:async()=>[],list:async()=>[],registries:async()=>[],browse:async()=>({entries:[],errors:[],rejected:0})},
+      sources:{applyRemote:async(token,hosts)=>{fixture.applied={token,hosts};fixture.managed.push({...fixture.managed[0],id:"other-provider",name:"Manifest Only Provider",hosts});},list:async()=>fixture.managed,update:async(id,options)=>{fixture.managed=fixture.managed.map(row=>row.id===id?{...row,...options,status:options.enabled?'ready':'disabled'}:row);},pick:async()=>null},
+      extensions:{installed:async()=>[],list:async()=>[],registries:async()=>['https://registry.example/index.json'],browse:async()=>({entries:[{id:'other-provider',name:'Manifest Only Provider',version:'1.0.0',type:'onlinestream-provider',manifestURI:'https://registry.example/other/manifest.json',payloadURI:'',registryUrl:'https://registry.example/index.json'}],errors:[],rejected:0}),prepare:async candidate=>{fixture.prepared=candidate;return {kind:'provider',plan:{token:'test-review',id:'other-provider',name:'Manifest Only Provider',type:'onlinestream-provider',version:'1.0.0',manifestUrl:candidate.manifestURI,payloadUrl:'https://cdn.example/provider.ts',sha256:'a'.repeat(64),checksumVerified:false,hosts:['other.example'],addedHosts:['other.example'],inferredHosts:true,updating:false,changed:true}};}},
       anime:{resolve:async(source,ref)=>{fixture.calls.push({ref,source});if(fixture.fail)throw Error('Fixture source failure');return fixture.noMatch?null:{item,providerTitle:'Provider Anime',queue:fixture.empty?[]:queue.map(entry=>({...entry,progressId:source+'-'+entry.episode,locator:entry.locator+'-'+source}))};},sources:async()=>fixture.available??[{id:'ext-first',name:'First source'},{id:'ext-second',name:'Second source'}],search:async()=>[],episodes:async()=>({item,queue})},
       media:{trending:async()=>[{providerId:'anilist',providerName:'AniList',items:[item]}],details:async()=>item,resolvePlayback:async(ref,source)=>{fixture.calls.push({ref,source});if(fixture.fail)throw Error('Fixture source failure');return queue;}},
       library:{files:async()=>[],onChanged:()=>()=>{}},progress:{all:async()=>fixture.saved,save:async request=>{fixture.saved['anilist:anime:123#'+request.episodeId]={...request,completed:request.positionSeconds>0,percent:request.positionSeconds>0?1:0};}},bookmarks:{all:async()=>fixture.marks,toggle:async request=>{const key='anilist:anime:123#'+request.episodeId;if(fixture.marks[key])delete fixture.marks[key];else fixture.marks[key]=Date.now();}},watchlist:{list:async()=>[]},
@@ -85,7 +85,7 @@ try {
         }
         assert.equal(await run('window.fixture.calls[0].source'),'ext-second');
         assert.equal(await run('window.fixture.location.search'),'?source=ext-second');
-        await run('Array.from(document.querySelectorAll("button")).find(b=>b.textContent.trim()==="Play Episode 1").click()');
+        await run('Array.from(document.querySelectorAll("button")).find(b=>b.textContent.trim().toLowerCase()==="play episode 1").click()');
         await until('window.fixture.player.queue.length===2');
         assert.equal(await run('window.fixture.player.item.sourceId'),'123');
         console.log('PASS selected anime provider follows catalogue navigation and hands all episodes to the player');
@@ -136,6 +136,17 @@ try {
         assert.equal(await run('window.fixture.managed[0].id'),'existing-provider');
         assert.equal(await run('document.querySelectorAll("h1").length'),1);
         console.log('PASS Extensions owns existing provider enablement, configuration and import controls');
+        await until('Array.from(document.querySelectorAll("button")).some(b=>b.textContent.trim()==="Review")');
+        assert.equal(await run('document.getElementById("root").textContent.includes("No code listed")'),false);
+        await run('Array.from(document.querySelectorAll("button")).find(b=>b.textContent.trim()==="Review").click()');
+        await until('Array.from(document.querySelectorAll("button")).some(b=>b.textContent.trim()==="Install extension")');
+        assert.equal(await run('document.activeElement.getAttribute("aria-label")'),'Review extension installation');
+        assert.equal(await run('window.fixture.prepared.payloadURI'),'');
+        assert.equal(await run('window.fixture.applied===undefined'),true);
+        await run('Array.from(document.querySelectorAll("button")).find(b=>b.textContent.trim()==="Install extension").click()');
+        await until('window.fixture.applied && Array.from(document.querySelectorAll("button")).some(b=>b.textContent.trim()==="Installed")');
+        assert.equal(await run('window.fixture.applied.hosts[0]'),'other.example');
+        console.log('PASS manifest-only Available listings can be reviewed and installed without a listing-level code URL');
         win.destroy();app.exit(0);
       }catch(error){console.error(error);win.destroy();app.exit(1);}
     });

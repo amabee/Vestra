@@ -1,3 +1,5 @@
+import { prepareExtensionReview } from "./extension-install";
+import { prepareProviderExtension } from "./source-ipc";
 import { resolveCataloguePlayback } from "./catalogue-playback";
 import { randomUUID } from "node:crypto";
 import { remoteQualities } from "./remote-playback";
@@ -167,7 +169,7 @@ const installCandidateSchema = z.object({
   version: z.string().min(1).max(60),
   type: extensionTypeSchema,
   manifestURI: z.string().url().max(2000),
-  payloadURI: z.string().url().max(2000),
+  payloadURI: z.union([z.literal(""), z.string().url().max(2000)]).default(""),
   registryUrl: z.string().url().max(2000),
 });
 
@@ -668,11 +670,15 @@ export function registerDataIpc(): void {
    * Phase one of an install — read the manifest, decide if it is installable.
    *
    * Returns what the user is being asked to agree to. Nothing is written and
-   * no code is downloaded until they answer.
+   * no code is executed. Provider previews pin downloaded bytes for review.
    */
   handle("extensions:prepare", async (raw: unknown) => {
     const candidate = parse(installCandidateSchema, raw, "extension");
-    return prepareInstall(candidate, transport);
+    return prepareExtensionReview(
+      candidate,
+      transport,
+      prepareProviderExtension,
+    );
   });
 
   /**

@@ -41,7 +41,11 @@ export class RemoteSourceService {
       throw new Error(`Source artifact must contain 1–${cap} bytes.`);
     return bytes;
   }
-  async prepare(url: string, updatingId?: string): Promise<RemoteSourcePlan> {
+  async prepare(
+    url: string,
+    updatingId?: string,
+    providedManifest?: unknown,
+  ): Promise<RemoteSourcePlan> {
     const manifestUrl = secureSourceUrl.parse(url);
     const current = await this.manager.list();
     const old = updatingId
@@ -50,11 +54,12 @@ export class RemoteSourceService {
     if (updatingId && (!old?.remote || old.remote.manifestUrl !== manifestUrl))
       throw new Error("This source has no matching remote update origin.");
     const manifest = manifestSchema.parse(
-      JSON.parse(
-        new TextDecoder("utf-8", { fatal: true }).decode(
-          await this.bytes(manifestUrl, 65536),
+      providedManifest ??
+        JSON.parse(
+          new TextDecoder("utf-8", { fatal: true }).decode(
+            await this.bytes(manifestUrl, 65536),
+          ),
         ),
-      ),
     );
     if (old && (old.id !== manifest.id || old.type !== manifest.type))
       throw new Error(
@@ -74,7 +79,23 @@ export class RemoteSourceService {
       /\.ts$/i.test(new URL(manifest.payloadURI).pathname)
         ? "provider.ts"
         : "provider.js";
-    const hosts = [...new Set([...(old?.hosts ?? []), ...manifest.hosts])];
+    const suggestedHosts: string[] = [];
+    if (!manifest.hosts.length)
+      for (const match of source.matchAll(
+        /https:\/\/([a-zA-Z0-9.-]+)(?=[:/\s"'`})]|$)/g,
+      )) {
+        const host = match[1]!.toLowerCase();
+        if (
+          sourceOptions.shape.hosts.safeParse([host]).success &&
+          !suggestedHosts.includes(host)
+        )
+          suggestedHosts.push(host);
+        if (suggestedHosts.length === 32) break;
+      }
+    const proposedHosts = manifest.hosts.length
+      ? manifest.hosts
+      : suggestedHosts;
+    const hosts = [...new Set([...(old?.hosts ?? []), ...proposedHosts])];
     const token = randomUUID();
     const plan: RemoteSourcePlan = {
       token,
@@ -88,7 +109,8 @@ export class RemoteSourceService {
       sha256: digest,
       checksumVerified: !!manifest.sha256,
       hosts,
-      addedHosts: manifest.hosts.filter((host) => !old?.hosts.includes(host)),
+      addedHosts: proposedHosts.filter((host) => !old?.hosts.includes(host)),
+      inferredHosts: !manifest.hosts.length && proposedHosts.length > 0,
       updating: !!old,
       changed:
         !old ||

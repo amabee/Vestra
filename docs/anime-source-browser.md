@@ -105,8 +105,9 @@ responses for a successful status and `#EXTM3U` before choosing a mirror. HTTP 4
 HTML instead of a playlist, unsupported formats and extraction errors trigger the
 next mirror. It does not pass an embed webpage to mpv or silently enlarge permissions.
 
-Streamplay itself is still unsupported by the installed script. Episodes for which
-all advertised mirrors are unsupported/unavailable return the individual server
+The installed script still lacks its own Streamplay scraper; the adapter now supplies
+the host-side protocol extractor described below. Episodes for which the upstream
+configuration is empty or all advertised mirrors are unavailable return the individual server
 failures and an extension/update recovery action. No code can guarantee an upstream
 site will publish a playable alternative for every episode.
 
@@ -123,3 +124,8 @@ video frame with `--vo=null --ao=null`. No desktop window was shown. This is a r
 stream/decode check for one episode, not an interactive seek/subtitle audit or proof
 that every mirror/title works. Run `pnpm test:anime:live` to repeat against the installed
 anime extension; it intentionally depends on local installation and network state.
+
+
+Streamplay extraction and current upstream availability are now documented in
+[streamplay-extractor.md](streamplay-extractor.md). Manifest-only Available-list
+installation is covered in [extension-installation.md](extension-installation.md).
