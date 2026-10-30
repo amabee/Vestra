@@ -70,7 +70,7 @@ async function sessionFixture(t, automatic = true) {
   );
   await session.load(remote.url, 42, remote, automatic, false, async () => ({
     ...remote,
-    url: "https://cdn.example/480.m3u8",
+    url: "https://cdn.example/720.m3u8",
   }));
   const connection = globalThis.fixtureConnection;
   connection.emit({ event: "property-change", name: "pause", data: false });
@@ -79,20 +79,24 @@ async function sessionFixture(t, automatic = true) {
   t.after(() => session.stop());
   return { session, connection };
 }
-test("automatic playback chooses balanced quality; explicit HD stays exact", async () => {
-  const rows = [1080, 480, 720].map((height) => ({
+test("automatic playback prefers Full HD, falls back to HD and preserves explicit choices", async () => {
+  const rows = [2160, 1080, 480, 720].map((height) => ({
     key: String(height),
     label: `${height}p · Main`,
     playback: { ...remote, url: `https://cdn.example/${height}.m3u8` },
   }));
-  assert.equal(automaticVariant(rows).key, "720");
-  const locator = registerDeferredVariants(async () => rows);
-  assert.match((await resolveRemotePlayback(locator)).url, /720/);
-  assert.match((await resolveRemotePlayback(locator, true)).url, /480/);
-  const hd = (await remoteQualities(locator)).find((row) =>
-    row.label.startsWith("1080"),
+  assert.equal(automaticVariant(rows).key, "1080");
+  assert.equal(
+    automaticVariant(rows.filter((row) => !row.label.startsWith("1080"))).key,
+    "720",
   );
-  assert.match((await resolveRemotePlayback(hd.locator)).url, /1080/);
+  const locator = registerDeferredVariants(async () => rows);
+  assert.match((await resolveRemotePlayback(locator)).url, /1080/);
+  assert.match((await resolveRemotePlayback(locator, true)).url, /720/);
+  const hd = (await remoteQualities(locator)).find((row) =>
+    row.label.startsWith("480"),
+  );
+  assert.match((await resolveRemotePlayback(hd.locator)).url, /480/);
   assert.equal(isAutomaticStream(locator), true);
   assert.equal(isAutomaticStream(hd.locator), false);
 });
@@ -103,7 +107,7 @@ test("native profile bounds network waits and resets quality cap for local files
     assert.ok(globalThis.fixtureArgs.includes(arg));
   assert.ok(
     connection.writes.some(
-      (row) => row[1] === "options/hls-bitrate" && row[2] === 3000000,
+      (row) => row[1] === "options/hls-bitrate" && row[2] === 8000000,
     ),
   );
   await session.load("owned.mkv", 0);
@@ -125,7 +129,7 @@ test("persistent automatic stall reloads once at lower bandwidth and preserves p
   await settle();
   assert.ok(
     connection.writes.some(
-      (row) => row[1] === "options/hls-bitrate" && row[2] === 900000,
+      (row) => row[1] === "options/hls-bitrate" && row[2] === 3000000,
     ),
   );
   assert.ok(
@@ -139,7 +143,7 @@ test("persistent automatic stall reloads once at lower bandwidth and preserves p
   );
   assert.ok(
     connection.writes.some(
-      (row) => row[0] === "loadfile" && row[1].includes("480.m3u8"),
+      (row) => row[0] === "loadfile" && row[1].includes("720.m3u8"),
     ),
   );
   connection.emit({
@@ -177,7 +181,7 @@ test("pause cancels recovery and manual quality is never silently downgraded", a
   );
 });
 
-test("startup probes only a usable balanced manifest, retaining other qualities", async () => {
+test("startup probes only a usable Full HD manifest, retaining other qualities", async () => {
   const result = {
     server: "Main",
     headers: {},
@@ -193,20 +197,20 @@ test("startup probes only a usable balanced manifest, retaining other qualities"
     requests.push(input.url);
     return { status: 200, headers: {}, body: "#EXTM3U" };
   });
-  assert.deepEqual(requests, ["https://cdn.example/720.m3u8"]);
+  assert.deepEqual(requests, ["https://cdn.example/1080.m3u8"]);
   assert.equal(checked.videoSources.length, 3);
   requests.length = 0;
   const recovered = await probePlayableStream(result, async (input) => {
     requests.push(input.url);
     return {
-      status: input.url.includes("720") ? 503 : 200,
+      status: input.url.includes("1080") ? 503 : 200,
       headers: {},
       body: "#EXTM3U",
     };
   });
   assert.deepEqual(requests, [
+    "https://cdn.example/1080.m3u8",
     "https://cdn.example/720.m3u8",
-    "https://cdn.example/480.m3u8",
   ]);
   assert.equal(recovered.videoSources.length, 2);
 });

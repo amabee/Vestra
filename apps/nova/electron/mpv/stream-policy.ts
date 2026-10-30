@@ -10,14 +10,17 @@ export const STREAM_CACHE_ARGS = [
   "--network-timeout=8",
 ];
 
-export const AUTO_HLS_BITRATE = 3_000_000;
-export const RECOVERY_HLS_BITRATE = 900_000;
+export const AUTO_HLS_BITRATE = 8_000_000;
+export const RECOVERY_HLS_BITRATE = 3_000_000;
 export const STALL_RECOVERY_MS = 12_000;
 
-/** Prefer 720p for automatic playback; explicit quality choices remain exact. */
+export const AUTO_HEIGHT = 1080;
+export const RECOVERY_HEIGHT = 720;
+
+/** Prefer 1080p for automatic playback; explicit quality choices remain exact. */
 export function automaticVariant<T extends { label: string }>(
   rows: T[],
-  maximumHeight = 720,
+  maximumHeight = AUTO_HEIGHT,
 ): T {
   const numbered = rows
     .map((row) => ({

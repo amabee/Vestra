@@ -1,7 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { StreamResult } from "@vestra/extension-host";
 import { z } from "zod";
-import { automaticVariant } from "./mpv/stream-policy";
+import {
+  automaticVariant,
+  AUTO_HEIGHT,
+  RECOVERY_HEIGHT,
+} from "./mpv/stream-policy";
 
 const remoteSchema = z.object({
   url: z
@@ -196,7 +200,7 @@ export async function resolveRemotePlayback(
   const rows = await variants(entry);
   const selected = entry.selected
     ? rows.find((row) => row.key === entry.selected)
-    : automaticVariant(rows, recovery ? 480 : 720);
+    : automaticVariant(rows, recovery ? RECOVERY_HEIGHT : AUTO_HEIGHT);
   if (!selected)
     throw new Error(
       "The selected stream quality is no longer available. Choose another quality.",

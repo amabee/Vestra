@@ -141,7 +141,7 @@ export function SettingsMenu({
               value={
                 activeStream && activeStream !== streamSource
                   ? "Selected"
-                  : "Auto � balanced"
+                  : "Auto (HD first)"
               }
               onClick={() => setPage("quality")}
             />
@@ -447,7 +447,7 @@ function QualityList({
   return (
     <>
       <Option
-        label="Auto � balanced"
+        label="Auto (HD first)"
         selected={activeStream === streamSource}
         onSelect={() => {
           void bridge.player.setQuality(streamSource).catch(() => undefined);

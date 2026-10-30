@@ -13,7 +13,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const scratch = await mkdtemp(join(tmpdir(), "vestra-remote-"));
 await build({
   stdin: {
-    contents: `export * from "./electron/remote-playback"; export {STREAM_CACHE_ARGS} from "./electron/mpv/stream-policy";`,
+    contents: `export * from "./electron/remote-playback"; export {STREAM_CACHE_ARGS, AUTO_HLS_BITRATE} from "./electron/mpv/stream-policy";`,
     resolveDir: root,
   },
   bundle: true,
@@ -31,6 +31,7 @@ const {
   remoteQualities,
   streamVariants,
   STREAM_CACHE_ARGS,
+  AUTO_HLS_BITRATE,
 } = createRequire(import.meta.url)(join(scratch, "remote.cjs"));
 after(() => rm(scratch, { recursive: true, force: true }));
 test("opaque handles preserve headers/subtitles and reject arbitrary renderer URLs", async () => {
@@ -234,10 +235,10 @@ test(
         "X-Vestra-Test: required",
       ]);
       await command("set_property", "options/sub-files", [`${base}/en.vtt`]);
-      await command("set_property", "options/hls-bitrate", 3000000);
+      await command("set_property", "options/hls-bitrate", AUTO_HLS_BITRATE);
       assert.equal(
         await command("get_property", "options/hls-bitrate"),
-        3000000,
+        AUTO_HLS_BITRATE,
       );
       await command("loadfile", `${base}/index.m3u8`, "replace");
       let tracks = [];
