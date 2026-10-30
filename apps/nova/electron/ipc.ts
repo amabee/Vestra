@@ -1,3 +1,4 @@
+import { resolveCataloguePlayback } from "./catalogue-playback";
 import { randomUUID } from "node:crypto";
 import { remoteQualities } from "./remote-playback";
 
@@ -19,7 +20,6 @@ import {
   toggleBookmark,
 } from "@vestra/storage";
 import {
-  resolvePlayback,
   searchAcrossProviders,
   trendingAcrossProviders,
 } from "@vestra/provider-sdk";
@@ -75,6 +75,7 @@ import { probeMedia, resolveFfprobe, skipPointsFrom } from "./media-probe";
 import { safeFetch } from "./safe-fetch";
 import {
   getAdapterRegistry,
+  getStreamSourceRegistry,
   getDriver,
   getProviderRegistry,
   resolveDataDir,
@@ -261,13 +262,9 @@ export function registerDataIpc(): void {
   /**
    * Lookups take a reference, not a whole item.
    *
-   * Providers resolve by identity — AniList's `getDetails` reads nothing but
-   * `sourceId`, and adapters dispatch on `source` and `kind`. Demanding a full
-   * `MediaItem` here meant the detail page, which only has a ref from the URL,
-   * failed validation and silently rendered as empty.
-   *
-   * The cast is safe for that reason: nothing downstream touches the fields a
-   * ref lacks.
+   * Details resolve by identity. Playback enriches that reference in main
+   * before matching stream titles; renderer-supplied title fields are not
+   * trusted or required. Local files remain resolvable when metadata is offline.
    */
   handle("media:details", async (raw: unknown) => {
     const ref = parse(mediaRefSchema, raw, "media reference") as MediaItem;
@@ -281,12 +278,22 @@ export function registerDataIpc(): void {
     });
   });
 
-  handle("playback:resolve", async (raw: unknown) => {
+  handle("playback:resolve", async (raw: unknown, rawSource?: unknown) => {
     const ref = parse(mediaRefSchema, raw, "media reference") as MediaItem;
 
-    return resolvePlayback(getAdapterRegistry(), ref, {
-      signal: AbortSignal.timeout(15_000),
-    });
+    const selectedSource = z
+      .string()
+      .min(1)
+      .max(120)
+      .optional()
+      .parse(rawSource);
+    return resolveCataloguePlayback(
+      getProviderRegistry(),
+      getAdapterRegistry(),
+      getStreamSourceRegistry(),
+      ref,
+      selectedSource,
+    );
   });
   handle("playback:qualities", (raw: unknown) =>
     remoteQualities(

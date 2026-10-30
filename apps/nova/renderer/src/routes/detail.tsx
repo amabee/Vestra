@@ -18,7 +18,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { Notice, Page, SectionRule } from "@/components/layout/page";
 import { bridge } from "@/lib/bridge";
@@ -67,6 +67,9 @@ interface EpisodeView {
 export function DetailRoute() {
   const { source, kind, id } = useParams();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const selectedSource =
+    kind === "anime" ? (params.get("source") ?? undefined) : undefined;
   const open = usePlayer((state) => state.open);
 
   const ref = parseMediaKey(`${source}:${kind}:${id}`);
@@ -78,8 +81,9 @@ export function DetailRoute() {
   });
 
   const sources = useQuery({
-    queryKey: ["playback", source, kind, id],
-    queryFn: () => bridge.media.resolvePlayback(ref as MediaItem),
+    queryKey: ["playback", source, kind, id, selectedSource],
+    queryFn: () =>
+      bridge.media.resolvePlayback(ref as MediaItem, selectedSource),
     enabled: ref !== null,
   });
 
@@ -438,10 +442,18 @@ export function DetailRoute() {
               <Loader2 className="size-5 animate-spin text-base-content/40" />
             </div>
           ) : sources.error ? (
-            <Notice
-              title="Could not resolve sources"
-              body={(sources.error as Error).message}
-            />
+            <div>
+              <Notice
+                title="Could not resolve sources"
+                body={(sources.error as Error).message}
+              />
+              <button
+                className="btn btn-sm mt-3"
+                onClick={() => void sources.refetch()}
+              >
+                Retry episodes
+              </button>
+            </div>
           ) : (sources.data ?? []).length === 0 ? (
             <>
               <Notice
@@ -453,7 +465,14 @@ export function DetailRoute() {
                 }
               />
               {kind === "anime" && (
-                <Link className="btn btn-primary mt-4" to="/anime">
+                <Link
+                  className="btn btn-primary mt-4"
+                  to={
+                    selectedSource
+                      ? `/anime?${new URLSearchParams({ source: selectedSource })}`
+                      : "/anime"
+                  }
+                >
                   Search your streaming sources
                 </Link>
               )}

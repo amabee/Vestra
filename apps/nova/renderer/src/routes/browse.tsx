@@ -1,3 +1,4 @@
+import { useNavigate, useSearchParams } from "react-router";
 import { mediaKey, type MediaKind } from "@vestra/types";
 
 import {
@@ -26,6 +27,20 @@ export function BrowseRoute({
   title: string;
   lead: string;
 }) {
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const selectAnime =
+    kind === "anime"
+      ? (item: import("@vestra/types").MediaItem) => {
+          const selected = params.get("source");
+          const suffix = selected
+            ? `?${new URLSearchParams({ source: selected })}`
+            : "";
+          void navigate(
+            `/media/${item.source}/${item.kind}/${encodeURIComponent(item.sourceId)}${suffix}`,
+          );
+        }
+      : undefined;
   const trending = useTrending(kind);
   const { data: files = [] } = useLibrary();
 
@@ -68,6 +83,7 @@ export function BrowseRoute({
               }
             />
             <EntryList
+              onSelect={selectAnime}
               items={group.items}
               ownedKeys={owned}
               empty={{

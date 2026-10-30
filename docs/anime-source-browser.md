@@ -1,32 +1,66 @@
-# Anime source selection repair
+# Anime source selection and catalogue playback
 
-The Anime page was a metadata catalogue. Playback adapters silently required an
-exact normalized match between an AniList name and a provider result, so translated
-names, romanizations and season suffixes could leave every catalogue title without
-episodes. An installed/Loaded provider alone did not establish a usable catalogue
-match. This was a gap in the earlier instructions to search any catalogue title.
+Updated: 2026-10-30.
 
-Anime now has **Watch from your sources** above the catalogue. Select a source,
-search it, choose its returned title and open an episode. Quality selection is
-available on each episode. The Sources screen's **Browse anime** link selects the
-corresponding streaming source. Catalogue no-match states also link here rather
-than implying installation alone guarantees playback. Providers only expose titles
-they actually carry; DonghuaStream is not a general catalogue of Japanese anime.
+## Catalogue playback repair
 
-Main retains searched title records behind opaque handles, validates current source
-ownership and registers lazy playback closures. Replaced/disabled sources invalidate
-both the result and deferred stream resolution. Episodes/renditions only resolve
-when selected; provider URLs/headers stay in main. Up to 2000 episodes are available
-through this flow, with an episode filter. Rendition handles have a separate bounded
-pool so choosing a quality cannot evict an episode from a full queue.
+Playback IPC accepts a media reference, which contains no title. Previously it
+cast that reference to a full media item and passed it to stream adapters. The
+adapters read `title` and `originalTitle`, so the missing title could throw before
+any provider search. The orchestration layer swallowed that failure and returned
+an empty queue. This was separate from genuine differences between catalogue and
+provider naming.
 
-The catalogue adapter also tries the supplied original title, keeps Unicode letters
-in normalized names, and continues to require exact matches rather than guessing a
-different title/season. Manual source selection is the explicit way to resolve an
-ambiguous match. Full catalogue-to-source mapping persistence remains future work.
+`resolveCataloguePlayback` now resolves trusted catalogue details in main before
+asking adapters to match a title. It keeps catalogue IDs separate from provider
+IDs: matched provider IDs are used for episode retrieval, while the player retains
+the catalogue identity. Exact normalized English/original title matches are
+accepted; multiple distinct matching editions require explicit source search.
+Fuzzy matches are not selected automatically.
 
-Three background integration cases pass using the actual stream-source factory:
-different catalogue/provider naming, lazy episode playback with headers, source
-replacement/disable invalidation, and full-queue quality-handle retention. Type
-checks and builds pass. This does not verify any particular live site's availability
-or actual video rendering; those still require a playback check.
+Anime's source dropdown uses the `source` URL parameter as its only selection
+state. Its initial default is written to the URL. Catalogue rows and their Play
+actions carry that selection into details and playback IPC; query keys include
+it. Back and URL navigation update the same selection. Only that community source
+searches the catalogue title; owned files and official links remain eligible.
+A removed source is reported as unavailable instead of silently switching to
+another source. Direct detail links containing `source` use it; links without one
+retain the existing all-adapter resolution behavior.
+
+Selected provider errors are surfaced with **Retry episodes** when no working
+in-app source remains. Offline metadata can still fall back to owned-file
+adapters when no explicit streaming source was requested.
+
+## Direct source browsing and source lifecycle
+
+**Watch from your sources** also supports direct source search and title/episode
+selection. This remains useful for ambiguous editions or names without an exact
+catalogue match. Sources may only carry a subset of the anime catalogue.
+
+Main retains direct-search title records behind opaque handles. Both direct and
+catalogue paths validate current source registration before and after searches,
+episode retrieval, and lazy stream resolution. Replacing or disabling a source
+invalidates its old playback closures. Both paths support up to 2000 episodes;
+provider video URLs, headers and subtitle URLs remain in main. Quality handles
+use a separate bounded pool from episode handles.
+
+Catalogue mappings are not persisted yet. Reopening details revalidates the match
+against the selected source. Persisted manual edition selection and per-episode
+streaming resume are separate remaining work.
+
+## Verification
+
+- `pnpm test:anime`: nine backend cases including reference enrichment, selected
+  source isolation, owned-file preservation, lazy stream headers, ambiguous
+  editions, and source changes during every asynchronous stage.
+- `pnpm test:anime:ui`: hidden/offscreen Electron checks of source selection,
+  catalogue navigation, player queue handoff, Back/URL synchronization, direct
+  links and loading-error retry. No desktop window is shown.
+- Playback helper tests preserve quality selection, signed URL refresh, headers
+  and subtitles. Native mpv verification is optional and was skipped in this pass.
+- Nova type checks and production build pass.
+
+Live provider results are recorded in [live-provider-report.json](live-provider-report.json).
+Successful HLS manifest retrieval does not establish decoded video playback,
+seeking, subtitle behavior or the availability of other catalogue titles. Those
+remain playback verification work.

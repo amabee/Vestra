@@ -11,7 +11,7 @@ const scratch = await mkdtemp(join(tmpdir(), "vestra-anime-"));
 after(() => rm(scratch, { recursive: true, force: true }));
 await build({
   stdin: {
-    contents: `export { AnimeService } from './apps/nova/electron/anime-service'; export { createStreamSourceProvider } from './packages/extension-host/src/provider'; export { StreamSourceRegistry } from './packages/extension-host/src/stream-registry'; export { resolveRemotePlayback, remoteQualities } from './apps/nova/electron/remote-playback';`,
+    contents: `export { resolveCataloguePlayback } from './apps/nova/electron/catalogue-playback'; export { createStreamSourceAdapter } from './apps/nova/electron/stream-source-adapter'; export { SourceAdapterRegistry, ProviderRegistry, FULL_HOST } from './packages/provider-sdk/src/index'; export { AnimeService } from './apps/nova/electron/anime-service'; export { createStreamSourceProvider } from './packages/extension-host/src/provider'; export { StreamSourceRegistry } from './packages/extension-host/src/stream-registry'; export { resolveRemotePlayback, remoteQualities } from './apps/nova/electron/remote-playback';`,
     resolveDir: root,
   },
   bundle: true,
@@ -20,6 +20,11 @@ await build({
   outfile: join(scratch, "anime.cjs"),
 });
 const {
+  resolveCataloguePlayback,
+  createStreamSourceAdapter,
+  SourceAdapterRegistry,
+  ProviderRegistry,
+  FULL_HOST,
   AnimeService,
   createStreamSourceProvider,
   StreamSourceRegistry,
@@ -111,4 +116,196 @@ test("opening quality choices cannot evict episode handles from a full queue", a
   }
   await remoteQualities(first);
   assert.match((await resolveRemotePlayback(first)).url, /cdn.example/);
+});
+
+function catalogueFixture() {
+  const f = fixture();
+  const ref = { source: "anilist", kind: "anime", sourceId: "123" };
+  const item = {
+    ...ref,
+    title: "Battle Through the Heavens",
+    originalTitle: "Doupo Cangqiong (Season 1)",
+    images: {},
+    rating: {},
+    isSeries: true,
+  };
+  const providers = new ProviderRegistry(FULL_HOST).register({
+    id: "anilist",
+    name: "AniList",
+    kinds: ["anime"],
+    capabilities: { details: true },
+    isAvailable: () => true,
+    getDetails: async () => item,
+  });
+  const adapters = new SourceAdapterRegistry(FULL_HOST).register(
+    createStreamSourceAdapter(
+      f.source,
+      () =>
+        f.registry.get(f.source.id) === f.source &&
+        f.registry.isEnabled(f.source.id),
+    ),
+  );
+  return { ...f, ref, item, providers, adapters };
+}
+test("a catalogue reference is enriched before matching the selected provider and preserves local sources", async () => {
+  const f = catalogueFixture();
+  let unrelatedCalls = 0;
+  f.adapters.register({
+    id: "ext-stream-other",
+    name: "Other",
+    isAvailable: () => true,
+    canHandle: () => true,
+    resolve: async () => {
+      unrelatedCalls++;
+      return [];
+    },
+  });
+  f.adapters.register({
+    id: "local",
+    name: "Local",
+    isAvailable: () => true,
+    canHandle: () => true,
+    resolve: async () => [
+      { kind: "file", locator: "owned.mp4", priority: 100, mimeType: null },
+    ],
+  });
+  const queue = await resolveCataloguePlayback(
+    f.providers,
+    f.adapters,
+    f.registry,
+    f.ref,
+    f.source.id,
+  );
+  assert.equal(unrelatedCalls, 0);
+  assert.equal(queue.length, 2);
+  assert.equal(queue[0].kind, "file");
+  assert.equal(queue[1].episode, 1);
+  assert.equal(f.calls(), 0, "stream resolution remains lazy");
+  const playback = await resolveRemotePlayback(queue[1].locator);
+  assert.equal(playback.headers.Referer, "https://source.example");
+});
+test("selected sources cannot silently fall back after disable or missing metadata", async () => {
+  const f = catalogueFixture();
+  f.registry.setEnabled(f.source.id, false);
+  await assert.rejects(
+    resolveCataloguePlayback(
+      f.providers,
+      f.adapters,
+      f.registry,
+      f.ref,
+      f.source.id,
+    ),
+    /unavailable/,
+  );
+  f.registry.setEnabled(f.source.id, true);
+  f.providers.unregister("anilist");
+  await assert.rejects(
+    resolveCataloguePlayback(
+      f.providers,
+      f.adapters,
+      f.registry,
+      f.ref,
+      f.source.id,
+    ),
+    /information/,
+  );
+  assert.deepEqual(
+    await resolveCataloguePlayback(f.providers, f.adapters, f.registry, f.ref),
+    [],
+  );
+});
+test("catalogue episode handles stop working after source removal", async () => {
+  const f = catalogueFixture();
+  const queue = await resolveCataloguePlayback(
+    f.providers,
+    f.adapters,
+    f.registry,
+    f.ref,
+    f.source.id,
+  );
+  f.registry.unregister(f.source.id);
+  await assert.rejects(
+    resolveRemotePlayback(queue[0].locator),
+    /changed|disabled/,
+  );
+  assert.equal(f.calls(), 0);
+  await assert.rejects(
+    f.adapters.all()[0].resolve(f.item, {}),
+    /changed|disabled/,
+  );
+});
+
+test("in-flight catalogue search, episode and stream results are rejected after source replacement", async () => {
+  for (const stage of ["search", "getEpisodes", "getStreams"]) {
+    const f = catalogueFixture();
+    const original = f.source[stage];
+    f.source[stage] = async (...args) => {
+      const result = await original(...args);
+      f.registry.unregister(f.source.id);
+      return result;
+    };
+    const adapter = f.adapters.all()[0];
+    if (stage !== "getStreams")
+      await assert.rejects(adapter.resolve(f.item, {}), /changed|disabled/);
+    else {
+      const queue = await adapter.resolve(f.item, {});
+      await assert.rejects(
+        resolveRemotePlayback(queue[0].locator),
+        /changed|disabled/,
+      );
+    }
+  }
+});
+test("catalogue matches reject ambiguous editions while tolerating duplicate rows of the same source ID", async () => {
+  const f = catalogueFixture();
+  const candidate = {
+    id: "a",
+    title: f.item.originalTitle,
+    provider: f.source.id,
+  };
+  f.source.search = async () => [candidate, { ...candidate, id: "b" }];
+  await assert.rejects(
+    f.adapters.all()[0].resolve(f.item, {}),
+    /Multiple source editions/,
+  );
+  f.source.search = async () => [candidate, { ...candidate }];
+  assert.equal((await f.adapters.all()[0].resolve(f.item, {})).length, 1);
+});
+
+test("a selected provider failure is visible while working local playback remains usable", async () => {
+  const f = catalogueFixture();
+  f.source.search = async () => {
+    throw new Error("Provider timed out");
+  };
+  await assert.rejects(
+    resolveCataloguePlayback(
+      f.providers,
+      f.adapters,
+      f.registry,
+      f.ref,
+      f.source.id,
+    ),
+    /Provider timed out/,
+  );
+  f.adapters.register({
+    id: "local",
+    name: "Local",
+    isAvailable: () => true,
+    canHandle: () => true,
+    resolve: async () => [
+      { kind: "file", locator: "owned.mp4", priority: 100, mimeType: null },
+    ],
+  });
+  assert.equal(
+    (
+      await resolveCataloguePlayback(
+        f.providers,
+        f.adapters,
+        f.registry,
+        f.ref,
+        f.source.id,
+      )
+    )[0].kind,
+    "file",
+  );
 });

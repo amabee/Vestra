@@ -1,6 +1,6 @@
 # Vestra development checklist
 
-Updated: 2026-10-29. This is the working checklist for continuing Vestra with a
+Updated: 2026-10-30. This is the working checklist for continuing Vestra with a
 C# backend and the existing TypeScript UI/player. Checkmarks mean the stated
 implementation and automated verification exist; they do not imply full Seanime
 parity or a visually verified release. Unchecked items may already have a
@@ -132,6 +132,10 @@ Acceptance: existing data survives migration and rollback tests. C# reading prog
 and provider storage are already implemented; they do not constitute a full database port.
 
 ## 6. Finish anime playback and download services
+
+- [x] Resolve catalogue metadata before provider matching and propagate Anime's selected source through details and Play; see [anime source repair](anime-source-browser.md).
+- [x] Reject stale catalogue episode handles after source changes and expose selected-source failures with retry.
+- [ ] Persist explicit catalogue-to-provider edition mappings and streaming episode resume.
 
 - [x] Select provider-advertised stream qualities per episode using opaque handles and refreshed URLs.
 - [x] Preserve subtitle language/title/default metadata through both provider hosts and native track-add commands.

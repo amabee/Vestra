@@ -97,8 +97,8 @@ const api = {
     trending: (kind: unknown): Promise<unknown> =>
       invoke("media:trending", kind),
     details: (item: unknown): Promise<unknown> => invoke("media:details", item),
-    resolvePlayback: (item: unknown): Promise<unknown> =>
-      invoke("playback:resolve", item),
+    resolvePlayback: (item: unknown, source?: string): Promise<unknown> =>
+      invoke("playback:resolve", item, source),
     probe: (fileId: string): Promise<unknown> => invoke("media:probe", fileId),
     probeAvailable: (): Promise<unknown> => invoke("media:probe-available"),
     skipTimes: (request: unknown): Promise<unknown> =>

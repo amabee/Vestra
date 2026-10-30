@@ -178,23 +178,37 @@ export async function trendingAcrossProviders(
 export async function resolvePlayback(
   registry: SourceAdapterRegistry,
   item: MediaItem,
-  options: { timeoutMs?: number; signal?: AbortSignal } = {},
+  options: {
+    timeoutMs?: number;
+    signal?: AbortSignal;
+    adapterIds?: readonly string[];
+    onAdapterError?: (id: string, error: unknown) => void;
+  } = {},
 ): Promise<PlaybackSource[]> {
   const { timeoutMs = DEFAULT_PROVIDER_TIMEOUT_MS, signal } = options;
 
   const settled = await Promise.allSettled(
-    registry.forItem(item).map(async (adapter) => {
-      const { context, dispose } = createContext({
-        timeoutMs,
-        ...(signal ? { parentSignal: signal } : {}),
-      });
+    registry
+      .forItem(item)
+      .filter(
+        (adapter) =>
+          !options.adapterIds || options.adapterIds.includes(adapter.id),
+      )
+      .map(async (adapter) => {
+        const { context, dispose } = createContext({
+          timeoutMs,
+          ...(signal ? { parentSignal: signal } : {}),
+        });
 
-      try {
-        return await adapter.resolve(item, context);
-      } finally {
-        dispose();
-      }
-    }),
+        try {
+          return await adapter.resolve(item, context);
+        } catch (error) {
+          options.onAdapterError?.(adapter.id, error);
+          throw error;
+        } finally {
+          dispose();
+        }
+      }),
   );
 
   return settled

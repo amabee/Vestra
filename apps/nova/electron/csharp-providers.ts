@@ -239,7 +239,12 @@ export async function activateCSharpSource(
     },
     onWarning: (message) => console.warn(`[csharp-provider:${id}] ${message}`),
   });
-  const adapter = createStreamSourceAdapter(provider);
+  const adapter = createStreamSourceAdapter(provider, () => {
+    const registry = getStreamSourceRegistry();
+    return (
+      registry.get(provider.id) === provider && registry.isEnabled(provider.id)
+    );
+  });
   getStreamSourceRegistry().register(provider);
   try {
     getAdapterRegistry().register(adapter);
