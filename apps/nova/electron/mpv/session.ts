@@ -5,7 +5,11 @@ import { delimiter, join } from "node:path";
 import { app, type BrowserWindow } from "electron";
 
 import { MpvConnection, type MpvEvent } from "./connection";
-import { remoteLoadOptions, type RemotePlayback } from "../remote-playback";
+import {
+  remoteLoadOptions,
+  type RemotePlayback,
+  type PlaybackRecovery,
+} from "../remote-playback";
 import {
   STREAM_CACHE_ARGS,
   AUTO_HLS_BITRATE,
@@ -224,7 +228,7 @@ export class MpvSession {
     remote: RemotePlayback;
     automatic: boolean;
     recovered: boolean;
-    fallback?: () => Promise<RemotePlayback>;
+    fallback?: () => Promise<PlaybackRecovery>;
   } | null = null;
   #clearStall(): void {
     if (this.#stallTimer) clearTimeout(this.#stallTimer);
@@ -248,39 +252,61 @@ export class MpvSession {
         this.#watchStall();
         return;
       }
-      if (active.automatic && !active.recovered) {
-        void (async () => {
-          const next = active.fallback
-            ? await active.fallback()
-            : active.remote;
-          if (
-            this.#activeRemote !== active ||
-            this.#state.paused ||
-            !this.#state.buffering
-          )
-            return;
-          await this.load(next.url, this.#state.position, next, true, true);
-        })().catch(() => {
+      this.#recoverStream();
+    }, STALL_RECOVERY_MS);
+  }
+
+  #recovering: object | null = null;
+  #recoverStream(): void {
+    const active = this.#activeRemote;
+    if (!active || this.#state.paused || this.#recovering === active) return;
+    this.#clearStall();
+    if (active.automatic && !active.recovered) {
+      this.#recovering = active;
+      void (async () => {
+        const next = active.fallback
+          ? await active.fallback()
+          : { playback: active.remote, lowerQuality: true };
+        if (
+          this.#activeRemote !== active ||
+          this.#state.paused ||
+          !this.#state.buffering
+        )
+          return;
+        await this.load(
+          next.playback.url,
+          this.#state.position,
+          next.playback,
+          true,
+          next.lowerQuality,
+          next.retry,
+        );
+      })()
+        .catch(() => {
+          if (this.#activeRemote !== active) return;
           this.#emit({
             loading: false,
             buffering: false,
             error:
               "This video server is too slow. Choose another quality or extension.",
           });
+        })
+        .finally(() => {
+          if (this.#recovering === active) this.#recovering = null;
         });
-      } else {
-        void this.stop()
-          .catch(() => undefined)
-          .finally(() =>
-            this.#emit({
-              loading: false,
-              buffering: false,
-              error:
-                "This video server stopped delivering data. Choose another quality or extension.",
-            }),
-          );
-      }
-    }, STALL_RECOVERY_MS);
+    } else {
+      void this.stop()
+        .catch(() => undefined)
+        .finally(() => {
+          if (this.#activeRemote) return;
+          this.#emit({
+            loading: false,
+            buffering: false,
+            error:
+              "This video server stopped delivering data. Choose another quality or extension.",
+          });
+        });
+    }
   }
 
   get state(): MpvState {
@@ -540,6 +566,20 @@ export class MpvSession {
         // "eof" is a normal finish; anything else is a real failure worth
         // showing rather than silently returning to an idle screen.
         if (event.reason && event.reason !== "eof" && event.reason !== "stop") {
+          if (
+            this.#activeRemote?.automatic &&
+            !this.#activeRemote.recovered &&
+            !this.#state.paused
+          ) {
+            this.#emit({
+              loading: false,
+              buffering: true,
+              idle: true,
+              error: null,
+            });
+            this.#recoverStream();
+            break;
+          }
           this.#emit({
             error: `Playback stopped: ${event.reason}`,
             idle: true,
@@ -565,7 +605,7 @@ export class MpvSession {
     remote?: RemotePlayback,
     automatic = false,
     recovered = false,
-    fallback?: () => Promise<RemotePlayback>,
+    fallback?: () => Promise<PlaybackRecovery>,
   ): Promise<void> {
     this.#clearStall();
     this.#activeRemote = remote

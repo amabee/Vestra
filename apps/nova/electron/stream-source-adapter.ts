@@ -14,6 +14,33 @@ function normaliseTitle(value: string): string {
     .trim();
 }
 
+/** One episode identity is reused for both initial extraction and mirror recovery. */
+export function registerSourceEpisode(
+  source: StreamSourceProvider,
+  episodeId: string,
+  check: () => void,
+): string {
+  const resolve = async (excludeServers: string[] = []) => {
+    check();
+    const results = await source.getStreams(
+      episodeId,
+      {
+        signal: AbortSignal.timeout(15000),
+        timeoutMs: 15000,
+      },
+      excludeServers.length ? { excludeServers } : undefined,
+    );
+    check();
+    const variants = streamVariants(
+      results.filter((result) => !excludeServers.includes(result.server)),
+    );
+    if (!variants.length)
+      throw Error("This episode has no untried playable mirror.");
+    return variants;
+  };
+  return registerDeferredVariants(() => resolve(), check, resolve);
+}
+
 export async function matchSourceAnime(
   source: StreamSourceProvider,
   item: MediaItem,
@@ -89,18 +116,11 @@ export function createStreamSourceAdapter(
       const playable: PlaybackSource[] = [];
 
       for (const episode of episodes.slice(0, MAX_EXTENSION_EPISODES)) {
-        const locator = registerDeferredVariants(async () => {
-          requireCurrent();
-          const results = await source.getStreams(episode.id, {
-            ...context,
-            signal: AbortSignal.timeout(context?.timeoutMs ?? 10_000),
-          });
-          requireCurrent();
-          const variants = streamVariants(results);
-          if (!variants.length)
-            throw new Error("This episode has no playable stream.");
-          return variants;
-        }, requireCurrent);
+        const locator = registerSourceEpisode(
+          source,
+          episode.id,
+          requireCurrent,
+        );
         playable.push({
           kind: "stream",
           locator,

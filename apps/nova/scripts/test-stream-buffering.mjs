@@ -11,7 +11,7 @@ const scratch = await mkdtemp(join(tmpdir(), "vestra-buffering-"));
 after(() => rm(scratch, { recursive: true, force: true }));
 await build({
   stdin: {
-    contents: `export {probePlayableStream} from './apps/nova/electron/probe-stream'; export {MpvSession} from './apps/nova/electron/mpv/session'; export {automaticVariant, STREAM_CACHE_ARGS} from './apps/nova/electron/mpv/stream-policy'; export {registerDeferredVariants, resolveRemotePlayback, remoteQualities, isAutomaticStream} from './apps/nova/electron/remote-playback';`,
+    contents: `export {probePlayableStream} from './apps/nova/electron/probe-stream'; export {MpvSession} from './apps/nova/electron/mpv/session'; export {automaticVariant, STREAM_CACHE_ARGS} from './apps/nova/electron/mpv/stream-policy'; export {registerDeferredVariants, resolveRemotePlayback, remoteQualities, isAutomaticStream, createRemoteRecovery} from './apps/nova/electron/remote-playback';`,
     resolveDir: root,
   },
   bundle: true,
@@ -55,6 +55,7 @@ const {
   resolveRemotePlayback,
   remoteQualities,
   isAutomaticStream,
+  createRemoteRecovery,
 } = createRequire(import.meta.url)(join(scratch, "fixture.cjs"));
 const remote = {
   url: "https://cdn.example/video.m3u8",
@@ -62,16 +63,20 @@ const remote = {
   subtitles: [],
 };
 const settle = () => new Promise((resolve) => setImmediate(resolve));
-async function sessionFixture(t, automatic = true) {
+async function sessionFixture(
+  t,
+  automatic = true,
+  fallback = async () => ({
+    playback: { ...remote, url: "https://cdn.example/720.m3u8" },
+    lowerQuality: true,
+  }),
+) {
   const session = new MpvSession();
   await session.start(
     { getNativeWindowHandle: () => Buffer.alloc(8) },
     { mpvPath: process.execPath },
   );
-  await session.load(remote.url, 42, remote, automatic, false, async () => ({
-    ...remote,
-    url: "https://cdn.example/720.m3u8",
-  }));
+  await session.load(remote.url, 42, remote, automatic, false, fallback);
   const connection = globalThis.fixtureConnection;
   connection.emit({ event: "property-change", name: "pause", data: false });
   connection.emit({ event: "property-change", name: "time-pos", data: 42 });
@@ -259,4 +264,134 @@ test("startup probes only a usable Full HD manifest, retaining other qualities",
     "https://cdn.example/720.m3u8",
   ]);
   assert.equal(recovered.videoSources.length, 2);
+});
+
+function mirrorRows(server) {
+  return [1080, 720].map((height) => ({
+    server,
+    key: `${server}-${height}`,
+    label: `${height}p - ${server}`,
+    playback: {
+      ...remote,
+      url:
+        server === "A" && height === 1080
+          ? remote.url
+          : `https://cdn.example/${server}-${height}.m3u8`,
+      headers: { Referer: `https://${server.toLowerCase()}.example` },
+      subtitles: [{ url: `https://cdn.example/${server}.vtt`, language: "en" }],
+    },
+  }));
+}
+test("lazy mirror recovery preserves HD and headers, excludes tried servers, then offers one lighter rendition", async () => {
+  const calls = [];
+  let enabled = true;
+  const locator = registerDeferredVariants(
+    async () => mirrorRows("A"),
+    () => {
+      if (!enabled) throw Error("provider disabled");
+    },
+    async (excluded) => {
+      calls.push([...excluded]);
+      const next = ["A", "B", "C"].find((server) => !excluded.includes(server));
+      if (!next) throw Error("No more mirrors");
+      return mirrorRows(next);
+    },
+  );
+  const initial = await resolveRemotePlayback(locator);
+  const originalChoices = await remoteQualities(locator);
+  const recovery = createRemoteRecovery(locator, initial);
+  const b = await recovery();
+  assert.match(b.playback.url, /B-1080/);
+  assert.equal(b.lowerQuality, false);
+  assert.equal(
+    (await resolveRemotePlayback(originalChoices[0].locator)).url,
+    initial.url,
+    "recovery cannot rewrite a manual quality handle",
+  );
+  assert.equal(b.playback.headers.Referer, "https://b.example");
+  assert.match(b.playback.subtitles[0].url, /B.vtt/);
+  const c = await b.retry();
+  assert.match(c.playback.url, /C-1080/);
+  assert.equal(c.lowerQuality, false);
+  const low = await c.retry();
+  assert.match(low.playback.url, /C-720/);
+  assert.equal(low.lowerQuality, true);
+  assert.equal(low.retry, undefined);
+  assert.deepEqual(calls, [["A"], ["A", "B"], ["A", "B", "C"]]);
+  enabled = false;
+  await assert.rejects(recovery(), /disabled/);
+});
+test("native delivery error immediately switches mirror at the same position and HD budget", async (t) => {
+  const locator = registerDeferredVariants(
+    async () => mirrorRows("A"),
+    undefined,
+    async () => mirrorRows("B"),
+  );
+  const initial = await resolveRemotePlayback(locator);
+  const { connection } = await sessionFixture(
+    t,
+    true,
+    createRemoteRecovery(locator, initial),
+  );
+  connection.emit({ event: "end-file", reason: "error" });
+  await settle();
+  await settle();
+  assert.ok(
+    connection.writes.some(
+      (row) => row[0] === "loadfile" && row[1].includes("B-1080"),
+    ),
+  );
+  assert.equal(
+    connection.writes.filter((row) => row[1] === "options/start").at(-1)[2],
+    "42",
+  );
+  assert.equal(
+    connection.writes
+      .filter((row) => row[1] === "options/hls-bitrate")
+      .at(-1)[2],
+    8000000,
+  );
+});
+test("late failed recovery cannot publish an error over a replacement episode", async (t) => {
+  let rejectRecovery;
+  const { session, connection } = await sessionFixture(
+    t,
+    true,
+    () =>
+      new Promise((_resolve, reject) => {
+        rejectRecovery = reject;
+      }),
+  );
+  connection.emit({ event: "end-file", reason: "error" });
+  await settle();
+  await session.load("next-episode.mkv", 0);
+  rejectRecovery(Error("Old mirror failed"));
+  await settle();
+  assert.equal(session.state.error, null);
+  assert.equal(
+    connection.writes.filter((row) => row[0] === "loadfile").at(-1)[1],
+    "next-episode.mkv",
+  );
+});
+
+test("mirror retry budget is finite even with many advertised mirrors", async (t) => {
+  const now = Date.now();
+  let clock = now;
+  t.mock.method(Date, "now", () => clock);
+  const locator = registerDeferredVariants(async () =>
+    ["A", "B", "C", "D", "E", "F"].flatMap(mirrorRows),
+  );
+  const initial = await resolveRemotePlayback(locator);
+  let next = await createRemoteRecovery(locator, initial)();
+  const visited = [];
+  while (next.retry) {
+    visited.push(next.playback.url);
+    clock += 180001;
+    next = await next.retry();
+    assert.ok(visited.length <= 3);
+  }
+  assert.equal(visited.length, 3);
+  assert.equal(new Set(visited).size, 3);
+  assert.equal(next.lowerQuality, true);
+  assert.match(next.playback.url, /D-720/);
 });

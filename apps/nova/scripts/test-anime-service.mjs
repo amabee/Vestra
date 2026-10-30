@@ -11,7 +11,7 @@ const scratch = await mkdtemp(join(tmpdir(), "vestra-anime-"));
 after(() => rm(scratch, { recursive: true, force: true }));
 await build({
   stdin: {
-    contents: `export { resolveCataloguePlayback } from './apps/nova/electron/catalogue-playback'; export { createStreamSourceAdapter } from './apps/nova/electron/stream-source-adapter'; export { SourceAdapterRegistry, ProviderRegistry, FULL_HOST } from './packages/provider-sdk/src/index'; export { AnimeService } from './apps/nova/electron/anime-service'; export { createStreamSourceProvider } from './packages/extension-host/src/provider'; export { StreamSourceRegistry } from './packages/extension-host/src/stream-registry'; export { resolveRemotePlayback, remoteQualities } from './apps/nova/electron/remote-playback';`,
+    contents: `export { resolveCataloguePlayback } from './apps/nova/electron/catalogue-playback'; export { createStreamSourceAdapter } from './apps/nova/electron/stream-source-adapter'; export { SourceAdapterRegistry, ProviderRegistry, FULL_HOST } from './packages/provider-sdk/src/index'; export { AnimeService } from './apps/nova/electron/anime-service'; export { createStreamSourceProvider } from './packages/extension-host/src/provider'; export { StreamSourceRegistry } from './packages/extension-host/src/stream-registry'; export { resolveRemotePlayback, remoteQualities, createRemoteRecovery } from './apps/nova/electron/remote-playback';`,
     resolveDir: root,
   },
   bundle: true,
@@ -30,6 +30,7 @@ const {
   StreamSourceRegistry,
   resolveRemotePlayback,
   remoteQualities,
+  createRemoteRecovery,
 } = createRequire(import.meta.url)(join(scratch, "anime.cjs"));
 function fixture() {
   let streamCalls = 0;
@@ -393,4 +394,61 @@ test("details resolution returns provider metadata with catalogue identity and s
     f.service.resolve(f.source.id, f.item),
     /disabled|unavailable/,
   );
+});
+
+test("episode recovery forwards mirror exclusions through the provider adapter without changing episode identity", async () => {
+  const requests = [];
+  const source = createStreamSourceProvider({
+    extensionId: "mirrors",
+    name: "Mirrors",
+    kinds: ["anime"],
+    methods: ["search", "getEpisodes", "getStreams"],
+    async call(method, args) {
+      if (method === "search") return [{ id: "title", title: "Fixture" }];
+      if (method === "getEpisodes")
+        return [
+          {
+            id: "episode-five",
+            animeId: "title",
+            number: 5,
+            title: "Episode 5",
+          },
+        ];
+      requests.push(args);
+      const server = args[1]?.excludeServers?.includes("One") ? "Two" : "One";
+      return [
+        {
+          server,
+          headers: { Referer: `https://${server.toLowerCase()}.example` },
+          videoSources: [
+            {
+              type: "hls",
+              quality: "1080p",
+              url: `https://cdn.example/${server}.m3u8`,
+            },
+          ],
+        },
+      ];
+    },
+  });
+  const registry = new StreamSourceRegistry().register(source);
+  const service = new AnimeService(registry);
+  const [title] = await service.search(source.id, "Fixture");
+  const { queue } = await service.episodes(title.handle);
+  const before = JSON.stringify(queue);
+  const initial = await resolveRemotePlayback(queue[0].locator);
+  const recovery = createRemoteRecovery(queue[0].locator, initial);
+  const next = await recovery();
+  assert.match(next.playback.url, /Two/);
+  assert.equal(next.lowerQuality, false);
+  assert.equal(requests[0][0], "episode-five");
+  assert.equal(requests[1][0], "episode-five");
+  assert.deepEqual(requests[1][1], { excludeServers: ["One"] });
+  assert.equal(
+    JSON.stringify(queue),
+    before,
+    "progress and queue identities stay stable",
+  );
+  registry.unregister(source.id);
+  await assert.rejects(next.retry(), /changed|disabled/);
 });

@@ -247,3 +247,33 @@ if (process.argv.includes("--live"))
       worker.stop();
     }
   });
+
+test("playback failover excludes previously used advertised mirrors", async () => {
+  const calls = [];
+  const rows = await resolveEpisodeServers(
+    ["One", "Two"],
+    "One",
+    async (server) => {
+      calls.push(server);
+      return result("Guest generic name");
+    },
+    undefined,
+    undefined,
+    ["One"],
+  );
+  assert.deepEqual(calls, ["Two"]);
+  assert.equal(rows[0].server, "Two");
+  await assert.rejects(
+    resolveEpisodeServers(
+      ["One"],
+      "One",
+      async () => {
+        throw Error("Must not call");
+      },
+      undefined,
+      undefined,
+      ["One"],
+    ),
+    /No playable mirror/,
+  );
+});

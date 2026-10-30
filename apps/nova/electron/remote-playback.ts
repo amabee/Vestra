@@ -50,6 +50,7 @@ const remoteSchema = z.object({
 export type RemotePlayback = z.infer<typeof remoteSchema>;
 export interface RemoteVariant {
   key: string;
+  server?: string;
   label: string;
   playback: RemotePlayback;
 }
@@ -69,6 +70,7 @@ export function streamVariants(
       occurrences.set(base, occurrence + 1);
       if (variants.length < 50)
         variants.push({
+          server: result.server,
           key: createHash("sha256")
             .update(
               JSON.stringify([
@@ -92,6 +94,7 @@ export function streamVariants(
 type Entry = {
   resolve: () => Promise<RemoteVariant[]>;
   selected?: string;
+  recover?: (excluded: string[]) => Promise<RemoteVariant[]>;
   validate?: () => void;
   choices: Map<string, string>;
 };
@@ -106,6 +109,7 @@ function register(entry: Entry): string {
 }
 const variantSchema = z.object({
   key: z.string().min(1).max(512),
+  server: z.string().min(1).max(240).optional(),
   label: z.string().min(1).max(240),
   playback: remoteSchema,
 });
@@ -168,8 +172,9 @@ export function registerDeferredPlayback(
 export function registerDeferredVariants(
   resolve: () => Promise<RemoteVariant[]>,
   validate?: () => void,
+  recover?: (excluded: string[]) => Promise<RemoteVariant[]>,
 ): string {
-  return register({ resolve, validate, choices: new Map() });
+  return register({ resolve, validate, recover, choices: new Map() });
 }
 export async function remoteQualities(
   locator: string,
@@ -183,6 +188,7 @@ export async function remoteQualities(
       selected = register({
         resolve: entry.resolve,
         validate: entry.validate,
+        recover: entry.recover,
         choices: entry.choices,
         selected: row.key,
       });
@@ -206,6 +212,85 @@ export async function resolveRemotePlayback(
       "The selected stream quality is no longer available. Choose another quality.",
     );
   return selected.playback;
+}
+
+export interface PlaybackRecovery {
+  playback: RemotePlayback;
+  lowerQuality: boolean;
+  retry?: () => Promise<PlaybackRecovery>;
+}
+
+/** Per-playback mirror history, never shared with another episode/session. */
+export function createRemoteRecovery(
+  locator: string,
+  initial: RemotePlayback,
+): () => Promise<PlaybackRecovery> {
+  const entry = entries.get(locator) ?? qualityEntries.get(locator);
+  if (!entry || entry.selected)
+    throw Error("Automatic mirror recovery is unavailable for this choice.");
+  const usedServers = new Set<string>();
+  const initialRows = variantCache.get(entry.resolve)?.pending;
+  let currentRows: RemoteVariant[] | undefined;
+  let currentServer: string | undefined;
+  let current = initial;
+  let attempts = 0;
+  const next = async (): Promise<PlaybackRecovery> => {
+    entry.validate?.();
+    const rows = currentRows ?? (await initialRows) ?? (await variants(entry));
+    currentRows = rows;
+    entry.validate?.();
+    if (!currentServer)
+      currentServer = ((await initialRows) ?? rows).find(
+        (row) => row.playback.url === initial.url,
+      )?.server;
+    const previous = rows.find(
+      (row) => row.server === currentServer || row.playback.url === current.url,
+    );
+    if (currentServer) usedServers.add(currentServer);
+    if (usedServers.size && attempts++ < 3) {
+      let alternatives = rows.filter(
+        (row) =>
+          row.server &&
+          !usedServers.has(row.server) &&
+          row.playback.url !== current.url,
+      );
+      if (!alternatives.length && entry.recover) {
+        try {
+          alternatives = z
+            .array(variantSchema)
+            .min(1)
+            .max(50)
+            .parse(await entry.recover([...usedServers]));
+          entry.validate?.();
+          alternatives = alternatives.filter(
+            (row) =>
+              row.server &&
+              !usedServers.has(row.server) &&
+              row.playback.url !== current.url,
+          );
+        } catch {
+          entry.validate?.();
+          alternatives = [];
+        }
+      }
+      if (alternatives.length) {
+        const chosen = automaticVariant(alternatives);
+        usedServers.add(chosen.server!);
+        currentRows = alternatives;
+        currentServer = chosen.server;
+        current = chosen.playback;
+        return { playback: current, lowerQuality: false, retry: next };
+      }
+    }
+    // No more mirrors: one final lighter rendition on the current server.
+    const selected = automaticVariant(
+      rows.filter((row) => !previous?.server || row.server === previous.server),
+      RECOVERY_HEIGHT,
+    );
+    if (!selected) throw Error("No recovery stream is available.");
+    return { playback: selected.playback, lowerQuality: true };
+  };
+  return next;
 }
 
 export function isAutomaticStream(locator: string): boolean {

@@ -33,6 +33,7 @@ export async function resolveEpisodeServers(
   probe: (result: StreamResult) => Promise<StreamResult> = async (result) =>
     result,
   signal?: AbortSignal,
+  excludeServers: readonly string[] = [],
 ): Promise<StreamResult[]> {
   const first = chooseEpisodeServer(
     servers,
@@ -41,6 +42,7 @@ export async function resolveEpisodeServers(
   const failures: string[] = [];
   for (const server of [...new Set([first, ...servers])].slice(0, 8)) {
     signal?.throwIfAborted();
+    if (excludeServers.includes(server)) continue;
     try {
       const raw = (await resolve(server)) as Omit<
         StreamResult,
@@ -65,7 +67,7 @@ export async function resolveEpisodeServers(
       });
       const checked = streamResultSchema.parse(await probe(result));
       signal?.throwIfAborted();
-      return [checked];
+      return [{ ...checked, server }];
     } catch (error) {
       if (signal?.aborted) throw error;
       failures.push(`${server}: ${providerError(error)}`);

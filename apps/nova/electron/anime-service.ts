@@ -1,4 +1,7 @@
-import { matchSourceAnime } from "./stream-source-adapter";
+import {
+  matchSourceAnime,
+  registerSourceEpisode,
+} from "./stream-source-adapter";
 import { randomUUID, createHash } from "node:crypto";
 import {
   mediaItemSchema,
@@ -10,7 +13,7 @@ import type {
   StreamSourceRegistry,
   StreamSourceProvider,
 } from "@vestra/extension-host";
-import { registerDeferredVariants, streamVariants } from "./remote-playback";
+
 import type { AnimeSourceEpisodes, AnimeSourceTitle } from "../shared/anime";
 import { TtlCache } from "./ttl-cache";
 
@@ -134,22 +137,8 @@ export class AnimeService {
       label: episode.title || `Episode ${episode.number}`,
       priority: 80,
       ...(Number.isInteger(episode.number) ? { episode: episode.number } : {}),
-      locator: registerDeferredVariants(
-        async () => {
-          this.requireCurrent(source);
-          const results = await source.getStreams(episode.id, {
-            signal: AbortSignal.timeout(15000),
-            timeoutMs: 15000,
-          });
-          this.requireCurrent(source);
-          const variants = streamVariants(results);
-          if (!variants.length)
-            throw new Error(
-              "The source returned no playable video for this episode.",
-            );
-          return variants;
-        },
-        () => this.requireCurrent(source),
+      locator: registerSourceEpisode(source, episode.id, () =>
+        this.requireCurrent(source),
       ),
     }));
     const item = mediaItemSchema.parse({

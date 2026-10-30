@@ -71,7 +71,9 @@ export interface ExtensionProviderOptions {
  * incomplete extension.
  */
 export function canActAsProvider(methods: readonly string[]): boolean {
-  return REQUIRED_CUSTOM_SOURCE_METHODS.every((method) => methods.includes(method));
+  return REQUIRED_CUSTOM_SOURCE_METHODS.every((method) =>
+    methods.includes(method),
+  );
 }
 
 export function createExtensionProvider(
@@ -81,7 +83,8 @@ export function createExtensionProvider(
   const warn = options.onWarning ?? (() => undefined);
 
   const kind = (candidate: unknown): MediaKind =>
-    typeof candidate === "string" && options.kinds.includes(candidate as MediaKind)
+    typeof candidate === "string" &&
+    options.kinds.includes(candidate as MediaKind)
       ? (candidate as MediaKind)
       : (options.kinds[0] ?? "anime");
 
@@ -98,7 +101,10 @@ export function createExtensionProvider(
     context: ProviderContext,
   ): Promise<unknown> => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), context.timeoutMs ?? CALL_TIMEOUT_MS);
+    const timer = setTimeout(
+      () => controller.abort(),
+      context.timeoutMs ?? CALL_TIMEOUT_MS,
+    );
 
     const abort = () => controller.abort();
     context.signal?.addEventListener("abort", abort, { once: true });
@@ -111,7 +117,10 @@ export function createExtensionProvider(
     }
   };
 
-  const toItem = (entry: ExtensionMediaItem, requested: MediaKind[]): MediaItem => ({
+  const toItem = (
+    entry: ExtensionMediaItem,
+    requested: MediaKind[],
+  ): MediaItem => ({
     source,
     kind: kind(requested[0]),
     sourceId: entry.id,
@@ -133,7 +142,10 @@ export function createExtensionProvider(
     sourceUrl: null,
   });
 
-  const toDetails = (entry: ExtensionMediaDetails, ref: MediaRef): MediaDetails => ({
+  const toDetails = (
+    entry: ExtensionMediaDetails,
+    ref: MediaRef,
+  ): MediaDetails => ({
     ...toItem(entry, [ref.kind]),
     kind: ref.kind,
     sourceId: ref.sourceId,
@@ -192,7 +204,10 @@ export function createExtensionProvider(
       for (const error of errors) warn(`search: ${error}`);
 
       const items = (value ?? []).map((entry) =>
-        toItem(entry, query.kinds.length > 0 ? [...query.kinds] : [...options.kinds]),
+        toItem(
+          entry,
+          query.kinds.length > 0 ? [...query.kinds] : [...options.kinds],
+        ),
       );
 
       return { items, totalResults: items.length, hasMore: false };
@@ -215,7 +230,11 @@ export function createExtensionProvider(
       requestedKind: MediaKind,
       context: ProviderContext,
     ): Promise<MediaItem[]> {
-      const raw = await invoke("getTrending", [requestedKind, { limit: 20 }], context);
+      const raw = await invoke(
+        "getTrending",
+        [requestedKind, { limit: 20 }],
+        context,
+      );
 
       const { value, errors } = parseSearchResults(raw);
       for (const error of errors) warn(`getTrending: ${error}`);
@@ -258,7 +277,11 @@ export interface StreamSourceProvider {
   getEpisodes(animeId: string, context?: ProviderContext): Promise<Episode[]>;
 
   /** Resolve playable renditions for an episode id this source returned. */
-  getStreams(episodeId: string, context?: ProviderContext): Promise<StreamResult[]>;
+  getStreams(
+    episodeId: string,
+    context?: ProviderContext,
+    options?: { excludeServers: string[] },
+  ): Promise<StreamResult[]>;
 }
 
 export interface StreamSourceProviderOptions {
@@ -285,7 +308,9 @@ export interface StreamSourceProviderOptions {
  * title, which reads as a broken app rather than a missing feature.
  */
 export function canActAsStreamSource(methods: readonly string[]): boolean {
-  return REQUIRED_STREAM_SOURCE_METHODS.every((method) => methods.includes(method));
+  return REQUIRED_STREAM_SOURCE_METHODS.every((method) =>
+    methods.includes(method),
+  );
 }
 
 export function createStreamSourceProvider(
@@ -366,8 +391,12 @@ export function createStreamSourceProvider(
       return value ?? [];
     },
 
-    async getStreams(episodeId, context): Promise<StreamResult[]> {
-      const raw = await invoke("getStreams", [episodeId], context);
+    async getStreams(episodeId, context, options): Promise<StreamResult[]> {
+      const raw = await invoke(
+        "getStreams",
+        options ? [episodeId, options] : [episodeId],
+        context,
+      );
 
       const { value, errors } = parseStreamResults(raw);
       for (const error of errors) warn(`getStreams: ${error}`);

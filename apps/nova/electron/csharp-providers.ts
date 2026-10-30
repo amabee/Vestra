@@ -198,6 +198,8 @@ export async function activateCSharpSource(
           },
           (result) => probePlayableStream(result, safeFetch, signal),
           signal,
+          (args[1] as { excludeServers?: string[] } | undefined)
+            ?.excludeServers ?? [],
         );
       }
       throw new Error(`Unsupported C# provider adapter method: ${method}`);

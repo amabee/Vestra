@@ -29,9 +29,9 @@ export function automaticVariant<T extends { label: string }>(
     }))
     .filter((row) => row.height > 0)
     .sort((a, b) => a.height - b.height);
-  return (
-    numbered.filter((row) => row.height <= maximumHeight).at(-1)?.row ??
-    numbered[0]?.row ??
-    rows[0]!
-  );
+  const targetHeight =
+    numbered.filter((row) => row.height <= maximumHeight).at(-1)?.height ??
+    numbered[0]?.height;
+  // Keep provider ordering when mirrors offer the same resolution.
+  return numbered.find((row) => row.height === targetHeight)?.row ?? rows[0]!;
 }

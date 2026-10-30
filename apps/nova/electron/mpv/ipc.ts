@@ -9,6 +9,7 @@ import { MpvSurface } from "./surface";
 import {
   resolveRemotePlayback,
   isAutomaticStream,
+  createRemoteRecovery,
   invalidateRemotePlayback,
 } from "../remote-playback";
 
@@ -208,8 +209,8 @@ export function registerMpvIpc(): void {
       remote,
       Boolean(streamLocator && isAutomaticStream(streamLocator)),
       false,
-      streamLocator
-        ? () => resolveRemotePlayback(streamLocator, true)
+      streamLocator && remote && isAutomaticStream(streamLocator)
+        ? createRemoteRecovery(streamLocator, remote)
         : undefined,
     );
     return session.state;
