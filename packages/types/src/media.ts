@@ -305,6 +305,8 @@ export const playbackSourceSchema = z.object({
   episode: z.number().int().nullish(),
   /** Library file id for local sources — the key progress is stored under. */
   fileId: z.string().nullish(),
+  /** Stable streaming-episode identity, independent of expiring playback handles. */
+  progressId: z.string().max(200).optional(),
   /** Original filename, so a particular release is still identifiable. */
   fileName: z.string().nullish(),
 });

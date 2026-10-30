@@ -39,8 +39,8 @@ export function AnimeSources() {
       ) : !sources.data?.length ? (
         <p>
           No anime streaming sources are enabled.{" "}
-          <Link className="link" to="/sources">
-            Manage sources
+          <Link className="link" to="/extensions">
+            Manage extensions
           </Link>
         </p>
       ) : (

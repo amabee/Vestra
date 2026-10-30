@@ -36,6 +36,12 @@ export function EntryActions({ item }: { item: MediaItem }) {
 
   const play = useMutation({
     mutationFn: async () => {
+      if (item.kind === "anime") {
+        void navigate(
+          `/media/${item.source}/${item.kind}/${encodeURIComponent(item.sourceId)}${selectedSource ? `?${new URLSearchParams({ source: selectedSource })}` : ""}`,
+        );
+        return;
+      }
       const sources = await bridge.media.resolvePlayback(item, selectedSource);
       const best = sources[0];
       if (!best) throw new Error("No playable source found.");

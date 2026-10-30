@@ -1,0 +1,29 @@
+html,
+body {
+  overflow-x: clip;
+}
+.anime-details :is(button, a, input, select, summary):focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+.anime-details :is(button, select, input) {
+  min-height: 44px;
+  font: inherit;
+}
+.anime-details button {
+  cursor: pointer;
+}
+.anime-details :is(button, input, select):disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.anime-details button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .anime-details *,
+  .anime-details *::before {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -1,3 +1,4 @@
+import { ProviderExtensions } from "@/components/extensions/provider-extensions";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PERMISSION_DESCRIPTORS } from "@vestra/extension-host/permissions";
 import {
@@ -6,10 +7,23 @@ import {
   healthOf,
   isPinnedRef,
 } from "@vestra/provider-sdk/marketplace";
-import { AlertTriangle, FolderOpen, Loader2, Plus, ShieldCheck, Trash2, X } from "lucide-react";
+import {
+  AlertTriangle,
+  FolderOpen,
+  Loader2,
+  Plus,
+  ShieldCheck,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 
-import { Notice, Page, PageHeader, SectionRule } from "@/components/layout/page";
+import {
+  Notice,
+  Page,
+  PageHeader,
+  SectionRule,
+} from "@/components/layout/page";
 import {
   bridge,
   type BrowseEntry,
@@ -22,7 +36,10 @@ const LOCAL_UNPACKED = "local:unpacked";
 
 /** The folder a manifest path sits in, for either path separator. */
 function folderOf(manifestPath: string): string {
-  const cut = Math.max(manifestPath.lastIndexOf("\\"), manifestPath.lastIndexOf("/"));
+  const cut = Math.max(
+    manifestPath.lastIndexOf("\\"),
+    manifestPath.lastIndexOf("/"),
+  );
   return cut > 0 ? manifestPath.slice(0, cut) : manifestPath;
 }
 
@@ -71,8 +88,16 @@ export function ExtensionsRoute() {
     enabled: (registries.data ?? []).length > 0,
   });
 
-  const refresh = () =>
-    void queryClient.invalidateQueries({ queryKey: ["extensions"] });
+  const refresh = () => {
+    for (const queryKey of [
+      ["extensions"],
+      ["anime-sources"],
+      ["playback"],
+      ["source-episodes"],
+      ["anime-source-details"],
+    ])
+      void queryClient.invalidateQueries({ queryKey });
+  };
 
   const setRegistries = useMutation({
     mutationFn: (urls: string[]) => bridge.extensions.setRegistries(urls),
@@ -80,7 +105,8 @@ export function ExtensionsRoute() {
   });
 
   const prepare = useMutation({
-    mutationFn: (candidate: InstallCandidate) => bridge.extensions.prepare(candidate),
+    mutationFn: (candidate: InstallCandidate) =>
+      bridge.extensions.prepare(candidate),
     onSuccess: setReviewing,
   });
 
@@ -114,6 +140,12 @@ export function ExtensionsRoute() {
     },
   });
 
+  const toggle = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      bridge.extensions.setEnabled(id, enabled),
+    onSettled: refresh,
+  });
+
   const uninstall = useMutation({
     mutationFn: (id: string) => bridge.extensions.uninstall(id),
     onSuccess: refresh,
@@ -127,8 +159,12 @@ export function ExtensionsRoute() {
       <PageHeader
         eyebrow="System"
         title="Extensions"
-        lead="Community extensions run in an isolate with no filesystem access and no network beyond the hosts you allow."
+        lead="Install and manage anime, manga and catalogue extensions in one place."
       />
+
+      <div className="mt-8">
+        <ProviderExtensions />
+      </div>
 
       <Registries
         urls={registries.data ?? []}
@@ -180,9 +216,13 @@ export function ExtensionsRoute() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span
-                      title={runningIds.has(entry.id) ? "Running" : "Not running"}
+                      title={
+                        runningIds.has(entry.id) ? "Running" : "Not running"
+                      }
                       className={`size-1.5 shrink-0 rounded-full ${
-                        runningIds.has(entry.id) ? "bg-success" : "bg-base-content/25"
+                        runningIds.has(entry.id)
+                          ? "bg-success"
+                          : "bg-base-content/25"
                       }`}
                     />
                     <p className="truncate text-sm">{entry.name}</p>
@@ -209,6 +249,19 @@ export function ExtensionsRoute() {
 
                 <button
                   type="button"
+                  disabled={toggle.isPending}
+                  className="btn btn-sm"
+                  onClick={() =>
+                    toggle.mutate({
+                      id: entry.id,
+                      enabled: entry.enabled === false,
+                    })
+                  }
+                >
+                  {entry.enabled === false ? "Enable" : "Disable"}
+                </button>
+                <button
+                  type="button"
                   aria-label={`Uninstall ${entry.name}`}
                   disabled={uninstall.isPending}
                   onClick={() => uninstall.mutate(entry.id)}
@@ -221,8 +274,15 @@ export function ExtensionsRoute() {
           </div>
         )}
 
+        {toggle.error && (
+          <p role="alert" className="mt-3 text-sm text-error">
+            {toggle.error.message}
+          </p>
+        )}
         {uninstall.error ? (
-          <p className="mt-3 text-xs text-error">{(uninstall.error as Error).message}</p>
+          <p className="mt-3 text-xs text-error">
+            {(uninstall.error as Error).message}
+          </p>
         ) : null}
       </section>
 
@@ -243,9 +303,15 @@ export function ExtensionsRoute() {
             body="Vestra ships no marketplace of its own. Add the URL of a registry you trust."
           />
         ) : browse.error ? (
-          <Notice title="Could not browse" body={(browse.error as Error).message} />
+          <Notice
+            title="Could not browse"
+            body={(browse.error as Error).message}
+          />
         ) : (browse.data?.entries ?? []).length === 0 && !browse.isFetching ? (
-          <Notice title="Nothing listed" body="The registry returned no usable entries." />
+          <Notice
+            title="Nothing listed"
+            body="The registry returned no usable entries."
+          />
         ) : (
           <div className="space-y-2">
             {(browse.data?.entries ?? []).map((entry) => (
@@ -283,7 +349,9 @@ export function ExtensionsRoute() {
         ) : null}
 
         {prepare.error ? (
-          <p className="mt-3 text-xs text-error">{(prepare.error as Error).message}</p>
+          <p className="mt-3 text-xs text-error">
+            {(prepare.error as Error).message}
+          </p>
         ) : null}
       </section>
 
@@ -389,7 +457,9 @@ function Registries({
         </div>
       )}
 
-      {error ? <p className="mt-3 text-xs text-error">{error.message}</p> : null}
+      {error ? (
+        <p className="mt-3 text-xs text-error">{error.message}</p>
+      ) : null}
     </section>
   );
 }
@@ -436,13 +506,17 @@ function AvailableRow({
         </div>
 
         {entry.description ? (
-          <p className="mt-1 text-xs text-base-content/60">{entry.description}</p>
+          <p className="mt-1 text-xs text-base-content/60">
+            {entry.description}
+          </p>
         ) : null}
 
         {/* The refusal is a decision, not a gap, so the reason is shown in
             full rather than reduced to a disabled button. */}
         {support.supported ? null : (
-          <p className="mt-2 max-w-[70ch] text-xs text-base-content/50">{support.reason}</p>
+          <p className="mt-2 max-w-[70ch] text-xs text-base-content/50">
+            {support.reason}
+          </p>
         )}
 
         {support.supported && !installable ? (
@@ -511,7 +585,9 @@ function ReviewDialog({
         className="max-h-full w-full max-w-xl overflow-y-auto rounded-box border rule bg-base-100 p-6 shadow-2xl"
       >
         <p className="meta">Install</p>
-        <h2 className="mt-1 font-serif text-display-sm">{plan.manifest.name}</h2>
+        <h2 className="mt-1 font-serif text-display-sm">
+          {plan.manifest.name}
+        </h2>
         <p className="filename mt-1">
           {plan.manifest.id} · v{plan.manifest.version}
         </p>
@@ -546,7 +622,9 @@ function ReviewDialog({
                 <label
                   key={permission}
                   className={`flex cursor-pointer gap-3 rounded-box border px-3 py-2.5 transition-colors ${
-                    on ? "border-primary/40 bg-primary/5" : "rule bg-base-200/30"
+                    on
+                      ? "border-primary/40 bg-primary/5"
+                      : "rule bg-base-200/30"
                   }`}
                 >
                   <input
@@ -587,7 +665,9 @@ function ReviewDialog({
           </>
         ) : null}
 
-        {error ? <p className="mt-4 text-xs text-error">{error.message}</p> : null}
+        {error ? (
+          <p className="mt-4 text-xs text-error">{error.message}</p>
+        ) : null}
 
         <div className="mt-6 flex items-center justify-end gap-2">
           <button

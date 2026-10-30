@@ -209,6 +209,7 @@ export async function loadInstalledExtensions(dataDir: string): Promise<StartupR
   }
 
   for (const record of records) {
+    if (record.enabled === false) continue;
     try {
       const source = await readSource(driver, record);
 

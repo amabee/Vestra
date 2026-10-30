@@ -70,7 +70,7 @@ export function MangaLibrary({ renderReader }: { renderReader: OpenReader }) {
             </p>
           </div>
           <Link
-            to="/sources"
+            to="/extensions"
             title="Manage manga sources"
             aria-label="Manage manga sources"
             className="btn btn-ghost btn-sm btn-square"
@@ -102,7 +102,7 @@ export function MangaLibrary({ renderReader }: { renderReader: OpenReader }) {
           renderReader={renderReader}
           sourceControl={
             !sources.data?.length ? (
-              <Link className="btn btn-ghost m-2" to="/sources">
+              <Link className="btn btn-ghost m-2" to="/extensions">
                 Add a manga source
               </Link>
             ) : (

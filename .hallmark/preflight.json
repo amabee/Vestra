@@ -1,49 +1,41 @@
 {
   "version": "2.0.0",
+  "scanned": "2026-10-30",
   "mode": "redesign",
   "depth": "full",
   "scope": "app",
-  "screen": "Manga Details",
-  "route": "/manga?source=<selected>&catalogue=<AniList ID> or book=<provider ID>",
-  "genre": "modern-minimal",
+  "screen": "Anime Details",
+  "genre": "atmospheric",
   "theme": "Vestra Archive (preserved brand)",
+  "route": "/media/:source/anime/:id?source=<installed extension>",
   "evidence": {
     "palette": "apps/nova/renderer/src/styles/theme.css:45",
     "fonts": "apps/nova/renderer/src/styles/theme.css:90",
-    "providerSelection": "apps/nova/renderer/src/components/manga/manga-library.tsx:51",
-    "resolution": "apps/nova/electron/manga-title-resolver.ts:17"
+    "previousDetails": "apps/nova/renderer/src/routes/detail.tsx:1",
+    "extensionRegistration": "apps/nova/electron/extension-providers.ts:1",
+    "sourceManagement": "apps/nova/renderer/src/components/extensions/provider-extensions.tsx:1"
   },
-  "preserved": [
-    "warm dark semantic colours and Inter",
-    "existing app shell, routes, reader actions, bookmarks, chapter metadata"
+  "preserve": [
+    "warm dark semantic colors, Instrument Serif title and Inter controls",
+    "catalogue identity, local playback, quality, bookmarks and watch progress",
+    "installed provider IDs, host grants, preferences, update history and runtime formats"
   ],
-  "introduced": [
-    "cover/publication rail with responsive title-first arrangement",
-    "automatic provider identity resolution before chapters",
-    "provider-first contained artwork",
-    "searchable sortable chapter workspace with skeleton/error/empty/full states"
+  "introduce": [
+    "poster-led details and publication facts",
+    "URL-backed compatible extension selector beside episodes",
+    "bounded searchable sortable episode rows and distinct recovery states",
+    "Extensions as the sole management destination"
   ],
   "files": {
-    "edit": [
-      "manga-library.tsx",
-      "manga-details.tsx",
-      "manga-details.css",
-      "manga-service.ts",
-      "manga-ipc.ts",
-      "preload.ts",
-      "bridge.ts",
-      "shared/manga.ts"
-    ],
+    "move": {
+      "routes/sources.tsx": "components/extensions/provider-extensions.tsx"
+    },
     "create": [
-      "manga-title-resolver.ts",
-      "details-design/tokens.css",
-      "details-design/base.css"
+      "components/media/anime-details.tsx",
+      "components/media/anime-details.css",
+      "components/media/anime-design/tokens.css",
+      "components/media/anime-design/base.css"
     ],
-    "delete": []
-  },
-  "material": {
-    "actual": "provider covers/IDs/chapters and AniList publication metadata",
-    "testScreens": "synthetic local PNG and labelled fixture metadata",
-    "absent": "new marketing claims, stock imagery or fabricated live metrics"
+    "routes": "Existing details kept, Sources redirects to Extensions, no provider data removed"
   }
 }

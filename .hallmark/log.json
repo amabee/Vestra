@@ -6,6 +6,66 @@
     "scope": "app",
     "shape": "app screen",
     "theme": "Vestra Archive (brand)",
+    "genre": "atmospheric",
+    "entry": "Anime Details with installed-extension selection",
+    "signature": "contained poster and extension episode workspace",
+    "prompt": "Fix playback, consolidate Sources into Extensions, and fully redesign Anime Details with Hallmark",
+    "material": {
+      "real": "existing app tokens, metadata/provider contracts, installed DonghuaStream and MangaStash",
+      "pictures": "runtime provider/catalogue covers, honest unavailable artwork fallback",
+      "absent": "invented ratings, counts, branded assets or static poster stand-ins"
+    },
+    "sweep": {
+      "before": {
+        "fail": 2,
+        "reflex": 2,
+        "warn": 1
+      },
+      "after": {
+        "fail": 0,
+        "reflex": 0,
+        "warn": 0
+      },
+      "kept": {
+        "links": "1/1",
+        "handlers": "16/16",
+        "note": "original controls remain in local-files details; new streaming controls use stable episode IDs"
+      },
+      "render": "sloplint static gates only; separately rendered real React and CSS in hidden offscreen Electron at 1440/375",
+      "finishReview": {
+        "harness": "in-thread",
+        "result": "ship",
+        "findings": [
+          "Mobile cover stacked above title used excessive space; fixed with cover/title columns",
+          "Quality and navigation targets needed 44px height; fixed"
+        ],
+        "resolved": 2,
+        "oldPageTradeoff": "The old smaller poster put episode rows earlier; the new cover prominence is intentional and the mobile first screen was compacted.",
+        "gap": "No open Floor or Reflex findings"
+      }
+    },
+    "verification": [
+      "10 anime service cases",
+      "3 server fallback cases",
+      "8 offscreen UI groups including Extensions management",
+      "29 extension install/storage cases",
+      "11 source lifecycle cases",
+      "18 manga UI groups",
+      "typecheck and production build",
+      "installed DonghuaStream Server 2 manifest and native mpv decoded video frame"
+    ],
+    "limitations": [
+      "Streamplay extractor absent in installed script; working advertised mirrors are tried instead",
+      "interactive seeking, subtitles and full episode watch-through not claimed"
+    ]
+  },
+  {
+    "date": "2026-10-30",
+    "mode": "redesign",
+    "depth": "full",
+    "scope": "app",
+    "shape": "app screen",
+    "theme": "Vestra Archive (brand)",
     "entry": "automatic manga details and chapters",
     "signature": "provider chapter index beside cover/publication rail",
     "prompt": "Automatically synchronize library provider and manga IDs, load chapters and fully redesign details",

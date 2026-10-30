@@ -172,7 +172,7 @@ export function MangaDetailsPage({
                   {progress.data ? "Continue reading" : "Start reading"}
                 </button>
               ) : (
-                <Link className="btn btn-primary" to="/sources">
+                <Link className="btn btn-primary" to="/extensions">
                   Add a reading source
                 </Link>
               )}
@@ -266,8 +266,8 @@ export function MangaDetailsPage({
               <div className="manga-info__state">
                 <h3>Add a source to see chapters</h3>
                 <p>Choose a reading source in your library.</p>
-                <Link className="btn btn-ghost" to="/sources">
-                  Manage sources
+                <Link className="btn btn-ghost" to="/extensions">
+                  Manage extensions
                 </Link>
               </div>
             ) : !book ? (

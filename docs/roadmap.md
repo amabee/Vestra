@@ -135,7 +135,10 @@ and provider storage are already implemented; they do not constitute a full data
 
 - [x] Resolve catalogue metadata before provider matching and propagate Anime's selected source through details and Play; see [anime source repair](anime-source-browser.md).
 - [x] Reject stale catalogue episode handles after source changes and expose selected-source failures with retry.
-- [ ] Persist explicit catalogue-to-provider edition mappings and streaming episode resume.
+- [x] Add integrated extension selection, automatic advertised-mirror fallback with HLS validation, and stable per-episode streaming progress.
+- [x] Consolidate provider management into Extensions and redesign Anime Details with Hallmark.
+- [ ] Persist explicit catalogue-to-provider edition mappings.
+- [ ] Interactively verify streaming resume, seeking and subtitles; one installed-provider episode now passes hidden native video decoding.
 
 - [x] Select provider-advertised stream qualities per episode using opaque handles and refreshed URLs.
 - [x] Preserve subtitle language/title/default metadata through both provider hosts and native track-add commands.

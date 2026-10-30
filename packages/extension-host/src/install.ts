@@ -52,6 +52,8 @@ export interface InstallPlan {
 }
 
 export interface InstalledExtension {
+  /** Absent in older installs means enabled. */
+  enabled?: boolean;
   id: string;
   name: string;
   version: string;

@@ -62,6 +62,8 @@ export function PlayerOverlay() {
   const surfaceRef = useRef<HTMLDivElement>(null);
 
   const fileId = useFileId(source?.locator);
+  const progressId = fileId ?? source?.progressId ?? null;
+  const [opening, setOpening] = useState(false);
   const renditionOverrides = usePlayer((state) => state.renditionOverrides);
   const streamLocator = source?.locator.startsWith("vestra-stream://")
     ? (renditionOverrides[source.locator] ?? source.locator)
@@ -466,11 +468,13 @@ export function PlayerOverlay() {
       would change every time the periodic save ran, and this effect would
       reopen the file mid-playback each time it did.
     */
+    setFailed(null);
+    setOpening(true);
     void (async () => {
-      const startSeconds = fileId
+      const startSeconds = progressId
         ? await resumeSecondsFor(
             itemRef.current,
-            fileId,
+            progressId,
             rememberPositionRef.current,
           )
         : 0;
@@ -490,13 +494,17 @@ export function PlayerOverlay() {
           height: Math.round(box?.height ?? 0),
         },
       });
-    })().catch((error: unknown) => {
-      if (cancelled) return;
-      setFailed(
-        error instanceof Error ? error.message : "mpv could not start.",
-      );
-      if (!streamLocator) setOverride("builtin");
-    });
+    })()
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setFailed(
+          error instanceof Error ? error.message : "mpv could not start.",
+        );
+        if (!streamLocator) setOverride("builtin");
+      })
+      .finally(() => {
+        if (!cancelled) setOpening(false);
+      });
 
     return () => {
       cancelled = true;
@@ -505,6 +513,7 @@ export function PlayerOverlay() {
     usingMpv,
     fileId,
     streamLocator,
+    progressId,
     decision.ready,
     decision.needsMpv,
     sessionId,
@@ -550,7 +559,7 @@ export function PlayerOverlay() {
     item,
     position: usingMpv ? mpv.position : (videoRef.current?.currentTime ?? 0),
     duration: usingMpv ? mpv.duration : (videoRef.current?.duration ?? 0),
-    episodeId: fileId,
+    episodeId: progressId,
   };
 
   const persist = useCallback(() => {
@@ -622,12 +631,21 @@ export function PlayerOverlay() {
 
       {decision.needsMpv ? <MpvMissing reasons={decision.reasons} /> : null}
 
+      {opening && !error && (
+        <div
+          className="absolute inset-0 grid place-items-center bg-base-100"
+          role="status"
+        >
+          <p>Resolving episode and opening video…</p>
+        </div>
+      )}
+
       {error && !decision.needsMpv ? (
         <div className="absolute inset-0 grid place-items-center bg-black p-8">
           <div className="max-w-md text-center">
             <p className="font-serif text-display-sm">Cannot play this</p>
             <p className="mt-2 text-sm leading-relaxed text-base-content/55">
-              {error}
+              {error.replace(/^Error invoking remote method '[^']+':\s*/i, "")}
             </p>
             {decision.probe ? (
               <p className="meta mt-3">
@@ -636,6 +654,28 @@ export function PlayerOverlay() {
                 {decision.probe.container ?? "?"}
               </p>
             ) : null}
+            <p className="mt-3 text-sm text-base-content/70">
+              Retry this episode, or close the player to choose another
+              extension.
+            </p>
+            <button
+              type="button"
+              className="mt-6 mr-3 rounded-field border border-base-content/20 px-4 py-2 text-sm"
+              onClick={() => {
+                setFailed(null);
+                usePlayer
+                  .getState()
+                  .open(
+                    item,
+                    queue,
+                    index,
+                    usePlayer.getState().startAt,
+                    renditionOverrides,
+                  );
+              }}
+            >
+              Retry episode
+            </button>
             <button
               type="button"
               onClick={close}

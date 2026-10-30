@@ -1,5 +1,10 @@
-import { randomUUID } from "node:crypto";
-import { mediaItemSchema, type PlaybackSource } from "@vestra/types";
+import { matchSourceAnime } from "./stream-source-adapter";
+import { randomUUID, createHash } from "node:crypto";
+import {
+  mediaItemSchema,
+  type MediaItem,
+  type PlaybackSource,
+} from "@vestra/types";
 import type {
   Anime,
   StreamSourceRegistry,
@@ -45,6 +50,38 @@ export class AnimeService {
       return { handle, title: anime.title };
     });
   }
+  async resolve(
+    id: string,
+    item: MediaItem,
+  ): Promise<AnimeSourceEpisodes | null> {
+    const source = this.registry
+      .supporting("anime")
+      .find((row) => row.id === id);
+    if (!source)
+      throw new Error(
+        "This extension is disabled or unavailable. Select another extension.",
+      );
+    const anime = await matchSourceAnime(
+      source,
+      item,
+      { signal: AbortSignal.timeout(15000), timeoutMs: 15000 },
+      () => this.requireCurrent(source),
+    );
+    if (!anime) return null;
+    const handle = randomUUID();
+    if (this.titles.size >= 100)
+      this.titles.delete(this.titles.keys().next().value!);
+    this.titles.set(handle, { source, anime });
+    const result = await this.episodes(handle);
+    return {
+      ...result,
+      providerTitle: anime.title,
+      item: {
+        ...item,
+        images: { ...item.images, poster: anime.cover ?? item.images.poster },
+      },
+    };
+  }
   async episodes(handle: string): Promise<AnimeSourceEpisodes> {
     const entry = this.titles.get(handle);
     if (!entry)
@@ -58,6 +95,18 @@ export class AnimeService {
     this.requireCurrent(source);
     const queue: PlaybackSource[] = episodes.slice(0, 2000).map((episode) => ({
       kind: "stream",
+      progressId:
+        "stream-" +
+        createHash("sha256")
+          .update(
+            JSON.stringify([
+              source.id,
+              anime.id,
+              episode.number,
+              episode.url ?? "",
+            ]),
+          )
+          .digest("hex"),
       mimeType: null,
       label: episode.title || `Episode ${episode.number}`,
       priority: 80,

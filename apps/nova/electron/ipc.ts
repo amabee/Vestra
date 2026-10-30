@@ -34,6 +34,8 @@ import {
 } from "@vestra/extension-host/install";
 import {
   listInstalled,
+  readSource,
+  setInstalledEnabled,
   removeInstalled,
   saveInstalled,
 } from "@vestra/extension-host/store";
@@ -700,10 +702,51 @@ export function registerDataIpc(): void {
       grant: record.grant,
     });
 
+    getProviderRegistry().setEnabled(`ext-${record.id}`, true);
+    getStreamSourceRegistry().setEnabled(`ext-${record.id}`, true);
     attachExtensionProvider(record, methods);
     attachStreamSourceProvider(record, methods);
 
     return record;
+  });
+
+  handle("extensions:enabled", async (rawId: unknown, rawEnabled: unknown) => {
+    const id = z.string().min(1).max(120).parse(rawId);
+    const enabled = z.boolean().parse(rawEnabled);
+    const driver = getDriver();
+    const record = (await listInstalled(driver)).find((row) => row.id === id);
+    if (!record) throw new Error("This extension is no longer installed.");
+    if (!enabled) {
+      await setInstalledEnabled(driver, id, false);
+      getProviderRegistry().setEnabled(`ext-${id}`, false);
+      getStreamSourceRegistry().setEnabled(`ext-${id}`, false);
+      detachExtensionProvider(id);
+      detachStreamSourceProvider(id);
+      await unloadExtension(id);
+      return;
+    }
+    const source = await readSource(driver, record);
+    if (!source)
+      throw new Error(
+        "The installed extension failed its fingerprint check. Reinstall it before enabling.",
+      );
+    const methods = await loadExtension({
+      extensionId: id,
+      source,
+      grant: record.grant,
+    });
+    try {
+      getProviderRegistry().setEnabled(`ext-${record.id}`, true);
+      getStreamSourceRegistry().setEnabled(`ext-${record.id}`, true);
+      attachExtensionProvider(record, methods);
+      attachStreamSourceProvider(record, methods);
+      await setInstalledEnabled(driver, id, true);
+    } catch (error) {
+      detachExtensionProvider(id);
+      detachStreamSourceProvider(id);
+      await unloadExtension(id);
+      throw error;
+    }
   });
 
   handle("extensions:uninstall", async (raw: unknown) => {
@@ -761,6 +804,8 @@ export function registerDataIpc(): void {
       grant: record.grant,
     });
 
+    getProviderRegistry().setEnabled(`ext-${record.id}`, true);
+    getStreamSourceRegistry().setEnabled(`ext-${record.id}`, true);
     attachExtensionProvider(record, methods);
     attachStreamSourceProvider(record, methods);
 

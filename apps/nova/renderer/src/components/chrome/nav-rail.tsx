@@ -1,7 +1,6 @@
 import { NavLink } from "react-router";
 import {
   Blocks,
-  Radio,
   Clapperboard,
   Compass,
   HardDrive,
@@ -45,7 +44,6 @@ const SECTIONS = [
     label: "System",
     items: [
       { to: "/extensions", label: "Extensions", icon: Blocks },
-      { to: "/sources", label: "Sources", icon: Radio },
       { to: "/settings", label: "Settings", icon: Settings },
     ],
   },

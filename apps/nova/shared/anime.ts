@@ -4,6 +4,7 @@ export interface AnimeSourceTitle {
   title: string;
 }
 export interface AnimeSourceEpisodes {
+  providerTitle?: string;
   item: MediaItem;
   queue: PlaybackSource[];
 }

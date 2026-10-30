@@ -309,3 +309,20 @@ test("a selected provider failure is visible while working local playback remain
     "file",
   );
 });
+
+test("details resolution returns provider metadata with catalogue identity and stable episode progress IDs", async () => {
+  const f = catalogueFixture();
+  const first = await f.service.resolve(f.source.id, f.item);
+  const second = await f.service.resolve(f.source.id, f.item);
+  assert.equal(first.item.sourceId, f.item.sourceId);
+  assert.equal(first.providerTitle, "Doupo Cangqiong (Season 1)");
+  assert.match(first.queue[0].progressId, /^stream-[a-f0-9]{64}$/);
+  assert.equal(first.queue[0].progressId, second.queue[0].progressId);
+  assert.notEqual(first.queue[0].locator, second.queue[0].locator);
+  assert.equal(f.calls(), 0);
+  f.registry.setEnabled(f.source.id, false);
+  await assert.rejects(
+    f.service.resolve(f.source.id, f.item),
+    /disabled|unavailable/,
+  );
+});

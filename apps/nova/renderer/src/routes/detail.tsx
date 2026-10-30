@@ -1,3 +1,4 @@
+import { AnimeDetails } from "@/components/media/anime-details";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDuration } from "@vestra/core/format";
 import {
@@ -65,6 +66,16 @@ interface EpisodeView {
  * would be gone on both.
  */
 export function DetailRoute() {
+  const { kind } = useParams();
+  const [params] = useSearchParams();
+  return kind === "anime" && params.get("files") !== "1" ? (
+    <AnimeDetails />
+  ) : (
+    <MediaDetailsRoute />
+  );
+}
+
+function MediaDetailsRoute() {
   const { source, kind, id } = useParams();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -361,7 +372,7 @@ export function DetailRoute() {
 
         {/* Bottom-aligned, so poster and title share a baseline at any size. */}
         <div className="absolute inset-x-0 bottom-0 flex items-end gap-6 px-8 pb-8">
-          <div className="aspect-[2/3] w-36 shrink-0 overflow-hidden rounded-box border rule bg-base-200 shadow-2xl">
+          <div className="aspect-[2/3] w-36 shrink-0 overflow-hidden rounded-box border rule bg-base-200">
             {poster ? (
               <img
                 src={poster}

@@ -1,0 +1,22 @@
+:root {
+  --anime-measure: 78rem;
+  --anime-gap: 2rem;
+  --anime-muted: color-mix(
+    in oklch,
+    var(--color-base-content) 72%,
+    var(--color-base-100)
+  );
+  --anime-rule: color-mix(
+    in oklch,
+    var(--color-base-content) 22%,
+    var(--color-base-100)
+  );
+  --anime-field: color-mix(
+    in oklch,
+    var(--color-base-content) 50%,
+    var(--color-base-100)
+  );
+  --anime-wash: color-mix(in oklch, var(--color-base-100) 85%, transparent);
+  --anime-title-size: 2.5rem;
+  --anime-section-size: 1.5rem;
+}

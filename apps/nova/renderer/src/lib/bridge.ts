@@ -59,6 +59,7 @@ export interface BrowseResult {
 
 interface RawBridge {
   anime: {
+    resolve: (id: string, ref: unknown) => Promise<unknown>;
     sources: () => Promise<unknown>;
     search: (id: string, query: string) => Promise<unknown>;
     episodes: (handle: string) => Promise<unknown>;
@@ -168,6 +169,7 @@ interface RawBridge {
     onChanged: (listener: () => void) => () => void;
   };
   extensions: {
+    setEnabled: (id: string, enabled: boolean) => Promise<unknown>;
     list: () => Promise<unknown>;
     call: (
       extensionId: string,
@@ -395,6 +397,10 @@ export interface SurfaceRect {
 
 export const bridge = {
   anime: {
+    resolve: (id: string, ref: MediaRef) =>
+      raw().anime.resolve(id, ref) as Promise<
+        import("../../../shared/anime").AnimeSourceEpisodes | null
+      >,
     sources: () =>
       raw().anime.sources() as Promise<{ id: string; name: string }[]>,
     search: (id: string, query: string) =>
@@ -692,6 +698,8 @@ export const bridge = {
   },
 
   extensions: {
+    setEnabled: (id: string, enabled: boolean) =>
+      raw().extensions.setEnabled(id, enabled),
     list: async (): Promise<string[]> =>
       (await raw().extensions.list()) as string[],
     call: (

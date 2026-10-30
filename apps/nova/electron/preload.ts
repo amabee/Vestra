@@ -18,6 +18,7 @@ const invoke = (channel: string, ...args: unknown[]): Promise<unknown> =>
 
 const api = {
   anime: {
+    resolve: (id: string, ref: unknown) => invoke("anime:resolve", id, ref),
     sources: () => invoke("anime:sources"),
     search: (id: string, query: string) => invoke("anime:search", id, query),
     episodes: (handle: string) => invoke("anime:episodes", handle),
@@ -226,6 +227,8 @@ const api = {
   },
 
   extensions: {
+    setEnabled: (id: string, enabled: boolean) =>
+      invoke("extensions:enabled", id, enabled),
     list: (): Promise<unknown> => invoke("extensions:list"),
     call: (
       extensionId: string,
