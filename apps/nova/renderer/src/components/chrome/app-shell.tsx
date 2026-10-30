@@ -1,7 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { useState } from "react";
-import { Outlet, useNavigate } from "react-router";
+import {
+  Outlet,
+  useNavigate,
+  useLocation,
+  useSearchParams,
+} from "react-router";
 
 import { NavRail } from "@/components/chrome/nav-rail";
 import { TitleBar } from "@/components/chrome/title-bar";
@@ -37,13 +42,25 @@ export function AppShell() {
 function CommandField() {
   const [value, setValue] = useState("");
   const navigate = useNavigate();
+  const location = useLocation();
+  const [params] = useSearchParams();
+  const animeContext =
+    location.pathname === "/anime" ||
+    /\/media\/[^/]+\/anime\//.test(location.pathname);
+
+  if (location.pathname === "/anime") return null;
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
         const query = value.trim();
-        if (query.length > 0) void navigate(`/search?q=${encodeURIComponent(query)}`);
+        if (query.length > 0)
+          void navigate(
+            animeContext
+              ? `/anime?${new URLSearchParams({ q: query, ...(params.get("source") ? { source: params.get("source")! } : {}) })}`
+              : `/search?q=${encodeURIComponent(query)}`,
+          );
       }}
       className="mx-auto flex h-7 w-full max-w-md items-center gap-2 rounded-field border rule bg-base-200/60 px-2.5 transition-colors focus-within:border-primary/50"
     >
@@ -51,8 +68,12 @@ function CommandField() {
       <input
         value={value}
         onChange={(event) => setValue(event.target.value)}
-        placeholder="Search your catalogue"
+        aria-label={
+          animeContext ? "Search anime from anywhere" : "Search your catalogue"
+        }
+        placeholder={animeContext ? "Search anime" : "Search your catalogue"}
         spellCheck={false}
+        maxLength={200}
         className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-base-content/35"
       />
     </form>
@@ -76,7 +97,8 @@ function StatusBar() {
     staleTime: 60_000,
   });
 
-  const ready = data?.providers.filter((provider) => provider.available).length ?? 0;
+  const ready =
+    data?.providers.filter((provider) => provider.available).length ?? 0;
   const total = data?.providers.length ?? 0;
 
   return (

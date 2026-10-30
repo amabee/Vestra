@@ -1,3 +1,4 @@
+import type { AnimePlaylist, PlaylistCommand } from "../../../shared/playlists";
 import type {
   EpisodeBookmark,
   HistoryEntry,
@@ -58,10 +59,16 @@ export interface BrowseResult {
  */
 
 interface RawBridge {
+  playlists: {
+    list: () => Promise<unknown>;
+    mutate: (command: unknown) => Promise<unknown>;
+  };
   anime: {
+    open: (id: string, item: unknown) => Promise<unknown>;
     resolve: (id: string, ref: unknown) => Promise<unknown>;
     sources: () => Promise<unknown>;
     search: (id: string, query: string) => Promise<unknown>;
+    title: (handle: string) => Promise<unknown>;
     episodes: (handle: string) => Promise<unknown>;
   };
   sources: {
@@ -413,7 +420,17 @@ export interface SurfaceRect {
 }
 
 export const bridge = {
+  playlists: {
+    list: () => raw().playlists.list() as Promise<AnimePlaylist[]>,
+    mutate: (command: PlaylistCommand) =>
+      raw().playlists.mutate(command) as Promise<AnimePlaylist[]>,
+  },
   anime: {
+    title: (handle: string) => raw().anime.title(handle) as Promise<MediaItem>,
+    open: (id: string, item: MediaItem) =>
+      raw().anime.open(id, item) as Promise<
+        import("../../../shared/anime").AnimeSourceEpisodes | null
+      >,
     resolve: (id: string, ref: MediaRef) =>
       raw().anime.resolve(id, ref) as Promise<
         import("../../../shared/anime").AnimeSourceEpisodes | null

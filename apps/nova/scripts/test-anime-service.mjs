@@ -452,3 +452,44 @@ test("episode recovery forwards mirror exclusions through the provider adapter w
   registry.unregister(source.id);
   await assert.rejects(next.retry(), /changed|disabled/);
 });
+
+test("saved source titles reopen after service restart without opaque search handles", async () => {
+  const f = fixture();
+  const [title] = await f.service.search(f.source.id, "Battle");
+  const first = await f.service.episodes(title.handle);
+  const restarted = new AnimeService(f.registry);
+  const result = await restarted.open(first.item);
+  assert.equal(result.item.sourceId, first.item.sourceId);
+  assert.equal(result.item.title, first.item.title);
+  assert.equal(result.queue[0].progressId, first.queue[0].progressId);
+  f.registry.setEnabled(f.source.id, false);
+  await assert.rejects(restarted.open(first.item), /disabled|unavailable/);
+});
+
+test("source results can be saved as stable metadata without fetching episodes or video", async () => {
+  let episodeCalls = 0;
+  const source = createStreamSourceProvider({
+    extensionId: "save-only",
+    name: "Save only",
+    kinds: ["anime"],
+    methods: ["search", "getEpisodes", "getStreams"],
+    async call(method) {
+      if (method === "search")
+        return [
+          {
+            id: "persistent-id",
+            title: "Save me",
+            cover: "https://covers.example/poster.jpg",
+          },
+        ];
+      episodeCalls++;
+      throw Error("Saving must not load episodes");
+    },
+  });
+  const service = new AnimeService(new StreamSourceRegistry().register(source));
+  const [row] = await service.search(source.id, "Save me");
+  const saved = service.title(row.handle);
+  assert.equal(saved.sourceId, "persistent-id");
+  assert.equal(saved.images.poster, "https://covers.example/poster.jpg");
+  assert.equal(episodeCalls, 0);
+});

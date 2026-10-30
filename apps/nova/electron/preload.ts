@@ -17,10 +17,16 @@ const invoke = (channel: string, ...args: unknown[]): Promise<unknown> =>
   ipcRenderer.invoke(channel, ...args);
 
 const api = {
+  playlists: {
+    list: () => invoke("anime:playlists"),
+    mutate: (command: unknown) => invoke("anime:playlist-command", command),
+  },
   anime: {
+    open: (id: string, item: unknown) => invoke("anime:open", id, item),
     resolve: (id: string, ref: unknown) => invoke("anime:resolve", id, ref),
     sources: () => invoke("anime:sources"),
     search: (id: string, query: string) => invoke("anime:search", id, query),
+    title: (handle: string) => invoke("anime:title", handle),
     episodes: (handle: string) => invoke("anime:episodes", handle),
   },
   sources: {

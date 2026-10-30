@@ -108,11 +108,64 @@ export class AnimeService {
       },
     };
   }
+  title(handle: string): MediaItem {
+    const entry = this.titles.get(handle);
+    if (!entry) throw Error("This result expired. Search for the anime again.");
+    this.requireCurrent(entry.source);
+    return mediaItemSchema.parse({
+      source: entry.source.id,
+      sourceId: entry.anime.id,
+      kind: "anime",
+      title: entry.anime.title,
+      images: { poster: entry.anime.cover ?? null },
+      rating: {},
+      isSeries: true,
+    });
+  }
   async episodes(handle: string): Promise<AnimeSourceEpisodes> {
     const entry = this.titles.get(handle);
     if (!entry)
       throw new Error("This result expired. Search for the anime again.");
     const { source, anime } = entry;
+    return this.episodeQueue(source, anime);
+  }
+  /** Saved provider titles keep their real provider ID, rather than an expiring handle. */
+  rememberedItem(ref: { source: string; sourceId: string }): MediaItem | null {
+    const known = [...this.titles.values()].find(
+      (row) => row.source.id === ref.source && row.anime.id === ref.sourceId,
+    );
+    return known
+      ? mediaItemSchema.parse({
+          source: ref.source,
+          sourceId: ref.sourceId,
+          kind: "anime",
+          title: known.anime.title,
+          images: { poster: known.anime.cover ?? null },
+          rating: {},
+          isSeries: true,
+        })
+      : null;
+  }
+  async open(item: MediaItem): Promise<AnimeSourceEpisodes> {
+    const source = this.registry
+      .supporting("anime")
+      .find((row) => row.id === item.source);
+    if (!source) throw Error("This anime source is disabled or unavailable.");
+    const result = await this.episodeQueue(source, {
+      id: item.sourceId,
+      provider: source.id,
+      title: item.title,
+      cover: item.images.poster ?? undefined,
+    });
+    return {
+      ...result,
+      item: { ...item, images: { ...result.item.images, ...item.images } },
+    };
+  }
+  private async episodeQueue(
+    source: StreamSourceProvider,
+    anime: Anime,
+  ): Promise<AnimeSourceEpisodes> {
     this.requireCurrent(source);
     const episodes = await source.getEpisodes(anime.id, {
       signal: AbortSignal.timeout(15000),
@@ -146,7 +199,7 @@ export class AnimeService {
       kind: "anime",
       sourceId: anime.id,
       title: anime.title,
-      images: {},
+      images: { poster: anime.cover ?? null },
       rating: {},
       isSeries: true,
     });

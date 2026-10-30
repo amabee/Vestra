@@ -1,7 +1,13 @@
+import {
+  preferredAnimeSource,
+  rememberAnimeSource,
+} from "./anime-source-preference";
+import { PlaylistPicker } from "./playlist-picker";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   mediaKey,
   parseMediaKey,
+  mediaDetailsSchema,
   type MediaItem,
   type PlaybackSource,
   type WatchProgress,
@@ -57,12 +63,13 @@ export function AnimeDetails() {
   const hasLocal = localList.length > 0;
   const hasLinks = linkList.length > 0;
   const selected =
-    params.get("source") ??
-    extensions.data?.[0]?.id ??
-    (hasLocal ? LOCAL_SOURCE : "");
+    params.get("source") ?? preferredAnimeSource(extensions.data, hasLocal);
   const localMode = selected === LOCAL_SOURCE;
   const linkMode = selected === LINK_SOURCE;
   const available = extensions.data?.find((row) => row.id === selected);
+  useEffect(() => {
+    if (available || localMode) rememberAnimeSource(selected);
+  }, [selected, available, localMode]);
   useEffect(() => {
     if (!params.get("source") && selected)
       setParams(
@@ -93,7 +100,10 @@ export function AnimeDetails() {
   const player = usePlayer();
   const [limit, setLimit] = useState(50);
   const [failedCovers, setFailedCovers] = useState<string[]>([]);
-  const data = details.data;
+  const [saveDialog, setSaveDialog] = useState(false);
+  const data =
+    details.data ??
+    (episodes.data?.item ? mediaDetailsSchema.parse(episodes.data.item) : null);
   const queue = localMode ? localList : (episodes.data?.queue ?? []);
   const query = params.get("episode") ?? "";
   const filter = params.get("filter") ?? "all";
@@ -234,6 +244,13 @@ export function AnimeDetails() {
         <Link to="/extensions">Manage extensions</Link>
       </nav>
 
+      {saveDialog && data && (
+        <PlaylistPicker
+          item={data}
+          provider={selected}
+          onClose={() => setSaveDialog(false)}
+        />
+      )}
       <header className={`anime-hero${backdrop ? " anime-hero-backdrop" : ""}`}>
         <div className="anime-backdrop" aria-hidden="true">
           {backdrop ? (
@@ -358,7 +375,14 @@ export function AnimeDetails() {
               onClick={() => library.mutate()}
             >
               {inLibrary ? <BookmarkCheck size={17} /> : <Bookmark size={17} />}
-              {inLibrary ? "In library" : "Add to library"}
+              {inLibrary ? "Saved for later" : "Watch later"}
+            </button>
+            <button
+              type="button"
+              disabled={!data}
+              onClick={() => setSaveDialog(true)}
+            >
+              Add to playlist
             </button>
           </div>
           {library.error && (

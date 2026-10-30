@@ -7,7 +7,7 @@ import { useNavigate } from "react-router";
 import { VideoLoader } from "./video-loader";
 import { bridge } from "@/lib/bridge";
 import { usePlayer } from "@/lib/player-store";
-import { useSettings } from "@/lib/queries";
+import { useSettings, keys } from "@/lib/queries";
 
 import {
   useEngineDecision,
@@ -708,6 +708,7 @@ export function PlayerOverlay() {
   useEffect(() => {
     if (item) return;
     void queryClient.invalidateQueries({ queryKey: ["progress"] });
+    void queryClient.invalidateQueries({ queryKey: keys.history });
   }, [item, queryClient]);
 
   if (!item || !source) return null;
