@@ -740,6 +740,8 @@ export function PlayerOverlay() {
 
       {(opening || mpv.loading || mpv.buffering) && !error && (
         <VideoLoader
+          bufferedSeconds={mpv.bufferedSeconds}
+          downloadBytesPerSecond={mpv.downloadBytesPerSecond}
           label={mpv.buffering ? "Buffering video" : "Preparing your episode"}
         />
       )}

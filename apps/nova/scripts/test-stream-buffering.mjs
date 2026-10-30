@@ -181,6 +181,52 @@ test("pause cancels recovery and manual quality is never silently downgraded", a
   );
 });
 
+test("buffer flag alone cannot downgrade a video that is still advancing", async (t) => {
+  const { session, connection } = await sessionFixture(t);
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  connection.emit({
+    event: "property-change",
+    name: "paused-for-cache",
+    data: true,
+  });
+  connection.emit({ event: "property-change", name: "time-pos", data: 47 });
+  t.mock.timers.tick(12001);
+  await settle();
+  assert.equal(
+    connection.writes.filter((row) => row[0] === "loadfile").length,
+    1,
+  );
+  assert.equal(session.state.error, null);
+  // A further interval with no progress is a real stall and can recover.
+  t.mock.timers.tick(12001);
+  await settle();
+  assert.equal(
+    connection.writes.filter((row) => row[0] === "loadfile").length,
+    2,
+  );
+});
+
+test("native buffer telemetry rejects invalid values and clears across files", async (t) => {
+  const { session, connection } = await sessionFixture(t);
+  connection.emit({
+    event: "property-change",
+    name: "demuxer-cache-duration",
+    data: 12.5,
+  });
+  connection.emit({
+    event: "property-change",
+    name: "cache-speed",
+    data: 1048576,
+  });
+  assert.equal(session.state.bufferedSeconds, 12.5);
+  assert.equal(session.state.downloadBytesPerSecond, 1048576);
+  connection.emit({ event: "property-change", name: "cache-speed", data: -1 });
+  assert.equal(session.state.downloadBytesPerSecond, null);
+  await session.load("owned.mkv", 0);
+  assert.equal(session.state.bufferedSeconds, null);
+  assert.equal(session.state.downloadBytesPerSecond, null);
+});
+
 test("startup probes only a usable Full HD manifest, retaining other qualities", async () => {
   const result = {
     server: "Main",

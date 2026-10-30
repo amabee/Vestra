@@ -79,3 +79,11 @@
     animation: none;
   }
 }
+
+.video-loader .video-loader-health {
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: #a5a8b0;
+  margin-top: -12px;
+  font-variant-numeric: tabular-nums;
+}

@@ -127,6 +127,8 @@ export interface MpvChapter {
 export interface MpvState {
   loading: boolean;
   buffering: boolean;
+  bufferedSeconds: number | null;
+  downloadBytesPerSecond: number | null;
   running: boolean;
   idle: boolean;
   paused: boolean;
@@ -152,6 +154,8 @@ export interface MpvState {
 }
 
 const INITIAL_STATE: MpvState = {
+  bufferedSeconds: null,
+  downloadBytesPerSecond: null,
   loading: false,
   buffering: false,
   running: false,
@@ -187,6 +191,8 @@ const OBSERVED = {
   subScale: 11,
   chapterList: 12,
   pausedForCache: 13,
+  cacheDuration: 14,
+  cacheSpeed: 15,
 } as const;
 
 export interface MpvOptions {
@@ -228,6 +234,7 @@ export class MpvSession {
     this.#clearStall();
     const active = this.#activeRemote;
     if (!active || this.#state.paused || !this.#state.buffering) return;
+    const startedAt = this.#state.position;
     this.#stallTimer = setTimeout(() => {
       this.#stallTimer = null;
       if (
@@ -236,6 +243,11 @@ export class MpvSession {
         this.#state.paused
       )
         return;
+      // A stale buffer flag must not restart video whose playhead is advancing.
+      if (Math.abs(this.#state.position - startedAt) >= 0.5) {
+        this.#watchStall();
+        return;
+      }
       if (active.automatic && !active.recovered) {
         void (async () => {
           const next = active.fallback
@@ -257,14 +269,16 @@ export class MpvSession {
           });
         });
       } else {
-        void this.stop().finally(() =>
-          this.#emit({
-            loading: false,
-            buffering: false,
-            error:
-              "This video server stopped delivering data. Choose another quality or extension.",
-          }),
-        );
+        void this.stop()
+          .catch(() => undefined)
+          .finally(() =>
+            this.#emit({
+              loading: false,
+              buffering: false,
+              error:
+                "This video server stopped delivering data. Choose another quality or extension.",
+            }),
+          );
       }
     }, STALL_RECOVERY_MS);
   }
@@ -404,6 +418,8 @@ export class MpvSession {
       ["track-list", OBSERVED.trackList],
       ["chapter-list", OBSERVED.chapterList],
       ["paused-for-cache", OBSERVED.pausedForCache],
+      ["demuxer-cache-duration", OBSERVED.cacheDuration],
+      ["cache-speed", OBSERVED.cacheSpeed],
       ["eof-reached", OBSERVED.eofReached],
       ["sub-visibility", OBSERVED.subVisibility],
       ["speed", OBSERVED.speed],
@@ -426,6 +442,26 @@ export class MpvSession {
         case "duration":
           if (typeof event.data === "number")
             this.#emit({ duration: event.data });
+          break;
+        case "demuxer-cache-duration":
+          this.#emit({
+            bufferedSeconds:
+              typeof event.data === "number" &&
+              Number.isFinite(event.data) &&
+              event.data >= 0
+                ? event.data
+                : null,
+          });
+          break;
+        case "cache-speed":
+          this.#emit({
+            downloadBytesPerSecond:
+              typeof event.data === "number" &&
+              Number.isFinite(event.data) &&
+              event.data >= 0
+                ? event.data
+                : null,
+          });
           break;
         case "paused-for-cache":
           this.#emit({ buffering: event.data === true });
@@ -542,6 +578,8 @@ export class MpvSession {
       this.#emit({
         loading: true,
         buffering: false,
+        bufferedSeconds: null,
+        downloadBytesPerSecond: null,
         chapters: [],
         ended: false,
         error: null,

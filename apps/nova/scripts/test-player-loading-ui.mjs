@@ -58,8 +58,10 @@ try {
         await run('fixture.playing={...fixture.playing,loading:false};fixture.playingChanged(fixture.playing)');
         await until('!document.querySelector(".video-loader")');
         await until('Array.from(document.querySelectorAll("button")).some(b=>b.textContent.includes("Skip opening"))');
-        await run('fixture.stateChanged({...fixture.state,buffering:true})');
+        await run('fixture.stateChanged({...fixture.state,buffering:true,bufferedSeconds:2.5,downloadBytesPerSecond:1048576})');
         await until('document.querySelector(".video-loader")?.textContent.includes("Buffering")');
+        assert.ok(await run('document.querySelector(".video-loader-health")?.textContent.includes("2.5s buffered")'));
+        assert.ok(await run('document.querySelector(".video-loader-health")?.textContent.includes("1.00 MiB/s")'));
         await run('fixture.playingChanged({...fixture.playing,playbackError:"Fixture video failed"})');
         await until('document.querySelector("[role=alert]")?.textContent.includes("Fixture video failed")');
         assert.equal(await run('!!document.querySelector(".video-loader")'),false);

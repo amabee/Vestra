@@ -335,6 +335,8 @@ export interface MpvChapter {
 export interface MpvState {
   loading?: boolean;
   buffering?: boolean;
+  bufferedSeconds?: number | null;
+  downloadBytesPerSecond?: number | null;
   running: boolean;
   idle: boolean;
   paused: boolean;
