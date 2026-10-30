@@ -1,6 +1,6 @@
 # Source management preview
 
-Nova's **Sources** navigation item manages C# anime-streaming and manga providers.
+Nova's **Extensions** page, in its Provider extensions section, manages C# anime-streaming and manga providers.
 Build the server with `pnpm build:server`, then run Nova in development. A provider
 configuration environment variable is no longer required for local script imports.
 
@@ -89,3 +89,17 @@ reviews, disabled sources and restoration failure. The actual C# process also
 rejects a missing contract or incompatible selected server, restores the old
 script, and accepts a compatible replacement. Visual review/chooser testing for
 this new flow remains deferred along with installer refresh.
+
+
+As of 2026-10-30, there is no separate Sources navigation item or management page.
+The import/configuration/controller was moved into
+`components/extensions/provider-extensions.tsx`, rather than copied. Old `/sources`
+links redirect to Extensions. Existing managed provider IDs, scripts, preferences,
+host grants, updates and rollback history retain their storage format. The two
+existing execution formats (C# provider scripts and isolated SDK extensions) remain
+runtime adapters, managed through the single Extensions destination.
+
+SDK extension records now optionally persist `enabled`. Older records remain enabled
+by default. Disabling detaches their metadata/stream providers and unloads the worker
+instance; startup skips disabled records. Enabling re-verifies the existing payload
+fingerprint and reuses its recorded grant. A tampered payload must be reinstalled.

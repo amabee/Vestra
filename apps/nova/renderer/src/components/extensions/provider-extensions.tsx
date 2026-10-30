@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
-import { Page, PageHeader } from "@/components/layout/page";
 import { bridge } from "@/lib/bridge";
 import {
   RemoteSourceImport,
@@ -12,10 +11,10 @@ import type {
   SourceOptions,
   SourceSummary,
   RemoteSourcePlan,
-} from "../../../shared/sources";
+} from "../../../../shared/sources";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
-export function SourcesRoute() {
+export function ProviderExtensions() {
   const cache = useQueryClient();
   const sources = useQuery({
     queryKey: ["managed-sources"],
@@ -37,6 +36,8 @@ export function SourcesRoute() {
       cache.invalidateQueries({ queryKey: ["manga"] }),
       cache.invalidateQueries({ queryKey: ["anime-sources"] }),
       cache.invalidateQueries({ queryKey: ["playback"] }),
+      cache.invalidateQueries({ queryKey: ["anime-source-details"] }),
+      cache.invalidateQueries({ queryKey: ["source-episodes"] }),
     ]);
   };
   const action = useMutation({
@@ -58,12 +59,11 @@ export function SourcesRoute() {
     },
   });
   return (
-    <Page>
-      <PageHeader
-        eyebrow="Manage"
-        title="Sources"
-        lead="Connect anime and manga providers, choose servers and manage their settings."
-      />
+    <section aria-label="Provider extensions">
+      <h2 className="font-serif text-2xl">Provider extensions</h2>
+      <p className="mt-2 text-sm text-base-content/60">
+        Manage anime and manga extensions, permissions, servers and updates.
+      </p>
       <div className="flex items-center justify-between gap-3 py-5">
         <p className="text-sm text-base-content/60">
           JavaScript and TypeScript provider scripts
@@ -76,7 +76,7 @@ export function SourcesRoute() {
           Import script
         </button>
       </div>
-      {sources.isPending && <p role="status">Loading sources…</p>}
+      {sources.isPending && <p role="status">Loading provider extensions…</p>}
       {sources.error && <p role="alert">{message(sources.error)}</p>}
       <RemoteSourceImport
         disabled={action.isPending || pick.isPending}
@@ -178,7 +178,8 @@ export function SourcesRoute() {
       )}
       {sources.data?.length === 0 && (
         <p className="py-10 text-base-content/60">
-          No sources installed. Import a provider script to get started.
+          No provider extensions installed. Import a script or a manifest to get
+          started.
         </p>
       )}
       <div className="grid gap-4 py-4">
@@ -335,7 +336,7 @@ export function SourcesRoute() {
           </article>
         ))}
       </div>
-    </Page>
+    </section>
   );
 }
 

@@ -58,7 +58,7 @@ execution lane; concurrent fetch scheduling remains pending.
 
 ## Nova development preview
 
-Nova's **Sources** screen can now import local JavaScript/TypeScript providers,
+Nova's **Extensions** screen (Provider extensions) can now import local JavaScript/TypeScript providers,
 configure websites/preferences/servers, enable or disable sources and check the
 runtime. Build the worker, start Nova, and use **Import script**. The environment
 config below is an optional first-run seed; after that Nova uses its persisted

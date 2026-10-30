@@ -1,0 +1,397 @@
+import { build } from "esbuild";
+import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { after, test } from "node:test";
+import { fileURLToPath } from "node:url";
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const scratch = await mkdtemp(join(tmpdir(), "vestra-buffering-"));
+after(() => rm(scratch, { recursive: true, force: true }));
+await build({
+  stdin: {
+    contents: `export {probePlayableStream} from './apps/nova/electron/probe-stream'; export {MpvSession} from './apps/nova/electron/mpv/session'; export {automaticVariant, STREAM_CACHE_ARGS} from './apps/nova/electron/mpv/stream-policy'; export {registerDeferredVariants, resolveRemotePlayback, remoteQualities, isAutomaticStream, createRemoteRecovery} from './apps/nova/electron/remote-playback';`,
+    resolveDir: root,
+  },
+  bundle: true,
+  platform: "node",
+  format: "cjs",
+  outfile: join(scratch, "fixture.cjs"),
+  plugins: [
+    {
+      name: "native-fixture",
+      setup(b) {
+        b.onResolve({ filter: /^electron$/ }, () => ({
+          path: "electron",
+          namespace: "fixture",
+        }));
+        b.onResolve({ filter: /^node:child_process$/ }, () => ({
+          path: "spawn",
+          namespace: "fixture",
+        }));
+        b.onResolve({ filter: /^\.\/connection$/ }, () => ({
+          path: "connection",
+          namespace: "fixture",
+        }));
+        b.onLoad({ filter: /.*/, namespace: "fixture" }, ({ path }) => ({
+          contents:
+            path === "electron"
+              ? `export const app={isPackaged:false,getAppPath:()=>"fixture",getPath:()=>"fixture"};`
+              : path === "spawn"
+                ? `import {EventEmitter} from 'node:events';export function spawn(_binary,args){globalThis.fixtureArgs=args;const child=new EventEmitter();child.stdout=new EventEmitter();child.stderr=new EventEmitter();child.kill=()=>{};return child;}`
+                : `export class MpvConnection { constructor(){globalThis.fixtureConnection=this;this.writes=[];} async connect(){} async observeProperty(){} onEvent(fn){this.emit=fn;} async setProperty(...args){this.writes.push(['set',...args]);} async command(...args){this.writes.push(args);if(args[0]==='loadfile'){this.emit({event:'start-file'});this.emit({event:'file-loaded'});}} close(){} }`,
+        }));
+      },
+    },
+  ],
+});
+const {
+  probePlayableStream,
+  MpvSession,
+  automaticVariant,
+  STREAM_CACHE_ARGS,
+  registerDeferredVariants,
+  resolveRemotePlayback,
+  remoteQualities,
+  isAutomaticStream,
+  createRemoteRecovery,
+} = createRequire(import.meta.url)(join(scratch, "fixture.cjs"));
+const remote = {
+  url: "https://cdn.example/video.m3u8",
+  headers: {},
+  subtitles: [],
+};
+const settle = () => new Promise((resolve) => setImmediate(resolve));
+async function sessionFixture(
+  t,
+  automatic = true,
+  fallback = async () => ({
+    playback: { ...remote, url: "https://cdn.example/720.m3u8" },
+    lowerQuality: true,
+  }),
+) {
+  const session = new MpvSession();
+  await session.start(
+    { getNativeWindowHandle: () => Buffer.alloc(8) },
+    { mpvPath: process.execPath },
+  );
+  await session.load(remote.url, 42, remote, automatic, false, fallback);
+  const connection = globalThis.fixtureConnection;
+  connection.emit({ event: "property-change", name: "pause", data: false });
+  connection.emit({ event: "property-change", name: "time-pos", data: 42 });
+  await settle();
+  t.after(() => session.stop());
+  return { session, connection };
+}
+test("automatic playback prefers Full HD, falls back to HD and preserves explicit choices", async () => {
+  const rows = [2160, 1080, 480, 720].map((height) => ({
+    key: String(height),
+    label: `${height}p · Main`,
+    playback: { ...remote, url: `https://cdn.example/${height}.m3u8` },
+  }));
+  assert.equal(automaticVariant(rows).key, "1080");
+  assert.equal(
+    automaticVariant(rows.filter((row) => !row.label.startsWith("1080"))).key,
+    "720",
+  );
+  const locator = registerDeferredVariants(async () => rows);
+  assert.match((await resolveRemotePlayback(locator)).url, /1080/);
+  assert.match((await resolveRemotePlayback(locator, true)).url, /720/);
+  const hd = (await remoteQualities(locator)).find((row) =>
+    row.label.startsWith("480"),
+  );
+  assert.match((await resolveRemotePlayback(hd.locator)).url, /480/);
+  assert.equal(isAutomaticStream(locator), true);
+  assert.equal(isAutomaticStream(hd.locator), false);
+});
+test("native profile bounds network waits and resets quality cap for local files", async (t) => {
+  const { session, connection } = await sessionFixture(t);
+  assert.ok(globalThis.fixtureArgs.includes("--no-config"));
+  for (const arg of STREAM_CACHE_ARGS)
+    assert.ok(globalThis.fixtureArgs.includes(arg));
+  assert.ok(
+    connection.writes.some(
+      (row) => row[1] === "options/hls-bitrate" && row[2] === 8000000,
+    ),
+  );
+  await session.load("owned.mkv", 0);
+  assert.ok(
+    connection.writes.some(
+      (row) => row[1] === "options/hls-bitrate" && row[2] === "max",
+    ),
+  );
+});
+test("persistent automatic stall reloads once at lower bandwidth and preserves position, then stops", async (t) => {
+  const { session, connection } = await sessionFixture(t);
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  connection.emit({
+    event: "property-change",
+    name: "paused-for-cache",
+    data: true,
+  });
+  t.mock.timers.tick(12001);
+  await settle();
+  assert.ok(
+    connection.writes.some(
+      (row) => row[1] === "options/hls-bitrate" && row[2] === 3000000,
+    ),
+  );
+  assert.ok(
+    connection.writes.some(
+      (row) => row[1] === "options/start" && row[2] === "42",
+    ),
+  );
+  assert.equal(
+    connection.writes.filter((row) => row[0] === "loadfile").length,
+    2,
+  );
+  assert.ok(
+    connection.writes.some(
+      (row) => row[0] === "loadfile" && row[1].includes("720.m3u8"),
+    ),
+  );
+  connection.emit({
+    event: "property-change",
+    name: "paused-for-cache",
+    data: true,
+  });
+  t.mock.timers.tick(12001);
+  await settle();
+  assert.match(session.state.error, /stopped delivering data/);
+  assert.equal(
+    connection.writes.filter((row) => row[0] === "loadfile").length,
+    2,
+  );
+});
+test("pause cancels recovery and manual quality is never silently downgraded", async (t) => {
+  const { session, connection } = await sessionFixture(t, false);
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  connection.emit({
+    event: "property-change",
+    name: "paused-for-cache",
+    data: true,
+  });
+  connection.emit({ event: "property-change", name: "pause", data: true });
+  t.mock.timers.tick(20000);
+  await settle();
+  assert.equal(session.state.error, null);
+  connection.emit({ event: "property-change", name: "pause", data: false });
+  t.mock.timers.tick(12001);
+  await settle();
+  assert.match(session.state.error, /stopped delivering data/);
+  assert.equal(
+    connection.writes.filter((row) => row[0] === "loadfile").length,
+    1,
+  );
+});
+
+test("buffer flag alone cannot downgrade a video that is still advancing", async (t) => {
+  const { session, connection } = await sessionFixture(t);
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  connection.emit({
+    event: "property-change",
+    name: "paused-for-cache",
+    data: true,
+  });
+  connection.emit({ event: "property-change", name: "time-pos", data: 47 });
+  t.mock.timers.tick(12001);
+  await settle();
+  assert.equal(
+    connection.writes.filter((row) => row[0] === "loadfile").length,
+    1,
+  );
+  assert.equal(session.state.error, null);
+  // A further interval with no progress is a real stall and can recover.
+  t.mock.timers.tick(12001);
+  await settle();
+  assert.equal(
+    connection.writes.filter((row) => row[0] === "loadfile").length,
+    2,
+  );
+});
+
+test("native buffer telemetry rejects invalid values and clears across files", async (t) => {
+  const { session, connection } = await sessionFixture(t);
+  connection.emit({
+    event: "property-change",
+    name: "demuxer-cache-duration",
+    data: 12.5,
+  });
+  connection.emit({
+    event: "property-change",
+    name: "cache-speed",
+    data: 1048576,
+  });
+  assert.equal(session.state.bufferedSeconds, 12.5);
+  assert.equal(session.state.downloadBytesPerSecond, 1048576);
+  connection.emit({ event: "property-change", name: "cache-speed", data: -1 });
+  assert.equal(session.state.downloadBytesPerSecond, null);
+  await session.load("owned.mkv", 0);
+  assert.equal(session.state.bufferedSeconds, null);
+  assert.equal(session.state.downloadBytesPerSecond, null);
+});
+
+test("startup probes only a usable Full HD manifest, retaining other qualities", async () => {
+  const result = {
+    server: "Main",
+    headers: {},
+    videoSources: [1080, 720, 480].map((h) => ({
+      type: "hls",
+      quality: `${h}p`,
+      url: `https://cdn.example/${h}.m3u8`,
+      subtitles: [],
+    })),
+  };
+  const requests = [];
+  const checked = await probePlayableStream(result, async (input) => {
+    requests.push(input.url);
+    return { status: 200, headers: {}, body: "#EXTM3U" };
+  });
+  assert.deepEqual(requests, ["https://cdn.example/1080.m3u8"]);
+  assert.equal(checked.videoSources.length, 3);
+  requests.length = 0;
+  const recovered = await probePlayableStream(result, async (input) => {
+    requests.push(input.url);
+    return {
+      status: input.url.includes("1080") ? 503 : 200,
+      headers: {},
+      body: "#EXTM3U",
+    };
+  });
+  assert.deepEqual(requests, [
+    "https://cdn.example/1080.m3u8",
+    "https://cdn.example/720.m3u8",
+  ]);
+  assert.equal(recovered.videoSources.length, 2);
+});
+
+function mirrorRows(server) {
+  return [1080, 720].map((height) => ({
+    server,
+    key: `${server}-${height}`,
+    label: `${height}p - ${server}`,
+    playback: {
+      ...remote,
+      url:
+        server === "A" && height === 1080
+          ? remote.url
+          : `https://cdn.example/${server}-${height}.m3u8`,
+      headers: { Referer: `https://${server.toLowerCase()}.example` },
+      subtitles: [{ url: `https://cdn.example/${server}.vtt`, language: "en" }],
+    },
+  }));
+}
+test("lazy mirror recovery preserves HD and headers, excludes tried servers, then offers one lighter rendition", async () => {
+  const calls = [];
+  let enabled = true;
+  const locator = registerDeferredVariants(
+    async () => mirrorRows("A"),
+    () => {
+      if (!enabled) throw Error("provider disabled");
+    },
+    async (excluded) => {
+      calls.push([...excluded]);
+      const next = ["A", "B", "C"].find((server) => !excluded.includes(server));
+      if (!next) throw Error("No more mirrors");
+      return mirrorRows(next);
+    },
+  );
+  const initial = await resolveRemotePlayback(locator);
+  const originalChoices = await remoteQualities(locator);
+  const recovery = createRemoteRecovery(locator, initial);
+  const b = await recovery();
+  assert.match(b.playback.url, /B-1080/);
+  assert.equal(b.lowerQuality, false);
+  assert.equal(
+    (await resolveRemotePlayback(originalChoices[0].locator)).url,
+    initial.url,
+    "recovery cannot rewrite a manual quality handle",
+  );
+  assert.equal(b.playback.headers.Referer, "https://b.example");
+  assert.match(b.playback.subtitles[0].url, /B.vtt/);
+  const c = await b.retry();
+  assert.match(c.playback.url, /C-1080/);
+  assert.equal(c.lowerQuality, false);
+  const low = await c.retry();
+  assert.match(low.playback.url, /C-720/);
+  assert.equal(low.lowerQuality, true);
+  assert.equal(low.retry, undefined);
+  assert.deepEqual(calls, [["A"], ["A", "B"], ["A", "B", "C"]]);
+  enabled = false;
+  await assert.rejects(recovery(), /disabled/);
+});
+test("native delivery error immediately switches mirror at the same position and HD budget", async (t) => {
+  const locator = registerDeferredVariants(
+    async () => mirrorRows("A"),
+    undefined,
+    async () => mirrorRows("B"),
+  );
+  const initial = await resolveRemotePlayback(locator);
+  const { connection } = await sessionFixture(
+    t,
+    true,
+    createRemoteRecovery(locator, initial),
+  );
+  connection.emit({ event: "end-file", reason: "error" });
+  await settle();
+  await settle();
+  assert.ok(
+    connection.writes.some(
+      (row) => row[0] === "loadfile" && row[1].includes("B-1080"),
+    ),
+  );
+  assert.equal(
+    connection.writes.filter((row) => row[1] === "options/start").at(-1)[2],
+    "42",
+  );
+  assert.equal(
+    connection.writes
+      .filter((row) => row[1] === "options/hls-bitrate")
+      .at(-1)[2],
+    8000000,
+  );
+});
+test("late failed recovery cannot publish an error over a replacement episode", async (t) => {
+  let rejectRecovery;
+  const { session, connection } = await sessionFixture(
+    t,
+    true,
+    () =>
+      new Promise((_resolve, reject) => {
+        rejectRecovery = reject;
+      }),
+  );
+  connection.emit({ event: "end-file", reason: "error" });
+  await settle();
+  await session.load("next-episode.mkv", 0);
+  rejectRecovery(Error("Old mirror failed"));
+  await settle();
+  assert.equal(session.state.error, null);
+  assert.equal(
+    connection.writes.filter((row) => row[0] === "loadfile").at(-1)[1],
+    "next-episode.mkv",
+  );
+});
+
+test("mirror retry budget is finite even with many advertised mirrors", async (t) => {
+  const now = Date.now();
+  let clock = now;
+  t.mock.method(Date, "now", () => clock);
+  const locator = registerDeferredVariants(async () =>
+    ["A", "B", "C", "D", "E", "F"].flatMap(mirrorRows),
+  );
+  const initial = await resolveRemotePlayback(locator);
+  let next = await createRemoteRecovery(locator, initial)();
+  const visited = [];
+  while (next.retry) {
+    visited.push(next.playback.url);
+    clock += 180001;
+    next = await next.retry();
+    assert.ok(visited.length <= 3);
+  }
+  assert.equal(visited.length, 3);
+  assert.equal(new Set(visited).size, 3);
+  assert.equal(next.lowerQuality, true);
+  assert.match(next.playback.url, /D-720/);
+});

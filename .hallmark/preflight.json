@@ -1,25 +1,41 @@
 {
   "version": "2.0.0",
+  "scanned": "2026-10-30",
+  "mode": "redesign",
+  "depth": "full",
   "scope": "app",
-  "screen": "manga information and saved library",
-  "theme": "Vestra existing tokens",
-  "genre": "modern-minimal",
-  "material": {
-    "actual": "AniList metadata and source chapter index",
-    "absent": "invented ratings, new visual assets"
+  "screen": "Anime Details",
+  "genre": "atmospheric",
+  "theme": "Vestra Archive (preserved brand)",
+  "route": "/media/:source/anime/:id?source=<installed extension>",
+  "evidence": {
+    "palette": "apps/nova/renderer/src/styles/theme.css:45",
+    "fonts": "apps/nova/renderer/src/styles/theme.css:90",
+    "previousDetails": "apps/nova/renderer/src/routes/detail.tsx:1",
+    "extensionRegistration": "apps/nova/electron/extension-providers.ts:1",
+    "sourceManagement": "apps/nova/renderer/src/components/extensions/provider-extensions.tsx:1"
   },
-  "preserved": [
-    "React/Electron shell",
-    "theme.css semantic colours",
-    "Inter",
-    "compact dark controls"
+  "preserve": [
+    "warm dark semantic colors, Instrument Serif title and Inter controls",
+    "catalogue identity, local playback, quality, bookmarks and watch progress",
+    "installed provider IDs, host grants, preferences, update history and runtime formats"
   ],
-  "signature": "source-specific chapter index before reading",
-  "states": ["loading", "empty", "error", "full"],
-  "files": [
-    "apps/nova/renderer/src/components/manga/manga-details.tsx",
-    "apps/nova/renderer/src/components/manga/manga-details.css",
-    "apps/nova/renderer/src/components/manga/manga-library.tsx",
-    "apps/nova/renderer/src/components/manga/manga-discovery.tsx"
-  ]
+  "introduce": [
+    "poster-led details and publication facts",
+    "URL-backed compatible extension selector beside episodes",
+    "bounded searchable sortable episode rows and distinct recovery states",
+    "Extensions as the sole management destination"
+  ],
+  "files": {
+    "move": {
+      "routes/sources.tsx": "components/extensions/provider-extensions.tsx"
+    },
+    "create": [
+      "components/media/anime-details.tsx",
+      "components/media/anime-details.css",
+      "components/media/anime-design/tokens.css",
+      "components/media/anime-design/base.css"
+    ],
+    "routes": "Existing details kept, Sources redirects to Extensions, no provider data removed"
+  }
 }

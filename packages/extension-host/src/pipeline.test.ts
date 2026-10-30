@@ -19,8 +19,7 @@ import type { GuardedTransport } from "./net";
 import { createBrokeredFetch, NetworkDeniedError } from "./net";
 import { createHostBridge } from "./bridge";
 import type { PermissionGrant } from "./permissions";
-import { listInstalled, readSource, removeInstalled, saveInstalled } from "./store";
-import { ExtensionRefusedError } from "./trust";
+import { listInstalled, readSource, removeInstalled, saveInstalled, setInstalledEnabled } from "./store";
 
 /**
  * The install pipeline, exercised without a network.
@@ -122,16 +121,16 @@ describe("manifest validation", () => {
 });
 
 describe("install", () => {
-  it("refuses excluded types before making any request", async () => {
+  it("reviews enabled streaming provider types through the manifest pipeline", async () => {
     const transport = stubTransport({});
 
     await expect(
       prepareInstall(candidate({ type: "onlinestream-provider" }), transport),
-    ).rejects.toBeInstanceOf(ExtensionRefusedError);
+    ).rejects.toBeInstanceOf(InstallError);
 
-    // The important part: nothing was fetched. Declining while still pinging
-    // the host is not declining.
-    expect(transport.requested).toEqual([]);
+    // Streaming types are enabled in the support matrix; their manifests
+    // still pass through the same review and validation pipeline.
+    expect(transport.requested).toEqual([MANIFEST_URL]);
   });
 
   it("refuses a manifest claiming a different identity", async () => {
@@ -291,6 +290,32 @@ describe("store", () => {
     });
 
     expect(await readSource(driver, record)).toBeNull();
+  });
+});
+
+describe("extension enablement", () => {
+  it("persists disabled state alongside old installs without changing grants, IDs or code", async () => {
+    const driver = new MemoryDriver();
+    const { manifest, source } = await exampleFiles();
+    const transport = stubTransport({
+      [MANIFEST_URL]: manifest,
+      [PAYLOAD_URL]: source,
+    });
+    const plan = await prepareInstall(candidate(), transport);
+    const { record } = await completeInstall(plan, ["network"], transport);
+    await saveInstalled(driver, record, source);
+    expect((await listInstalled(driver))[0]!.enabled).toBeUndefined();
+    await setInstalledEnabled(driver, record.id, false);
+    const disabled = (await listInstalled(driver))[0]!;
+    expect(disabled.enabled).toBe(false);
+    expect(disabled.grant).toEqual(record.grant);
+    expect(disabled.integrity).toBe(record.integrity);
+    expect(await readSource(driver, disabled)).toBe(source);
+    await setInstalledEnabled(driver, record.id, true);
+    expect((await listInstalled(driver))[0]!.enabled).toBe(true);
+    await expect(setInstalledEnabled(driver, "removed", false)).rejects.toThrow(
+      /no longer installed/,
+    );
   });
 });
 

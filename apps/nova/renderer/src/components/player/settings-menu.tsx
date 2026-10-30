@@ -13,7 +13,15 @@ import { bridge, type MpvState, type MpvTrack } from "@/lib/bridge";
  * chosen — which keeps every option two clicks away at most.
  */
 
-type Page = "root" | "speed" | "audio" | "subtitles" | "delay" | "size" | "keys";
+type Page =
+  | "root"
+  | "quality"
+  | "speed"
+  | "audio"
+  | "subtitles"
+  | "delay"
+  | "size"
+  | "keys";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
 const SIZES = [0.75, 0.9, 1, 1.15, 1.3, 1.5] as const;
@@ -64,16 +72,22 @@ export function SettingsMenu({
   onClose,
   onOpenAppSettings,
   reportableSkips = [],
+  streamSource = null,
+  activeStream = null,
 }: {
   mpv: MpvState;
   onClose: () => void;
   onOpenAppSettings: () => void;
   /** Ranges that came from AniSkip, so can be voted down. */
   reportableSkips?: readonly string[];
+  /** The add-on stream this episode came from, when it offers qualities. */
+  streamSource?: string | null;
+  /** The stream playing now. */
+  activeStream?: string | null;
 }) {
-  const [reported, setReported] = useState<"idle" | "sending" | "done" | "failed">(
-    "idle",
-  );
+  const [reported, setReported] = useState<
+    "idle" | "sending" | "done" | "failed"
+  >("idle");
   const [page, setPage] = useState<Page>("root");
   const container = useRef<HTMLDivElement>(null);
 
@@ -121,6 +135,17 @@ export function SettingsMenu({
 
       {page === "root" ? (
         <>
+          {streamSource ? (
+            <Row
+              label="Quality"
+              value={
+                activeStream && activeStream !== streamSource
+                  ? "Selected"
+                  : "Auto (HD first)"
+              }
+              onClick={() => setPage("quality")}
+            />
+          ) : null}
           <Row
             label="Playback speed"
             value={mpv.speed === 1 ? "Normal" : `${mpv.speed}×`}
@@ -135,7 +160,9 @@ export function SettingsMenu({
           <Row
             label="Subtitles"
             value={
-              mpv.subtitleVisible && activeSubtitle ? describe(activeSubtitle) : "Off"
+              mpv.subtitleVisible && activeSubtitle
+                ? describe(activeSubtitle)
+                : "Off"
             }
             onClick={() => setPage("subtitles")}
             disabled={subtitles.length === 0}
@@ -147,10 +174,18 @@ export function SettingsMenu({
           />
           <Row
             label="Subtitle size"
-            value={mpv.subtitleScale === 1 ? "Default" : `${Math.round(mpv.subtitleScale * 100)}%`}
+            value={
+              mpv.subtitleScale === 1
+                ? "Default"
+                : `${Math.round(mpv.subtitleScale * 100)}%`
+            }
             onClick={() => setPage("size")}
           />
-          <Row label="Keyboard shortcuts" value="" onClick={() => setPage("keys")} />
+          <Row
+            label="Keyboard shortcuts"
+            value=""
+            onClick={() => setPage("keys")}
+          />
 
           {/*
             Timings are community-submitted and occasionally belong to another
@@ -199,6 +234,10 @@ export function SettingsMenu({
         </>
       ) : null}
 
+      {page === "quality" && streamSource ? (
+        <QualityList streamSource={streamSource} activeStream={activeStream} />
+      ) : null}
+
       {page === "speed"
         ? SPEEDS.map((value) => (
             <Option
@@ -219,7 +258,9 @@ export function SettingsMenu({
               label={describe(track)}
               selected={track.selected}
               onSelect={() => {
-                void bridge.mpv.selectTrack("audio", track.id).catch(() => undefined);
+                void bridge.mpv
+                  .selectTrack("audio", track.id)
+                  .catch(() => undefined);
               }}
             />
           ))
@@ -329,6 +370,8 @@ export function SettingsMenu({
 
 function titleFor(page: Page): string {
   switch (page) {
+    case "quality":
+      return "Quality";
     case "speed":
       return "Playback speed";
     case "audio":
@@ -344,6 +387,86 @@ function titleFor(page: Page): string {
     default:
       return "Settings";
   }
+}
+
+/**
+ * The qualities the add-on offers for this episode.
+ *
+ * A choice goes to the catalogue window, which reopens the episode on that
+ * stream at the current position.
+ */
+function QualityList({
+  streamSource,
+  activeStream,
+}: {
+  streamSource: string;
+  activeStream: string | null;
+}) {
+  // Plain fetch rather than a query: this window has no query provider.
+  const [state, setState] = useState<{
+    status: "loading" | "ready" | "failed";
+    choices: { locator: string; label: string }[];
+  }>({ status: "loading", choices: [] });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading", choices: [] });
+    bridge.media
+      .streamQualities(streamSource)
+      .then((choices) => {
+        if (!cancelled) setState({ status: "ready", choices });
+      })
+      .catch(() => {
+        if (!cancelled) setState({ status: "failed", choices: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [streamSource]);
+
+  if (state.status === "loading") {
+    return (
+      <p role="status" className="px-3 py-2 text-sm text-white/50">
+        Loading qualities…
+      </p>
+    );
+  }
+  if (state.status === "failed") {
+    return (
+      <p role="alert" className="px-3 py-2 text-sm text-white/50">
+        Could not load qualities.
+      </p>
+    );
+  }
+  if (state.choices.length === 0) {
+    return (
+      <p className="px-3 py-2 text-sm text-white/50">No other qualities.</p>
+    );
+  }
+
+  return (
+    <>
+      <Option
+        label="Auto (HD first)"
+        selected={activeStream === streamSource}
+        onSelect={() => {
+          void bridge.player.setQuality(streamSource).catch(() => undefined);
+        }}
+      />
+      {state.choices.map((choice) => (
+        <Option
+          key={choice.locator}
+          label={choice.label}
+          selected={activeStream === choice.locator}
+          onSelect={() => {
+            void bridge.player
+              .setQuality(choice.locator)
+              .catch(() => undefined);
+          }}
+        />
+      ))}
+    </>
+  );
 }
 
 function Row({
@@ -392,7 +515,9 @@ function Option({
       <span
         className={`size-1.5 shrink-0 rounded-full ${selected ? "bg-primary" : "bg-transparent"}`}
       />
-      <span className={`truncate ${selected ? "text-white" : "text-white/60"}`}>{label}</span>
+      <span className={`truncate ${selected ? "text-white" : "text-white/60"}`}>
+        {label}
+      </span>
     </button>
   );
 }
@@ -427,8 +552,10 @@ function Chevron({ className }: { className?: string }) {
 function describe(track: MpvTrack | undefined): string {
   if (!track) return "None";
   if (track.title) {
-    return track.language && track.title.toLowerCase() !== track.language.toLowerCase()
-      ? `${track.title} · ${track.language}` : track.title;
+    return track.language &&
+      track.title.toLowerCase() !== track.language.toLowerCase()
+      ? `${track.title} · ${track.language}`
+      : track.title;
   }
   if (track.language) return track.language.toUpperCase();
   return `Track ${track.id}`;

@@ -1,3 +1,7 @@
+import { probePlayableStream } from "./probe-stream";
+import { extractStreamplay, streamplayEmbed } from "./streamplay";
+import { resolveEpisodeServers } from "./episode-servers";
+import { safeFetch } from "./safe-fetch";
 import { readFile, stat } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { basename, dirname, resolve } from "node:path";
@@ -16,10 +20,7 @@ import {
   type MangaBookmarkRepository,
 } from "./manga-bookmarks";
 import { transpileProvider } from "./provider-transpile";
-import {
-  applyProviderCompatibility,
-  chooseEpisodeServer,
-} from "./provider-compat";
+import { applyProviderCompatibility } from "./provider-compat";
 import { createStreamSourceAdapter } from "./extension-providers";
 import { getMangaService } from "./manga-ipc";
 import {
@@ -178,68 +179,39 @@ export async function activateCSharpSource(
         const settings = (await call("getSettings", [], signal)) as {
           episodeServers: string[];
         };
-        // Resolve the configured server, or the provider's first advertised server.
-        const raw = (await call(
-          "findEpisodeServer",
-          [
-            episode,
-            chooseEpisodeServer(
-              settings.episodeServers,
-              definition.preferredServer,
-            ),
-          ],
-          signal,
-        )) as {
-          server: string;
-          headers?: Record<string, string>;
-          videoSources: {
-            type: string;
-            url: string;
-            quality?: string;
-            subtitles?: {
-              id?: string;
-              url: string;
-              language: string;
-              title?: string;
-              isDefault?: boolean;
-            }[];
-          }[];
-        };
-        return [
-          {
-            ...raw,
-            videoSources: raw.videoSources.flatMap((video) => {
-              const type =
-                video.type === "m3u8" || video.type === "hls"
-                  ? "hls"
-                  : video.type === "mp4"
-                    ? "mp4"
-                    : null;
-              return type
-                ? [
-                    {
-                      ...video,
-                      type,
-                      quality: video.quality ?? "auto",
-                      subtitles: (video.subtitles ?? []).map((sub, i) => ({
-                        ...sub,
-                        id:
-                          typeof sub.id === "string" && sub.id.trim()
-                            ? sub.id
-                            : `csharp-sub-${i}`,
-                      })),
-                    },
-                  ]
-                : [];
-            }),
+        return resolveEpisodeServers(
+          settings.episodeServers,
+          definition.preferredServer,
+          async (server) => {
+            try {
+              return await call("findEpisodeServer", [episode, server], signal);
+            } catch (error) {
+              const embed = streamplayEmbed(error);
+              if (!embed) throw error;
+              return extractStreamplay(
+                embed,
+                server,
+                episode.url ?? "",
+                signal,
+              );
+            }
           },
-        ];
+          (result) => probePlayableStream(result, safeFetch, signal),
+          signal,
+          (args[1] as { excludeServers?: string[] } | undefined)
+            ?.excludeServers ?? [],
+        );
       }
       throw new Error(`Unsupported C# provider adapter method: ${method}`);
     },
     onWarning: (message) => console.warn(`[csharp-provider:${id}] ${message}`),
   });
-  const adapter = createStreamSourceAdapter(provider);
+  const adapter = createStreamSourceAdapter(provider, () => {
+    const registry = getStreamSourceRegistry();
+    return (
+      registry.get(provider.id) === provider && registry.isEnabled(provider.id)
+    );
+  });
   getStreamSourceRegistry().register(provider);
   try {
     getAdapterRegistry().register(adapter);

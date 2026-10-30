@@ -82,7 +82,10 @@ export function RemoteSourceReview({
       )}
       {!!plan.addedHosts.length && (
         <p className="text-sm">
-          Websites requested: {plan.addedHosts.join(", ")}
+          {plan.inferredHosts
+            ? "Suggested websites found in the script"
+            : "Websites requested"}
+          : {plan.addedHosts.join(", ")}
         </p>
       )}
       <label className="grid gap-1 text-sm">
@@ -119,7 +122,7 @@ export function RemoteSourceReview({
             ? "Applying…"
             : plan.updating
               ? "Apply update"
-              : "Install source"}
+              : "Install extension"}
         </button>
         <button className="btn btn-ghost" disabled={busy} onClick={onCancel}>
           Cancel

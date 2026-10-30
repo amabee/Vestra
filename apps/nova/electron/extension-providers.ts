@@ -4,13 +4,10 @@ import {
   createExtensionProvider,
   createStreamSourceProvider,
   type InstalledExtension,
-  type StreamSourceProvider,
 } from "@vestra/extension-host";
-import type { SourceAdapter } from "@vestra/provider-sdk";
-import type { MediaItem, PlaybackSource } from "@vestra/types";
 
 import { callExtension } from "./extensions";
-import { registerDeferredVariants, streamVariants } from "./remote-playback";
+import { createStreamSourceAdapter } from "./stream-source-adapter";
 import {
   getAdapterRegistry,
   getProviderRegistry,
@@ -76,85 +73,7 @@ export function detachExtensionProvider(extensionId: string): void {
   getProviderRegistry().unregister(`ext-${extensionId}`);
 }
 
-const MAX_EXTENSION_EPISODES = 200;
-
-function normaliseTitle(value: string): string {
-  return value
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
-}
-
-export function createStreamSourceAdapter(
-  source: StreamSourceProvider,
-): SourceAdapter {
-  return {
-    id: `ext-stream-${source.id.slice("ext-".length)}`,
-    name: source.name,
-    isAvailable: () => true,
-    canHandle: (item) =>
-      source.kinds.includes(item.kind) && item.source !== "local",
-
-    async resolve(item, context): Promise<PlaybackSource[]> {
-      const itemTitles = [item.title, item.originalTitle]
-        .filter(
-          (title): title is string => title !== null && title.trim().length > 0,
-        )
-        .map(normaliseTitle);
-
-      if (itemTitles.length === 0) return [];
-
-      let match;
-      for (const query of [
-        ...new Set(
-          [item.title, item.originalTitle].filter(
-            (value): value is string => !!value?.trim(),
-          ),
-        ),
-      ]) {
-        const candidates = await source.search(query, { limit: 10 }, context);
-        match = candidates.find((candidate) =>
-          itemTitles.includes(normaliseTitle(candidate.title)),
-        );
-        if (match) break;
-      }
-
-      if (!match) return [];
-
-      const episodes = await source.getEpisodes(match.id, context);
-      const playable: PlaybackSource[] = [];
-
-      for (const episode of episodes.slice(0, MAX_EXTENSION_EPISODES)) {
-        const locator = registerDeferredVariants(async () => {
-          const results = await source.getStreams(episode.id, {
-            ...context,
-            signal: AbortSignal.timeout(context?.timeoutMs ?? 10_000),
-          });
-          const variants = streamVariants(results);
-          if (!variants.length)
-            throw new Error("This episode has no playable stream.");
-          return variants;
-        });
-        playable.push({
-          kind: "stream",
-          locator,
-          mimeType: null,
-          label: episode.title ?? `Episode ${episode.number}`,
-          // In-app extension streams outrank official deep links, while
-          // local files and owned media-server streams still win above them.
-          priority: 80,
-          ...(Number.isInteger(episode.number)
-            ? { episode: episode.number }
-            : {}),
-        });
-      }
-
-      return playable;
-    },
-  };
-}
+export { createStreamSourceAdapter } from "./stream-source-adapter";
 
 /**
  * Offer an extension as a stream source.
@@ -202,7 +121,10 @@ export function attachStreamSourceProvider(
   registry.unregister(source.id);
   registry.register(source);
 
-  const adapter = createStreamSourceAdapter(source);
+  const adapter = createStreamSourceAdapter(
+    source,
+    () => registry.get(source.id) === source && registry.isEnabled(source.id),
+  );
   const adapters = getAdapterRegistry();
   adapters.unregister(adapter.id);
   adapters.register(adapter);

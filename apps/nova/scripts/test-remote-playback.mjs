@@ -12,7 +12,10 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const scratch = await mkdtemp(join(tmpdir(), "vestra-remote-"));
 await build({
-  entryPoints: [join(root, "electron/remote-playback.ts")],
+  stdin: {
+    contents: `export * from "./electron/remote-playback"; export {STREAM_CACHE_ARGS, AUTO_HLS_BITRATE} from "./electron/mpv/stream-policy";`,
+    resolveDir: root,
+  },
   bundle: true,
   platform: "node",
   format: "cjs",
@@ -22,10 +25,13 @@ const {
   registerRemotePlayback,
   registerDeferredPlayback,
   resolveRemotePlayback,
+  invalidateRemotePlayback,
   remoteLoadOptions,
   registerDeferredVariants,
   remoteQualities,
   streamVariants,
+  STREAM_CACHE_ARGS,
+  AUTO_HLS_BITRATE,
 } = createRequire(import.meta.url)(join(scratch, "remote.cjs"));
 after(() => rm(scratch, { recursive: true, force: true }));
 test("opaque handles preserve headers/subtitles and reject arbitrary renderer URLs", async () => {
@@ -50,7 +56,10 @@ test("opaque handles preserve headers/subtitles and reject arbitrary renderer UR
   assert.equal(calls, 0);
   await resolveRemotePlayback(deferred);
   await resolveRemotePlayback(deferred);
-  assert.equal(calls, 2, "replay must refresh signed URLs");
+  assert.equal(calls, 1, "warm playback shares a fresh signature");
+  invalidateRemotePlayback(deferred);
+  await resolveRemotePlayback(deferred);
+  assert.equal(calls, 2, "failed-media retry refreshes signed URLs");
   assert.deepEqual(remoteLoadOptions(), { headers: [], subtitles: [] });
   assert.throws(() =>
     registerRemotePlayback({
@@ -60,7 +69,13 @@ test("opaque handles preserve headers/subtitles and reject arbitrary renderer UR
   );
 });
 
-test("quality choices hide URLs, refresh signatures and preserve the chosen rendition after reordering", async () => {
+test("quality choices hide URLs, refresh expired signatures and preserve the chosen rendition after reordering", async (t) => {
+  const originalNow = Date.now;
+  let clock = originalNow();
+  Date.now = () => clock;
+  t.after(() => {
+    Date.now = originalNow;
+  });
   let token = 0;
   let reverse = false;
   let removed = false;
@@ -90,11 +105,13 @@ test("quality choices hide URLs, refresh signatures and preserve the chosen rend
   assert.equal("url" in choices[0], false);
   const full = choices.find((row) => row.label.startsWith("1080p"));
   reverse = true;
+  clock += 180001;
   const playback = await resolveRemotePlayback(full.locator);
   assert.match(playback.url, /1080p.*token=2/);
   assert.equal(playback.headers["X-Quality"], "1080p");
   assert.equal(playback.headers.Referer, "https://origin.example");
   removed = true;
+  invalidateRemotePlayback(full.locator);
   await assert.rejects(
     resolveRemotePlayback(full.locator),
     /no longer available/,
@@ -149,6 +166,7 @@ test(
       process.env.VESTRA_TEST_MPV,
       [
         "--no-config",
+        ...STREAM_CACHE_ARGS,
         "--idle=yes",
         "--pause=yes",
         "--vo=null",
@@ -217,6 +235,11 @@ test(
         "X-Vestra-Test: required",
       ]);
       await command("set_property", "options/sub-files", [`${base}/en.vtt`]);
+      await command("set_property", "options/hls-bitrate", AUTO_HLS_BITRATE);
+      assert.equal(
+        await command("get_property", "options/hls-bitrate"),
+        AUTO_HLS_BITRATE,
+      );
       await command("loadfile", `${base}/index.m3u8`, "replace");
       let tracks = [];
       for (let i = 0; i < 60; i++) {

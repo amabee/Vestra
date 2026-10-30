@@ -34,18 +34,22 @@ export interface SkipInterval {
   skipId: string | null;
 }
 
-interface RawResult {
-  skipType?: unknown;
-  skipId?: unknown;
-  interval?: { startTime?: unknown; endTime?: unknown };
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-/** Skip times keyed by "malId:episode", including misses. */
-const skipCache = new Map<string, SkipInterval[]>();
+/** Skip times keyed by MAL id, episode and runtime, including short-lived misses. */
+const skipCache = new Map<
+  string,
+  { intervals: SkipInterval[]; expires: number }
+>();
+function cacheTimes(key: string, intervals: SkipInterval[]) {
+  if (skipCache.size >= 500) skipCache.delete(skipCache.keys().next().value!);
+  skipCache.set(key, {
+    intervals,
+    expires: Date.now() + (intervals.length ? 3600000 : 60000),
+  });
+}
 
 /**
  * Fetch skip intervals for one episode.
@@ -59,13 +63,14 @@ export async function fetchSkipTimes(
   episodeNumber: number,
   episodeLengthSeconds = 0,
 ): Promise<SkipInterval[]> {
-  const key = `${malId}:${episodeNumber}`;
+  const length = Math.max(0, Math.round(episodeLengthSeconds));
+  const key = `${malId}:${episodeNumber}:${length}`;
   const cached = skipCache.get(key);
-  if (cached) return cached;
+  if (cached && cached.expires > Date.now()) return cached.intervals;
 
   const url =
     `${ANISKIP_ENDPOINT}/${malId}/${episodeNumber}` +
-    `?types=op&types=ed&episodeLength=${Math.max(0, Math.round(episodeLengthSeconds))}`;
+    `?types=op&types=ed&episodeLength=${length}`;
 
   try {
     const response = await fetch(url, {
@@ -75,20 +80,25 @@ export async function fetchSkipTimes(
 
     // 404 means "no timings submitted for this episode" — an answer, not a fault.
     if (!response.ok) {
-      skipCache.set(key, []);
+      if (response.status === 404) cacheTimes(key, []);
       return [];
     }
 
     const payload: unknown = await response.json();
 
-    if (!isRecord(payload) || payload.found !== true || !Array.isArray(payload.results)) {
-      skipCache.set(key, []);
+    if (
+      !isRecord(payload) ||
+      payload.found !== true ||
+      !Array.isArray(payload.results)
+    ) {
+      cacheTimes(key, []);
       return [];
     }
 
     const intervals: SkipInterval[] = [];
 
-    for (const entry of payload.results as RawResult[]) {
+    for (const entry of payload.results) {
+      if (!isRecord(entry)) continue;
       const kind =
         entry.skipType === "op"
           ? "opening"
@@ -98,13 +108,27 @@ export async function fetchSkipTimes(
 
       if (!kind) continue;
 
-      const start = entry.interval?.startTime;
-      const end = entry.interval?.endTime;
+      if (!isRecord(entry.interval)) continue;
+      const start = entry.interval.startTime;
+      const end = entry.interval.endTime;
       if (typeof start !== "number" || typeof end !== "number") continue;
 
       // Guard against malformed submissions; a zero-length or reversed range
       // would produce a button that does nothing.
-      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+      if (
+        !Number.isFinite(start) ||
+        !Number.isFinite(end) ||
+        start < 0 ||
+        end <= start
+      )
+        continue;
+      if (length > 0 && end > length + 1) continue;
+      if (
+        length > 0 &&
+        typeof entry.episodeLength === "number" &&
+        Math.abs(entry.episodeLength - length) > Math.max(15, length * 0.02)
+      )
+        continue;
 
       intervals.push({
         kind,
@@ -114,10 +138,9 @@ export async function fetchSkipTimes(
       });
     }
 
-    skipCache.set(key, intervals);
+    cacheTimes(key, intervals);
     return intervals;
   } catch {
-    skipCache.set(key, []);
     return [];
   }
 }
@@ -158,12 +181,18 @@ export async function getSkipTimes(
  */
 export async function reportSkipTime(skipId: string): Promise<boolean> {
   try {
-    const response = await fetch(`${ANISKIP_ENDPOINT}/vote/${encodeURIComponent(skipId)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ voteType: "downvote" }),
-      signal: AbortSignal.timeout(8000),
-    });
+    const response = await fetch(
+      `${ANISKIP_ENDPOINT}/vote/${encodeURIComponent(skipId)}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ voteType: "downvote" }),
+        signal: AbortSignal.timeout(8000),
+      },
+    );
 
     if (!response.ok) return false;
 

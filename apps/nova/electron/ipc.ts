@@ -1,3 +1,6 @@
+import { prepareExtensionReview } from "./extension-install";
+import { prepareProviderExtension } from "./source-ipc";
+import { resolveCataloguePlayback } from "./catalogue-playback";
 import { randomUUID } from "node:crypto";
 import { remoteQualities } from "./remote-playback";
 
@@ -19,7 +22,6 @@ import {
   toggleBookmark,
 } from "@vestra/storage";
 import {
-  resolvePlayback,
   searchAcrossProviders,
   trendingAcrossProviders,
 } from "@vestra/provider-sdk";
@@ -34,6 +36,8 @@ import {
 } from "@vestra/extension-host/install";
 import {
   listInstalled,
+  readSource,
+  setInstalledEnabled,
   removeInstalled,
   saveInstalled,
 } from "@vestra/extension-host/store";
@@ -75,6 +79,7 @@ import { probeMedia, resolveFfprobe, skipPointsFrom } from "./media-probe";
 import { safeFetch } from "./safe-fetch";
 import {
   getAdapterRegistry,
+  getStreamSourceRegistry,
   getDriver,
   getProviderRegistry,
   resolveDataDir,
@@ -164,7 +169,7 @@ const installCandidateSchema = z.object({
   version: z.string().min(1).max(60),
   type: extensionTypeSchema,
   manifestURI: z.string().url().max(2000),
-  payloadURI: z.string().url().max(2000),
+  payloadURI: z.union([z.literal(""), z.string().url().max(2000)]).default(""),
   registryUrl: z.string().url().max(2000),
 });
 
@@ -261,13 +266,9 @@ export function registerDataIpc(): void {
   /**
    * Lookups take a reference, not a whole item.
    *
-   * Providers resolve by identity — AniList's `getDetails` reads nothing but
-   * `sourceId`, and adapters dispatch on `source` and `kind`. Demanding a full
-   * `MediaItem` here meant the detail page, which only has a ref from the URL,
-   * failed validation and silently rendered as empty.
-   *
-   * The cast is safe for that reason: nothing downstream touches the fields a
-   * ref lacks.
+   * Details resolve by identity. Playback enriches that reference in main
+   * before matching stream titles; renderer-supplied title fields are not
+   * trusted or required. Local files remain resolvable when metadata is offline.
    */
   handle("media:details", async (raw: unknown) => {
     const ref = parse(mediaRefSchema, raw, "media reference") as MediaItem;
@@ -281,12 +282,22 @@ export function registerDataIpc(): void {
     });
   });
 
-  handle("playback:resolve", async (raw: unknown) => {
+  handle("playback:resolve", async (raw: unknown, rawSource?: unknown) => {
     const ref = parse(mediaRefSchema, raw, "media reference") as MediaItem;
 
-    return resolvePlayback(getAdapterRegistry(), ref, {
-      signal: AbortSignal.timeout(15_000),
-    });
+    const selectedSource = z
+      .string()
+      .min(1)
+      .max(120)
+      .optional()
+      .parse(rawSource);
+    return resolveCataloguePlayback(
+      getProviderRegistry(),
+      getAdapterRegistry(),
+      getStreamSourceRegistry(),
+      ref,
+      selectedSource,
+    );
   });
   handle("playback:qualities", (raw: unknown) =>
     remoteQualities(
@@ -659,11 +670,15 @@ export function registerDataIpc(): void {
    * Phase one of an install — read the manifest, decide if it is installable.
    *
    * Returns what the user is being asked to agree to. Nothing is written and
-   * no code is downloaded until they answer.
+   * no code is executed. Provider previews pin downloaded bytes for review.
    */
   handle("extensions:prepare", async (raw: unknown) => {
     const candidate = parse(installCandidateSchema, raw, "extension");
-    return prepareInstall(candidate, transport);
+    return prepareExtensionReview(
+      candidate,
+      transport,
+      prepareProviderExtension,
+    );
   });
 
   /**
@@ -693,10 +708,51 @@ export function registerDataIpc(): void {
       grant: record.grant,
     });
 
+    getProviderRegistry().setEnabled(`ext-${record.id}`, true);
+    getStreamSourceRegistry().setEnabled(`ext-${record.id}`, true);
     attachExtensionProvider(record, methods);
     attachStreamSourceProvider(record, methods);
 
     return record;
+  });
+
+  handle("extensions:enabled", async (rawId: unknown, rawEnabled: unknown) => {
+    const id = z.string().min(1).max(120).parse(rawId);
+    const enabled = z.boolean().parse(rawEnabled);
+    const driver = getDriver();
+    const record = (await listInstalled(driver)).find((row) => row.id === id);
+    if (!record) throw new Error("This extension is no longer installed.");
+    if (!enabled) {
+      await setInstalledEnabled(driver, id, false);
+      getProviderRegistry().setEnabled(`ext-${id}`, false);
+      getStreamSourceRegistry().setEnabled(`ext-${id}`, false);
+      detachExtensionProvider(id);
+      detachStreamSourceProvider(id);
+      await unloadExtension(id);
+      return;
+    }
+    const source = await readSource(driver, record);
+    if (!source)
+      throw new Error(
+        "The installed extension failed its fingerprint check. Reinstall it before enabling.",
+      );
+    const methods = await loadExtension({
+      extensionId: id,
+      source,
+      grant: record.grant,
+    });
+    try {
+      getProviderRegistry().setEnabled(`ext-${record.id}`, true);
+      getStreamSourceRegistry().setEnabled(`ext-${record.id}`, true);
+      attachExtensionProvider(record, methods);
+      attachStreamSourceProvider(record, methods);
+      await setInstalledEnabled(driver, id, true);
+    } catch (error) {
+      detachExtensionProvider(id);
+      detachStreamSourceProvider(id);
+      await unloadExtension(id);
+      throw error;
+    }
   });
 
   handle("extensions:uninstall", async (raw: unknown) => {
@@ -754,6 +810,8 @@ export function registerDataIpc(): void {
       grant: record.grant,
     });
 
+    getProviderRegistry().setEnabled(`ext-${record.id}`, true);
+    getStreamSourceRegistry().setEnabled(`ext-${record.id}`, true);
     attachExtensionProvider(record, methods);
     attachStreamSourceProvider(record, methods);
 

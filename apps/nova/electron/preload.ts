@@ -17,9 +17,16 @@ const invoke = (channel: string, ...args: unknown[]): Promise<unknown> =>
   ipcRenderer.invoke(channel, ...args);
 
 const api = {
+  playlists: {
+    list: () => invoke("anime:playlists"),
+    mutate: (command: unknown) => invoke("anime:playlist-command", command),
+  },
   anime: {
+    open: (id: string, item: unknown) => invoke("anime:open", id, item),
+    resolve: (id: string, ref: unknown) => invoke("anime:resolve", id, ref),
     sources: () => invoke("anime:sources"),
     search: (id: string, query: string) => invoke("anime:search", id, query),
+    title: (handle: string) => invoke("anime:title", handle),
     episodes: (handle: string) => invoke("anime:episodes", handle),
   },
   sources: {
@@ -46,6 +53,8 @@ const api = {
       invoke("manga:bookmark", kind, source, id, saved),
     book: (p: string, id: string, title?: string) =>
       invoke("manga:book", p, id, title),
+    resolve: (p: string, selection: unknown) =>
+      invoke("manga:resolve", p, selection),
     info: (p: string, id: string) => invoke("manga:info", p, id),
     details: (id: number) => invoke("manga:details", id),
     discover: (filters: unknown) => invoke("manga:discover", filters),
@@ -95,8 +104,8 @@ const api = {
     trending: (kind: unknown): Promise<unknown> =>
       invoke("media:trending", kind),
     details: (item: unknown): Promise<unknown> => invoke("media:details", item),
-    resolvePlayback: (item: unknown): Promise<unknown> =>
-      invoke("playback:resolve", item),
+    resolvePlayback: (item: unknown, source?: string): Promise<unknown> =>
+      invoke("playback:resolve", item, source),
     probe: (fileId: string): Promise<unknown> => invoke("media:probe", fileId),
     probeAvailable: (): Promise<unknown> => invoke("media:probe-available"),
     skipTimes: (request: unknown): Promise<unknown> =>
@@ -167,6 +176,8 @@ const api = {
     toggleMaximize: (): Promise<unknown> => invoke("player:toggle-maximize"),
     setInteractive: (interactive: boolean): Promise<unknown> =>
       invoke("player:set-interactive", interactive),
+    setQuality: (locator: string): Promise<unknown> =>
+      invoke("player:set-quality", { locator }),
     onNowPlaying: (listener: (value: unknown) => void): (() => void) => {
       const wrapped = (_event: unknown, value: unknown) => listener(value);
       ipcRenderer.on("player:now-playing", wrapped);
@@ -177,6 +188,12 @@ const api = {
         listener(String(command));
       ipcRenderer.on("player:command", wrapped);
       return () => ipcRenderer.off("player:command", wrapped);
+    },
+    onQuality: (listener: (locator: string) => void): (() => void) => {
+      const wrapped = (_event: unknown, locator: unknown) =>
+        listener(String(locator));
+      ipcRenderer.on("player:quality", wrapped);
+      return () => ipcRenderer.off("player:quality", wrapped);
     },
   },
 
@@ -224,6 +241,8 @@ const api = {
   },
 
   extensions: {
+    setEnabled: (id: string, enabled: boolean) =>
+      invoke("extensions:enabled", id, enabled),
     list: (): Promise<unknown> => invoke("extensions:list"),
     call: (
       extensionId: string,

@@ -1,28 +1,36 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { bridge } from "@/lib/bridge";
 import { usePlayer } from "@/lib/player-store";
-import { StreamQuality } from "@/components/player/stream-quality";
 import type { AnimeSourceTitle } from "../../../../shared/anime";
 
 export function AnimeSources() {
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const sources = useQuery({
     queryKey: ["anime-sources"],
     queryFn: bridge.anime.sources,
     refetchInterval: (q) => (q.state.data?.length ? false : 2000),
   });
-  const [selected, setSelected] = useState(params.get("source") ?? "");
-  const id = sources.data?.some((source) => source.id === selected)
-    ? selected
-    : (sources.data?.[0]?.id ?? "");
+  const selected = params.get("source");
+  const id = selected ?? sources.data?.[0]?.id ?? "";
+  useEffect(() => {
+    if (!selected && id)
+      setParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          next.set("source", id);
+          return next;
+        },
+        { replace: true },
+      );
+  }, [selected, id, setParams]);
   return (
     <section className="mt-7 rounded-xl border rule bg-base-200/30 p-5">
       <h2 className="font-serif text-2xl">Watch from your sources</h2>
       <p className="mb-4 mt-1 text-sm text-base-content/55">
-        Search a source directly and choose its title. The catalogue below is a
-        separate metadata listing.
+        Choose where to watch. Open a catalogue title below to load matching
+        episodes, or search this source directly.
       </p>
       {sources.error && <p role="alert">{sources.error.message}</p>}
       {sources.isPending ? (
@@ -30,8 +38,8 @@ export function AnimeSources() {
       ) : !sources.data?.length ? (
         <p>
           No anime streaming sources are enabled.{" "}
-          <Link className="link" to="/sources">
-            Manage sources
+          <Link className="link" to="/extensions">
+            Manage extensions
           </Link>
         </p>
       ) : (
@@ -41,8 +49,18 @@ export function AnimeSources() {
             <select
               className="select select-bordered select-sm"
               value={id}
-              onChange={(e) => setSelected(e.target.value)}
+              onChange={(e) => {
+                const next = new URLSearchParams(params);
+                next.set("source", e.target.value);
+                setParams(next);
+              }}
             >
+              {selected &&
+                !sources.data.some((source) => source.id === selected) && (
+                  <option value={selected} disabled>
+                    Selected source unavailable
+                  </option>
+                )}
               {sources.data.map((source) => (
                 <option key={source.id} value={source.id}>
                   {source.name}
@@ -90,7 +108,14 @@ function SourceSearch({ source }: { source: string }) {
       </form>
       {search.error && (
         <p role="alert" className="pt-4 text-error">
-          {search.error.message}
+          {search.error.message}{" "}
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => search.variables && search.mutate(search.variables)}
+          >
+            Retry search
+          </button>
         </p>
       )}
       {search.data?.length === 0 && (
@@ -193,11 +218,6 @@ function SourceEpisodes({
                   <span className="min-w-0 flex-1 truncate text-sm">
                     {episode.label}
                   </span>
-                  <StreamQuality
-                    locator={episode.locator}
-                    busy={false}
-                    onSelect={(quality) => play(index, quality)}
-                  />
                   <button
                     className="btn btn-primary btn-sm"
                     onClick={() => play(index)}

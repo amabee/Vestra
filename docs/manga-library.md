@@ -65,7 +65,7 @@ information shows its chapter index with chapter search and an explicit
 Start/Continue reading action. AniList supplies synopsis, genres and available
 publication facts; source titles only receive metadata after a unique exact
 English/Romaji/native title match. Missing catalogue metadata never blocks source
-chapters. Catalogue information offers Find in the selected reading source.
+chapters. Catalogue information resolves the selected reading source automatically.
 Details, selected chapter, reading and saved-shelf state have URL parameters.
 
 The bookmark icon on each card and information page saves a series without
@@ -80,3 +80,29 @@ handles. Corrupt bookmark files surface an error and are preserved.
 metadata cache restarts, high-resolution artwork, real C# bookmark restarts,
 source isolation and independent progress. The offscreen UI fixture checks both
 information flows, card/detail bookmarks and saved-shelf removal.
+
+## Provider identity and automatic chapters
+
+The library dropdown writes `source` in the URL, reused unchanged by details and
+the reader. There is no separate details provider state. `bookSource` records only
+the origin of a provider-specific ID (for a bookmark from another source); it does
+not change the selected reading source. Catalogue IDs remain AniList identities.
+
+`MangaTitleResolver` bridges catalogue/origin IDs to the selected provider. It uses
+a unique exact normalized English, Romaji or native title match and rejects
+ambiguous editions. It persists at most 256 mappings for seven days under
+`manga-provider-mappings-v1`, keyed by selected provider plus original identity.
+After restart it restores grants using the exact persisted provider ID, saved
+bookmarks/recent entries or a provider search that confirms the same ID. Removed
+IDs are rematched. In-flight requests deduplicate; stale results after source
+replacement are rejected. No mapping operation creates reading progress.
+
+Details requests provider artwork first, with catalogue fallback and explicit
+retry/placeholder states. Images use `object-fit: contain` inside a stable cover
+frame. Chapter search, oldest/newest ordering, batches of 50, loading skeletons
+and recoverable errors keep long chapter lists usable.
+
+The live automatic path resolved AniList Solo Leveling (105398) through MangaStash,
+returned 212 chapters and fetched its provider cover. Source availability can
+change. Tests also cover provider isolation, mapping restarts, aliases, ambiguity,
+stale IDs, removed-source bookmarks, direct links, source switching and retry.

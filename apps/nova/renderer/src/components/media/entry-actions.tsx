@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { isSameMedia, type MediaItem } from "@vestra/types";
 import { Bookmark, BookmarkCheck, Ellipsis, Loader2, Play } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 
 import { bridge } from "@/lib/bridge";
 import { usePlayer } from "@/lib/player-store";
@@ -20,18 +20,29 @@ export function EntryActions({ item }: { item: MediaItem }) {
   const { data: watchlist = [] } = useWatchlist();
   const openPlayer = usePlayer((state) => state.open);
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const selectedSource =
+    item.kind === "anime" ? (params.get("source") ?? undefined) : undefined;
 
   const saved = watchlist.some((entry) => isSameMedia(entry.ref, item));
 
   const toggleSaved = useMutation({
     mutationFn: () =>
-      saved ? bridge.watchlist.remove(item) : bridge.watchlist.add(item, "planned"),
+      saved
+        ? bridge.watchlist.remove(item)
+        : bridge.watchlist.add(item, "planned"),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["watchlist"] }),
   });
 
   const play = useMutation({
     mutationFn: async () => {
-      const sources = await bridge.media.resolvePlayback(item);
+      if (item.kind === "anime") {
+        void navigate(
+          `/media/${item.source}/${item.kind}/${encodeURIComponent(item.sourceId)}${selectedSource ? `?${new URLSearchParams({ source: selectedSource })}` : ""}`,
+        );
+        return;
+      }
+      const sources = await bridge.media.resolvePlayback(item, selectedSource);
       const best = sources[0];
       if (!best) throw new Error("No playable source found.");
 
@@ -39,7 +50,7 @@ export function EntryActions({ item }: { item: MediaItem }) {
       // a guess, and usually the wrong one — send them to the list instead.
       if (sources.length > 1) {
         void navigate(
-          `/media/${item.source}/${item.kind}/${encodeURIComponent(item.sourceId)}`,
+          `/media/${item.source}/${item.kind}/${encodeURIComponent(item.sourceId)}${selectedSource ? `?${new URLSearchParams({ source: selectedSource })}` : ""}`,
         );
         return;
       }
@@ -125,7 +136,10 @@ function ActionButton({
 
 function MoreMenu({ item }: { item: MediaItem }) {
   return (
-    <div className="dropdown dropdown-end" onClick={(event) => event.stopPropagation()}>
+    <div
+      className="dropdown dropdown-end"
+      onClick={(event) => event.stopPropagation()}
+    >
       <button
         type="button"
         tabIndex={0}
@@ -141,7 +155,10 @@ function MoreMenu({ item }: { item: MediaItem }) {
         className="dropdown-content menu z-30 w-52 rounded-box border rule bg-base-200 p-1 text-[13px] shadow-xl"
       >
         <li>
-          <button type="button" onClick={() => void navigator.clipboard.writeText(item.title)}>
+          <button
+            type="button"
+            onClick={() => void navigator.clipboard.writeText(item.title)}
+          >
             Copy title
           </button>
         </li>
@@ -149,14 +166,19 @@ function MoreMenu({ item }: { item: MediaItem }) {
           <li>
             <button
               type="button"
-              onClick={() => void bridge.shell.openExternal(item.sourceUrl ?? "")}
+              onClick={() =>
+                void bridge.shell.openExternal(item.sourceUrl ?? "")
+              }
             >
               Open on {item.source}
             </button>
           </li>
         ) : null}
         <li>
-          <button type="button" onClick={() => void bridge.progress.clear(item)}>
+          <button
+            type="button"
+            onClick={() => void bridge.progress.clear(item)}
+          >
             Clear watch progress
           </button>
         </li>

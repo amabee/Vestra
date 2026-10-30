@@ -1,3 +1,4 @@
+import type { AnimePlaylist, PlaylistCommand } from "../../../shared/playlists";
 import type {
   EpisodeBookmark,
   HistoryEntry,
@@ -58,9 +59,16 @@ export interface BrowseResult {
  */
 
 interface RawBridge {
+  playlists: {
+    list: () => Promise<unknown>;
+    mutate: (command: unknown) => Promise<unknown>;
+  };
   anime: {
+    open: (id: string, item: unknown) => Promise<unknown>;
+    resolve: (id: string, ref: unknown) => Promise<unknown>;
     sources: () => Promise<unknown>;
     search: (id: string, query: string) => Promise<unknown>;
+    title: (handle: string) => Promise<unknown>;
     episodes: (handle: string) => Promise<unknown>;
   };
   sources: {
@@ -93,6 +101,7 @@ interface RawBridge {
       saved: boolean,
     ) => Promise<unknown>;
     book: (p: string, id: string, title?: string) => Promise<unknown>;
+    resolve: (p: string, selection: unknown) => Promise<unknown>;
     info: (p: string, id: string) => Promise<unknown>;
     details: (id: number) => Promise<unknown>;
     discover: (filters: unknown) => Promise<unknown>;
@@ -131,7 +140,7 @@ interface RawBridge {
     search: (query: unknown) => Promise<unknown>;
     trending: (kind: unknown) => Promise<unknown>;
     details: (item: unknown) => Promise<unknown>;
-    resolvePlayback: (item: unknown) => Promise<unknown>;
+    resolvePlayback: (item: unknown, source?: string) => Promise<unknown>;
     probe: (fileId: string) => Promise<unknown>;
     probeAvailable: () => Promise<unknown>;
     skipTimes: (request: unknown) => Promise<unknown>;
@@ -167,6 +176,7 @@ interface RawBridge {
     onChanged: (listener: () => void) => () => void;
   };
   extensions: {
+    setEnabled: (id: string, enabled: boolean) => Promise<unknown>;
     list: () => Promise<unknown>;
     call: (
       extensionId: string,
@@ -212,6 +222,8 @@ interface RawBridge {
     drag: (payload: unknown) => Promise<unknown>;
     toggleMaximize: () => Promise<unknown>;
     setInteractive: (interactive: boolean) => Promise<unknown>;
+    setQuality: (locator: string) => Promise<unknown>;
+    onQuality: (listener: (locator: string) => void) => () => void;
     onNowPlaying: (listener: (value: unknown) => void) => () => void;
     onCommand: (listener: (command: string) => void) => () => void;
   };
@@ -328,6 +340,10 @@ export interface MpvChapter {
 }
 
 export interface MpvState {
+  loading?: boolean;
+  buffering?: boolean;
+  bufferedSeconds?: number | null;
+  downloadBytesPerSecond?: number | null;
   running: boolean;
   idle: boolean;
   paused: boolean;
@@ -355,6 +371,8 @@ export interface MpvStatus {
 
 /** What the controls window shows that mpv cannot tell it. */
 export interface NowPlaying {
+  loading?: boolean;
+  playbackError?: string | null;
   title: string;
   episodeLabel: string | null;
   index: number;
@@ -372,10 +390,19 @@ export interface NowPlaying {
   autoSkip: boolean;
   /** Counts up per playback, so replaying one episode is not one session. */
   sessionId: number;
+  /** The add-on stream this episode came from, when it offers qualities. */
+  streamSource: string | null;
+  /** The stream playing now: the source itself, or the chosen quality. */
+  activeStream: string | null;
 }
 
 export type PlayerCommand =
-  "next" | "previous" | "close" | "toggle-fullscreen" | "open-settings";
+  | "retry"
+  | "next"
+  | "previous"
+  | "close"
+  | "toggle-fullscreen"
+  | "open-settings";
 
 /** An opening or ending range, from AniSkip. */
 export interface SkipInterval {
@@ -393,7 +420,21 @@ export interface SurfaceRect {
 }
 
 export const bridge = {
+  playlists: {
+    list: () => raw().playlists.list() as Promise<AnimePlaylist[]>,
+    mutate: (command: PlaylistCommand) =>
+      raw().playlists.mutate(command) as Promise<AnimePlaylist[]>,
+  },
   anime: {
+    title: (handle: string) => raw().anime.title(handle) as Promise<MediaItem>,
+    open: (id: string, item: MediaItem) =>
+      raw().anime.open(id, item) as Promise<
+        import("../../../shared/anime").AnimeSourceEpisodes | null
+      >,
+    resolve: (id: string, ref: MediaRef) =>
+      raw().anime.resolve(id, ref) as Promise<
+        import("../../../shared/anime").AnimeSourceEpisodes | null
+      >,
     sources: () =>
       raw().anime.sources() as Promise<{ id: string; name: string }[]>,
     search: (id: string, query: string) =>
@@ -445,6 +486,13 @@ export const bridge = {
     book: (p: string, id: string, title?: string) =>
       raw().manga.book(p, id, title) as Promise<
         import("../../../shared/manga").MangaBook
+      >,
+    resolve: (
+      p: string,
+      selection: import("../../../shared/manga").MangaSelection,
+    ) =>
+      raw().manga.resolve(p, selection) as Promise<
+        import("../../../shared/manga").MangaBook | null
       >,
     info: (p: string, id: string) =>
       raw().manga.info(p, id) as Promise<
@@ -546,8 +594,11 @@ export const bridge = {
       raw().media.streamQualities(locator) as Promise<
         { locator: string; label: string }[]
       >,
-    resolvePlayback: async (item: MediaItem): Promise<PlaybackSource[]> =>
-      (await raw().media.resolvePlayback(item)) as PlaybackSource[],
+    resolvePlayback: async (
+      item: MediaItem,
+      source?: string,
+    ): Promise<PlaybackSource[]> =>
+      (await raw().media.resolvePlayback(item, source)) as PlaybackSource[],
 
     probe: async (fileId: string): Promise<ProbeResult> =>
       (await raw().media.probe(fileId)) as ProbeResult,
@@ -681,6 +732,8 @@ export const bridge = {
   },
 
   extensions: {
+    setEnabled: (id: string, enabled: boolean) =>
+      raw().extensions.setEnabled(id, enabled),
     list: async (): Promise<string[]> =>
       (await raw().extensions.list()) as string[],
     call: (
@@ -702,8 +755,12 @@ export const bridge = {
       (await raw().extensions.browse()) as BrowseResult,
 
     /** Reads the manifest so the user can see what they are agreeing to. */
-    prepare: async (candidate: InstallCandidate): Promise<InstallPlan> =>
-      (await raw().extensions.prepare(candidate)) as InstallPlan,
+    prepare: async (
+      candidate: InstallCandidate,
+    ): Promise<import("../../../shared/extensions").ExtensionReview> =>
+      (await raw().extensions.prepare(
+        candidate,
+      )) as import("../../../shared/extensions").ExtensionReview,
 
     install: async (request: {
       candidate: InstallCandidate;
@@ -849,5 +906,13 @@ export const bridge = {
 
     onCommand: (listener: (command: PlayerCommand) => void): (() => void) =>
       raw().player.onCommand((command) => listener(command as PlayerCommand)),
+
+    /** Ask the catalogue window to play the episode on another quality. */
+    setQuality: async (locator: string): Promise<void> => {
+      await raw().player.setQuality(locator);
+    },
+
+    onQuality: (listener: (locator: string) => void): (() => void) =>
+      raw().player.onQuality(listener),
   },
 };

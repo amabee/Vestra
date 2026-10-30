@@ -1,6 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { StreamResult } from "@vestra/extension-host";
 import { z } from "zod";
+import {
+  automaticVariant,
+  AUTO_HEIGHT,
+  RECOVERY_HEIGHT,
+} from "./mpv/stream-policy";
 
 const remoteSchema = z.object({
   url: z
@@ -45,6 +50,7 @@ const remoteSchema = z.object({
 export type RemotePlayback = z.infer<typeof remoteSchema>;
 export interface RemoteVariant {
   key: string;
+  server?: string;
   label: string;
   playback: RemotePlayback;
 }
@@ -64,6 +70,7 @@ export function streamVariants(
       occurrences.set(base, occurrence + 1);
       if (variants.length < 50)
         variants.push({
+          server: result.server,
           key: createHash("sha256")
             .update(
               JSON.stringify([
@@ -87,6 +94,8 @@ export function streamVariants(
 type Entry = {
   resolve: () => Promise<RemoteVariant[]>;
   selected?: string;
+  recover?: (excluded: string[]) => Promise<RemoteVariant[]>;
+  validate?: () => void;
   choices: Map<string, string>;
 };
 const entries = new Map<string, Entry>();
@@ -100,10 +109,22 @@ function register(entry: Entry): string {
 }
 const variantSchema = z.object({
   key: z.string().min(1).max(512),
+  server: z.string().min(1).max(240).optional(),
   label: z.string().min(1).max(240),
   playback: remoteSchema,
 });
-async function variants(entry: Entry): Promise<RemoteVariant[]> {
+/**
+ * Resolved variants per source resolver. Kept briefly so a background warm-up
+ * and the real Quality list or playback share one
+ * request. Only successful results are kept; a failure is retried next time.
+ */
+const VARIANT_CACHE_MS = 3 * 60_000;
+const variantCache = new WeakMap<
+  () => Promise<RemoteVariant[]>,
+  { at: number; pending: Promise<RemoteVariant[]> }
+>();
+
+async function loadVariants(entry: Entry): Promise<RemoteVariant[]> {
   const rows = z
     .array(variantSchema)
     .min(1)
@@ -111,6 +132,26 @@ async function variants(entry: Entry): Promise<RemoteVariant[]> {
     .parse(await entry.resolve());
   if (new Set(rows.map((row) => row.key)).size !== rows.length)
     throw new Error("Stream rendition identifiers must be unique.");
+  return rows;
+}
+
+async function variants(entry: Entry): Promise<RemoteVariant[]> {
+  entry.validate?.();
+  const cached = variantCache.get(entry.resolve);
+  if (cached && Date.now() - cached.at < VARIANT_CACHE_MS) {
+    const rows = await cached.pending;
+    entry.validate?.();
+    return rows;
+  }
+  const pending = loadVariants(entry);
+  const record = { at: Date.now(), pending };
+  variantCache.set(entry.resolve, record);
+  pending.catch(() => {
+    if (variantCache.get(entry.resolve) === record)
+      variantCache.delete(entry.resolve);
+  });
+  const rows = await pending;
+  entry.validate?.();
   return rows;
 }
 /** Renderer receives an opaque handle; guest URLs stay in main. */
@@ -130,8 +171,10 @@ export function registerDeferredPlayback(
 }
 export function registerDeferredVariants(
   resolve: () => Promise<RemoteVariant[]>,
+  validate?: () => void,
+  recover?: (excluded: string[]) => Promise<RemoteVariant[]>,
 ): string {
-  return register({ resolve, choices: new Map() });
+  return register({ resolve, validate, recover, choices: new Map() });
 }
 export async function remoteQualities(
   locator: string,
@@ -144,6 +187,8 @@ export async function remoteQualities(
     if (!selected || !qualityEntries.has(selected)) {
       selected = register({
         resolve: entry.resolve,
+        validate: entry.validate,
+        recover: entry.recover,
         choices: entry.choices,
         selected: row.key,
       });
@@ -154,18 +199,109 @@ export async function remoteQualities(
 }
 export async function resolveRemotePlayback(
   locator: string,
+  recovery = false,
 ): Promise<RemotePlayback> {
   const entry = entries.get(locator) ?? qualityEntries.get(locator);
   if (!entry) throw new Error("Stream expired. Resolve this episode again.");
   const rows = await variants(entry);
   const selected = entry.selected
     ? rows.find((row) => row.key === entry.selected)
-    : rows[0];
+    : automaticVariant(rows, recovery ? RECOVERY_HEIGHT : AUTO_HEIGHT);
   if (!selected)
     throw new Error(
       "The selected stream quality is no longer available. Choose another quality.",
     );
   return selected.playback;
+}
+
+export interface PlaybackRecovery {
+  playback: RemotePlayback;
+  lowerQuality: boolean;
+  retry?: () => Promise<PlaybackRecovery>;
+}
+
+/** Per-playback mirror history, never shared with another episode/session. */
+export function createRemoteRecovery(
+  locator: string,
+  initial: RemotePlayback,
+): () => Promise<PlaybackRecovery> {
+  const entry = entries.get(locator) ?? qualityEntries.get(locator);
+  if (!entry || entry.selected)
+    throw Error("Automatic mirror recovery is unavailable for this choice.");
+  const usedServers = new Set<string>();
+  const initialRows = variantCache.get(entry.resolve)?.pending;
+  let currentRows: RemoteVariant[] | undefined;
+  let currentServer: string | undefined;
+  let current = initial;
+  let attempts = 0;
+  const next = async (): Promise<PlaybackRecovery> => {
+    entry.validate?.();
+    const rows = currentRows ?? (await initialRows) ?? (await variants(entry));
+    currentRows = rows;
+    entry.validate?.();
+    if (!currentServer)
+      currentServer = ((await initialRows) ?? rows).find(
+        (row) => row.playback.url === initial.url,
+      )?.server;
+    const previous = rows.find(
+      (row) => row.server === currentServer || row.playback.url === current.url,
+    );
+    if (currentServer) usedServers.add(currentServer);
+    if (usedServers.size && attempts++ < 3) {
+      let alternatives = rows.filter(
+        (row) =>
+          row.server &&
+          !usedServers.has(row.server) &&
+          row.playback.url !== current.url,
+      );
+      if (!alternatives.length && entry.recover) {
+        try {
+          alternatives = z
+            .array(variantSchema)
+            .min(1)
+            .max(50)
+            .parse(await entry.recover([...usedServers]));
+          entry.validate?.();
+          alternatives = alternatives.filter(
+            (row) =>
+              row.server &&
+              !usedServers.has(row.server) &&
+              row.playback.url !== current.url,
+          );
+        } catch {
+          entry.validate?.();
+          alternatives = [];
+        }
+      }
+      if (alternatives.length) {
+        const chosen = automaticVariant(alternatives);
+        usedServers.add(chosen.server!);
+        currentRows = alternatives;
+        currentServer = chosen.server;
+        current = chosen.playback;
+        return { playback: current, lowerQuality: false, retry: next };
+      }
+    }
+    // No more mirrors: one final lighter rendition on the current server.
+    const selected = automaticVariant(
+      rows.filter((row) => !previous?.server || row.server === previous.server),
+      RECOVERY_HEIGHT,
+    );
+    if (!selected) throw Error("No recovery stream is available.");
+    return { playback: selected.playback, lowerQuality: true };
+  };
+  return next;
+}
+
+export function isAutomaticStream(locator: string): boolean {
+  const entry = entries.get(locator) ?? qualityEntries.get(locator);
+  return Boolean(entry && !entry.selected);
+}
+
+/** A playback failure must not pin a stale signed URL across explicit retries. */
+export function invalidateRemotePlayback(locator: string): void {
+  const entry = entries.get(locator) ?? qualityEntries.get(locator);
+  if (entry) variantCache.delete(entry.resolve);
 }
 
 export function remoteLoadOptions(remote?: RemotePlayback): {

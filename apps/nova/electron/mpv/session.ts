@@ -5,7 +5,17 @@ import { delimiter, join } from "node:path";
 import { app, type BrowserWindow } from "electron";
 
 import { MpvConnection, type MpvEvent } from "./connection";
-import { remoteLoadOptions, type RemotePlayback } from "../remote-playback";
+import {
+  remoteLoadOptions,
+  type RemotePlayback,
+  type PlaybackRecovery,
+} from "../remote-playback";
+import {
+  STREAM_CACHE_ARGS,
+  AUTO_HLS_BITRATE,
+  RECOVERY_HLS_BITRATE,
+  STALL_RECOVERY_MS,
+} from "./stream-policy";
 import { ExternalSubtitleLoader } from "./subtitles";
 
 /**
@@ -119,6 +129,10 @@ export interface MpvChapter {
 }
 
 export interface MpvState {
+  loading: boolean;
+  buffering: boolean;
+  bufferedSeconds: number | null;
+  downloadBytesPerSecond: number | null;
   running: boolean;
   idle: boolean;
   paused: boolean;
@@ -144,6 +158,10 @@ export interface MpvState {
 }
 
 const INITIAL_STATE: MpvState = {
+  bufferedSeconds: null,
+  downloadBytesPerSecond: null,
+  loading: false,
+  buffering: false,
   running: false,
   idle: true,
   paused: true,
@@ -176,6 +194,9 @@ const OBSERVED = {
   subDelay: 10,
   subScale: 11,
   chapterList: 12,
+  pausedForCache: 13,
+  cacheDuration: 14,
+  cacheSpeed: 15,
 } as const;
 
 export interface MpvOptions {
@@ -200,6 +221,93 @@ export class MpvSession {
   /** Offsets gathered from rapid seek presses, applied together. */
   #pendingSeek = 0;
   #seekTimer: ReturnType<typeof setTimeout> | null = null;
+
+  #stallTimer: ReturnType<typeof setTimeout> | null = null;
+  #activeRemote: {
+    filePath: string;
+    remote: RemotePlayback;
+    automatic: boolean;
+    recovered: boolean;
+    fallback?: () => Promise<PlaybackRecovery>;
+  } | null = null;
+  #clearStall(): void {
+    if (this.#stallTimer) clearTimeout(this.#stallTimer);
+    this.#stallTimer = null;
+  }
+  #watchStall(): void {
+    this.#clearStall();
+    const active = this.#activeRemote;
+    if (!active || this.#state.paused || !this.#state.buffering) return;
+    const startedAt = this.#state.position;
+    this.#stallTimer = setTimeout(() => {
+      this.#stallTimer = null;
+      if (
+        this.#activeRemote !== active ||
+        !this.#state.buffering ||
+        this.#state.paused
+      )
+        return;
+      // A stale buffer flag must not restart video whose playhead is advancing.
+      if (Math.abs(this.#state.position - startedAt) >= 0.5) {
+        this.#watchStall();
+        return;
+      }
+      this.#recoverStream();
+    }, STALL_RECOVERY_MS);
+  }
+
+  #recovering: object | null = null;
+  #recoverStream(): void {
+    const active = this.#activeRemote;
+    if (!active || this.#state.paused || this.#recovering === active) return;
+    this.#clearStall();
+    if (active.automatic && !active.recovered) {
+      this.#recovering = active;
+      void (async () => {
+        const next = active.fallback
+          ? await active.fallback()
+          : { playback: active.remote, lowerQuality: true };
+        if (
+          this.#activeRemote !== active ||
+          this.#state.paused ||
+          !this.#state.buffering
+        )
+          return;
+        await this.load(
+          next.playback.url,
+          this.#state.position,
+          next.playback,
+          true,
+          next.lowerQuality,
+          next.retry,
+        );
+      })()
+        .catch(() => {
+          if (this.#activeRemote !== active) return;
+          this.#emit({
+            loading: false,
+            buffering: false,
+            error:
+              "This video server is too slow. Choose another quality or extension.",
+          });
+        })
+        .finally(() => {
+          if (this.#recovering === active) this.#recovering = null;
+        });
+    } else {
+      void this.stop()
+        .catch(() => undefined)
+        .finally(() => {
+          if (this.#activeRemote) return;
+          this.#emit({
+            loading: false,
+            buffering: false,
+            error:
+              "This video server stopped delivering data. Choose another quality or extension.",
+          });
+        });
+    }
+  }
 
   get state(): MpvState {
     return this.#state;
@@ -257,6 +365,8 @@ export class MpvSession {
         : handle.readUInt32LE(0).toString();
 
     const args = [
+      "--no-config",
+      ...STREAM_CACHE_ARGS,
       `--input-ipc-server=${pipePath}`,
       `--wid=${wid}`,
       // Stay alive between files: restarting the process per episode would
@@ -287,6 +397,8 @@ export class MpvSession {
     this.#process = child;
 
     child.on("exit", (code) => {
+      this.#clearStall();
+      this.#activeRemote = null;
       this.#process = null;
       this.#connection?.close();
       this.#connection = null;
@@ -331,6 +443,9 @@ export class MpvSession {
       ["mute", OBSERVED.mute],
       ["track-list", OBSERVED.trackList],
       ["chapter-list", OBSERVED.chapterList],
+      ["paused-for-cache", OBSERVED.pausedForCache],
+      ["demuxer-cache-duration", OBSERVED.cacheDuration],
+      ["cache-speed", OBSERVED.cacheSpeed],
       ["eof-reached", OBSERVED.eofReached],
       ["sub-visibility", OBSERVED.subVisibility],
       ["speed", OBSERVED.speed],
@@ -354,9 +469,35 @@ export class MpvSession {
           if (typeof event.data === "number")
             this.#emit({ duration: event.data });
           break;
+        case "demuxer-cache-duration":
+          this.#emit({
+            bufferedSeconds:
+              typeof event.data === "number" &&
+              Number.isFinite(event.data) &&
+              event.data >= 0
+                ? event.data
+                : null,
+          });
+          break;
+        case "cache-speed":
+          this.#emit({
+            downloadBytesPerSecond:
+              typeof event.data === "number" &&
+              Number.isFinite(event.data) &&
+              event.data >= 0
+                ? event.data
+                : null,
+          });
+          break;
+        case "paused-for-cache":
+          this.#emit({ buffering: event.data === true });
+          this.#watchStall();
+          break;
         case "pause":
-          if (typeof event.data === "boolean")
+          if (typeof event.data === "boolean") {
             this.#emit({ paused: event.data });
+            this.#watchStall();
+          }
           break;
         case "volume":
           if (typeof event.data === "number")
@@ -397,8 +538,11 @@ export class MpvSession {
     }
 
     switch (event.event) {
+      case "start-file":
+        this.#emit({ loading: true, buffering: false });
+        break;
       case "file-loaded":
-        this.#emit({ idle: false, ended: false, error: null });
+        this.#emit({ idle: false, loading: false, ended: false, error: null });
         {
           const revision = this.#subtitles.revision;
           void this.#media(() => this.#subtitles.attach(this.#require())).then(
@@ -416,9 +560,26 @@ export class MpvSession {
         }
         break;
       case "end-file":
+        this.#clearStall();
+        if (event.reason !== "stop")
+          this.#emit({ loading: false, buffering: false });
         // "eof" is a normal finish; anything else is a real failure worth
         // showing rather than silently returning to an idle screen.
         if (event.reason && event.reason !== "eof" && event.reason !== "stop") {
+          if (
+            this.#activeRemote?.automatic &&
+            !this.#activeRemote.recovered &&
+            !this.#state.paused
+          ) {
+            this.#emit({
+              loading: false,
+              buffering: true,
+              idle: true,
+              error: null,
+            });
+            this.#recoverStream();
+            break;
+          }
           this.#emit({
             error: `Playback stopped: ${event.reason}`,
             idle: true,
@@ -442,12 +603,24 @@ export class MpvSession {
     filePath: string,
     startSeconds = 0,
     remote?: RemotePlayback,
+    automatic = false,
+    recovered = false,
+    fallback?: () => Promise<PlaybackRecovery>,
   ): Promise<void> {
+    this.#clearStall();
+    this.#activeRemote = remote
+      ? { filePath, remote, automatic, recovered, fallback }
+      : null;
     const revision = this.#subtitles.begin(filePath, remote?.subtitles);
     return this.#media(async () => {
       if (!this.#subtitles.current(revision)) return;
       const connection = this.#require();
       this.#emit({
+        loading: true,
+        buffering: false,
+        bufferedSeconds: null,
+        downloadBytesPerSecond: null,
+        chapters: [],
         ended: false,
         error: null,
         subtitleError: null,
@@ -473,6 +646,14 @@ export class MpvSession {
       await connection.setProperty(
         "options/start",
         startSeconds > 0 ? String(startSeconds) : "none",
+      );
+      await connection.setProperty(
+        "options/hls-bitrate",
+        remote && automatic
+          ? recovered
+            ? RECOVERY_HLS_BITRATE
+            : AUTO_HLS_BITRATE
+          : "max",
       );
       const options = remoteLoadOptions(remote);
       // Reset on every load so remote credentials/subtitles cannot leak into the next file.
@@ -613,6 +794,8 @@ export class MpvSession {
   }
 
   async stop(): Promise<void> {
+    this.#clearStall();
+    this.#activeRemote = null;
     this.#subtitles.cancel();
     if (!this.#connection) return;
     this.#cancelPendingSeek();

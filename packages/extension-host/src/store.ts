@@ -27,6 +27,7 @@ const permissionGrantSchema = z.object({
 });
 
 const installedExtensionSchema = z.object({
+  enabled: z.boolean().optional(),
   id: z.string(),
   name: z.string(),
   version: z.string(),
@@ -96,7 +97,7 @@ export async function saveInstalled(
 
   const saved = await writeDocument(driver, STORAGE_KEYS.extensions, extensionsDocSchema, {
     version: 1,
-    installed,
+    installed: installed.map(row => installedExtensionSchema.parse(row)),
   });
 
   return saved.installed as InstalledExtension[];
@@ -117,7 +118,7 @@ export async function removeInstalled(
 
   const saved = await writeDocument(driver, STORAGE_KEYS.extensions, extensionsDocSchema, {
     version: 1,
-    installed,
+    installed: installed.map(row => installedExtensionSchema.parse(row)),
   });
 
   return saved.installed as InstalledExtension[];
@@ -149,6 +150,23 @@ export async function readSource(
   return digest === record.integrity ? stored.source : null;
 }
 
+/** Persist enablement beside the existing record without rewriting provider code. */
+export async function setInstalledEnabled(
+  driver: StorageDriver,
+  id: string,
+  enabled: boolean,
+): Promise<void> {
+  const installed = await listInstalled(driver);
+  if (!installed.some((row) => row.id === id))
+    throw new Error("This extension is no longer installed.");
+  await writeDocument(driver, STORAGE_KEYS.extensions, extensionsDocSchema, {
+    version: 1,
+    installed: installed.map((row) =>
+      installedExtensionSchema.parse(row.id === id ? { ...row, enabled } : row),
+    ),
+  });
+}
+
 /** Record that the remote payload has drifted from what was installed. */
 export async function markDrift(
   driver: StorageDriver,
@@ -170,7 +188,7 @@ export async function markDrift(
 
   const saved = await writeDocument(driver, STORAGE_KEYS.extensions, extensionsDocSchema, {
     version: 1,
-    installed,
+    installed: installed.map(row => installedExtensionSchema.parse(row)),
   });
 
   return saved.installed as InstalledExtension[];

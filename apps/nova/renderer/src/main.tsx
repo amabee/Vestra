@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { createHashRouter, RouterProvider } from "react-router";
+import { createHashRouter, RouterProvider, Navigate } from "react-router";
 
 import { AppShell } from "@/components/chrome/app-shell";
 import { BrowseRoute } from "@/routes/browse";
@@ -16,7 +16,6 @@ import { ExtensionsRoute } from "@/routes/extensions";
 import { HomeRoute } from "@/routes/home";
 import { SettingsRoute } from "@/routes/system";
 import { MangaRoute } from "@/routes/manga";
-import { SourcesRoute } from "@/routes/sources";
 
 import "@/styles/theme.css";
 
@@ -81,7 +80,7 @@ const router = createHashRouter([
       { path: "watchlist", element: <WatchlistRoute /> },
       { path: "history", element: <HistoryRoute /> },
       { path: "extensions", element: <ExtensionsRoute /> },
-      { path: "sources", element: <SourcesRoute /> },
+      { path: "sources", element: <Navigate to="/extensions" replace /> },
       { path: "settings", element: <SettingsRoute /> },
       { path: "search", element: <SearchRoute /> },
       { path: "media/:source/:kind/:id", element: <DetailRoute /> },

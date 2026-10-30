@@ -6,7 +6,12 @@ import { getDriver } from "../services";
 import { MpvOverlay } from "./overlay";
 import { MpvSession, locateMpv, type MpvState } from "./session";
 import { MpvSurface } from "./surface";
-import { resolveRemotePlayback } from "../remote-playback";
+import {
+  resolveRemotePlayback,
+  isAutomaticStream,
+  createRemoteRecovery,
+  invalidateRemotePlayback,
+} from "../remote-playback";
 
 /**
  * Playback channels for the mpv engine.
@@ -32,6 +37,8 @@ const overlay = new MpvOverlay();
  * that crosses between them.
  */
 interface NowPlaying {
+  loading?: boolean;
+  playbackError?: string | null;
   title: string;
   episodeLabel: string | null;
   index: number;
@@ -50,11 +57,14 @@ interface NowPlaying {
 
 let nowPlaying: NowPlaying | null = null;
 let openRevision = 0;
+let activeStreamLocator: string | undefined;
 
 /** Renderers currently subscribed to state pushes. */
 const subscribers = new Set<Electron.WebContents>();
 
 session.onChange((state: MpvState) => {
+  if (state.error && activeStreamLocator)
+    invalidateRemotePlayback(activeStreamLocator);
   for (const contents of subscribers) {
     if (contents.isDestroyed()) {
       subscribers.delete(contents);
@@ -163,6 +173,7 @@ export function registerMpvIpc(): void {
       "open request",
     );
     const revision = ++openRevision;
+    activeStreamLocator = streamLocator;
 
     const window = BrowserWindow.fromWebContents(event.sender);
     if (!window) throw new Error("No window is associated with this request.");
@@ -192,7 +203,16 @@ export function registerMpvIpc(): void {
     });
 
     if (revision !== openRevision) return session.state;
-    await session.load(filePath, startSeconds, remote);
+    await session.load(
+      filePath,
+      startSeconds,
+      remote,
+      Boolean(streamLocator && isAutomaticStream(streamLocator)),
+      false,
+      streamLocator && remote && isAutomaticStream(streamLocator)
+        ? createRemoteRecovery(streamLocator, remote)
+        : undefined,
+    );
     return session.state;
   });
 
@@ -318,6 +338,22 @@ export function registerMpvIpc(): void {
   });
 
   /**
+   * A quality picked in the controls window.
+   *
+   * Relayed to the catalogue window, which holds the queue and reopens the
+   * episode at the current position on the chosen stream.
+   */
+  handle("player:set-quality", (_event, raw) => {
+    const { locator } = parse(qualitySchema, raw, "quality choice");
+
+    for (const contents of subscribers) {
+      if (!contents.isDestroyed()) contents.send("player:quality", locator);
+    }
+
+    return null;
+  });
+
+  /**
    * Let the pointer through where the controls are not.
    *
    * The overlay spans the whole video, so without this it would swallow every
@@ -393,6 +429,8 @@ export function registerMpvIpc(): void {
 }
 
 const nowPlayingSchema = z.object({
+  loading: z.boolean().default(false),
+  playbackError: z.string().max(8000).nullable().default(null),
   title: z.string().max(500),
   episodeLabel: z.string().max(200).nullable(),
   index: z.number().int().min(0),
@@ -410,15 +448,25 @@ const nowPlayingSchema = z.object({
     .default([]),
   autoSkip: z.boolean().default(false),
   sessionId: z.number().int().min(0).default(0),
+  streamSource: z.string().max(2000).nullable().default(null),
+  activeStream: z.string().max(2000).nullable().default(null),
 });
 
 const commandSchema = z.enum([
+  "retry",
   "next",
   "previous",
   "close",
   "toggle-fullscreen",
   "open-settings",
 ]);
+
+const qualitySchema = z.object({
+  locator: z
+    .string()
+    .max(2000)
+    .refine((value) => value.startsWith("vestra-stream://"), "not a stream"),
+});
 
 const dragSchema = z.object({
   phase: z.enum(["start", "move"]),

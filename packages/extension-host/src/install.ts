@@ -52,6 +52,8 @@ export interface InstallPlan {
 }
 
 export interface InstalledExtension {
+  /** Absent in older installs means enabled. */
+  enabled?: boolean;
   id: string;
   name: string;
   version: string;
@@ -126,21 +128,23 @@ async function fetchText(
 export async function prepareInstall(
   candidate: InstallCandidate,
   transport: GuardedTransport,
+  providedManifest?: unknown,
 ): Promise<InstallPlan> {
   assertLoadable(candidate.id, candidate.type);
 
-  const raw = await fetchText(
-    transport,
-    candidate.manifestURI,
-    MAX_MANIFEST_BYTES,
-    "manifest",
-  );
-
-  let document: unknown;
-  try {
-    document = JSON.parse(raw);
-  } catch {
-    throw new InstallError("The manifest is not valid JSON.");
+  let document: unknown = providedManifest;
+  if (document === undefined) {
+    const raw = await fetchText(
+      transport,
+      candidate.manifestURI,
+      MAX_MANIFEST_BYTES,
+      "manifest",
+    );
+    try {
+      document = JSON.parse(raw);
+    } catch {
+      throw new InstallError("The manifest is not valid JSON.");
+    }
   }
 
   const { manifest, errors } = parseManifest(document);
@@ -156,6 +160,15 @@ export async function prepareInstall(
     );
   }
 
+  const remote = document as { payloadURI?: unknown };
+  const payloadURI =
+    candidate.payloadURI ||
+    (typeof remote.payloadURI === "string" && remote.payloadURI
+      ? remote.payloadURI
+      : new URL(manifest.main, candidate.manifestURI).href);
+  if (new URL(payloadURI).protocol !== "https:")
+    throw new InstallError("Extension code must use an HTTPS URL.");
+  candidate = { ...candidate, payloadURI };
   const pinned = isPinnedRef(candidate.payloadURI);
   const warnings: string[] = [];
 
@@ -172,7 +185,9 @@ export async function prepareInstall(
   }
 
   if (manifest.permissions.length === 0) {
-    warnings.push("Requests no permissions — it cannot reach the network or your library.");
+    warnings.push(
+      "Requests no permissions — it cannot reach the network or your library.",
+    );
   }
 
   return {
@@ -295,7 +310,12 @@ export async function checkDrift(
 ): Promise<DriftResult> {
   let source: string;
   try {
-    source = await fetchText(transport, record.payloadURI, MAX_PAYLOAD_BYTES, "extension code");
+    source = await fetchText(
+      transport,
+      record.payloadURI,
+      MAX_PAYLOAD_BYTES,
+      "extension code",
+    );
   } catch {
     return { status: "unreachable", currentIntegrity: null };
   }

@@ -6,12 +6,12 @@ manga / Korean manhwa / Chinese manhua origin filters, genres, ongoing/completed
 status and pagination (24 titles per page).
 
 Catalogue results describe metadata popularity, not availability in the selected
-reading source. Selecting a catalogue card opens its information page. Find in source searches
-the selected reading source; the user chooses a provider result and reviews its
-chapter list before opening the reader. Direct source
-search remains available above the catalogue. Filters apply to discovery, not
-to the provider's search results. This avoids treating unrelated source searches
-as though they implemented genres or rankings.
+reading source. Selecting a catalogue card opens information and automatically
+resolves the selected source's own manga ID, then loads its chapter index. The
+library's source URL parameter is the only provider selection. No Find in source
+step is needed. Unavailable or ambiguous matches have explicit empty/error states.
+Direct source search remains available; catalogue filters do not pretend to filter
+provider search results.
 
 The fixed AniList query runs in main and uses variables, non-adult MANGA/ONE_SHOT
 results, the largest available cover images and an HTTP deadline. The v2 metadata
@@ -39,8 +39,8 @@ never registers a fake manga reading provider or creates reading history.
 - Add `--live` to verify AniList. The implementation check returned 24 popular
   titles, all with covers, 19 genres, and 24 completed Korean Action titles whose
   country, genre and status matched the selected filters.
-- The offscreen reader/library fixture checks filters, page reset and the explicit
-  catalogue-to-source-search handoff, alongside the existing reader regression cases.
+- The offscreen reader/library fixture checks filters, page reset and
+  automatic catalogue-to-provider-ID matching, alongside the existing reader regression cases.
 - `node apps/nova/scripts/test-manga-cover-cache.mjs` verifies that a new main service
   reuses cover bytes from disk without another download.
 

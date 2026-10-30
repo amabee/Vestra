@@ -30,6 +30,7 @@ export interface RemoteSourcePlan {
   checksumVerified: boolean;
   hosts: string[];
   addedHosts: string[];
+  inferredHosts?: boolean;
   updating: boolean;
   changed: boolean;
 }

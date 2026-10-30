@@ -1,0 +1,24 @@
+:root {
+  --manga-info-measure: 76rem;
+  --manga-info-cover: 15rem;
+  --manga-info-gap: 2.5rem;
+  --manga-info-muted: color-mix(
+    in oklch,
+    var(--color-base-content) 72%,
+    var(--color-base-100)
+  );
+  --manga-info-rule: color-mix(
+    in oklch,
+    var(--color-base-content) 20%,
+    var(--color-base-100)
+  );
+  --manga-info-field: color-mix(
+    in oklch,
+    var(--color-base-content) 48%,
+    var(--color-base-100)
+  );
+  --manga-info-text-sm: 0.875rem;
+  --manga-info-text-md: 1rem;
+  --manga-info-text-lg: 1.2rem;
+  --manga-info-text-title: 2.074rem;
+}

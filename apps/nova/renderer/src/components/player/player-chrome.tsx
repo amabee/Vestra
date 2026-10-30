@@ -26,6 +26,7 @@ import {
   VolumeMutedIcon,
 } from "./icons";
 import { PlayerSettingsIcon } from "./icons-settings";
+import { VideoLoader } from "./video-loader";
 import { SettingsMenu } from "./settings-menu";
 import { SongMarker } from "./song-marker";
 import { usePlayerShortcuts } from "./use-player-shortcuts";
@@ -82,18 +83,27 @@ export function PlayerChrome() {
 
   useEffect(() => {
     const stop = bridge.mpv.onState(setMpv);
-    void bridge.mpv.subscribe().then(setMpv).catch(() => undefined);
+    void bridge.mpv
+      .subscribe()
+      .then(setMpv)
+      .catch(() => undefined);
     return stop;
   }, []);
 
   useEffect(() => {
     const stop = bridge.player.onNowPlaying(setNowPlaying);
-    void bridge.player.getNowPlaying().then(setNowPlaying).catch(() => undefined);
+    void bridge.player
+      .getNowPlaying()
+      .then(setNowPlaying)
+      .catch(() => undefined);
     return stop;
   }, []);
 
   useEffect(() => {
-    void bridge.window.isFullscreen().then(setFullscreen).catch(() => undefined);
+    void bridge.window
+      .isFullscreen()
+      .then(setFullscreen)
+      .catch(() => undefined);
   }, [nowPlaying]);
 
   /* ---------------------------------------------------------------------- *
@@ -145,7 +155,9 @@ export function PlayerChrome() {
   };
 
   const togglePlay = () => {
-    void (mpv.paused ? bridge.mpv.play() : bridge.mpv.pause()).catch(() => undefined);
+    void (mpv.paused ? bridge.mpv.play() : bridge.mpv.pause()).catch(
+      () => undefined,
+    );
   };
 
   const seek = (seconds: number) => {
@@ -165,7 +177,8 @@ export function PlayerChrome() {
   };
 
   const subtitles = mpv.tracks.filter((track) => track.type === "sub");
-  const subtitlesOn = mpv.subtitleVisible && subtitles.some((track) => track.selected);
+  const subtitlesOn =
+    mpv.subtitleVisible && subtitles.some((track) => track.selected);
 
   const toggleSubtitles = () => {
     void (async () => {
@@ -186,7 +199,9 @@ export function PlayerChrome() {
    * Skipping openings and endings
    * ---------------------------------------------------------------------- */
 
-  const activeSkip = (nowPlaying?.skips ?? []).find(
+  const playbackError = nowPlaying?.playbackError ?? mpv.error;
+  const loading = Boolean(nowPlaying?.loading || mpv.loading || mpv.buffering);
+  const activeSkip = (loading ? [] : (nowPlaying?.skips ?? [])).find(
     (skip) =>
       mpv.position >= skip.startSeconds && mpv.position < skip.endSeconds - 1,
   );
@@ -202,12 +217,12 @@ export function PlayerChrome() {
   useEffect(() => {
     if (!nowPlaying?.autoSkip || !activeSkip) return;
 
-    const key = `${activeSkip.kind}:${activeSkip.startSeconds}`;
+    const key = `${nowPlaying.sessionId}:${activeSkip.kind}:${activeSkip.startSeconds}`;
     if (skippedRanges.current.has(key)) return;
 
     skippedRanges.current.add(key);
     void bridge.mpv.seek(activeSkip.endSeconds).catch(() => undefined);
-  }, [nowPlaying?.autoSkip, activeSkip]);
+  }, [nowPlaying?.autoSkip, nowPlaying?.sessionId, activeSkip]);
 
   /*
     A new playback gets a clean slate.
@@ -241,7 +256,8 @@ export function PlayerChrome() {
     adjustVolume: (delta) => {
       const next = Math.max(0, Math.min(1, mpv.volume + delta));
       void bridge.mpv.setVolume(next).catch(() => undefined);
-      if (next > 0 && mpv.muted) void bridge.mpv.setMuted(false).catch(() => undefined);
+      if (next > 0 && mpv.muted)
+        void bridge.mpv.setMuted(false).catch(() => undefined);
     },
     toggleMute: () => {
       void bridge.mpv.setMuted(!mpv.muted).catch(() => undefined);
@@ -267,7 +283,8 @@ export function PlayerChrome() {
         setMenuOpen(false);
         return;
       }
-      if (fullscreen) void bridge.window.setFullscreen(false).then(setFullscreen);
+      if (fullscreen)
+        void bridge.window.setFullscreen(false).then(setFullscreen);
       else send("close");
     },
   });
@@ -339,6 +356,41 @@ export function PlayerChrome() {
         void bridge.player.focus().catch(() => undefined);
       }}
     >
+      {loading && !playbackError && (
+        <VideoLoader
+          bufferedSeconds={mpv.bufferedSeconds}
+          downloadBytesPerSecond={mpv.downloadBytesPerSecond}
+          label={mpv.buffering ? "Buffering video" : "Preparing your episode"}
+        />
+      )}
+      {playbackError && (
+        <div
+          role="alert"
+          className="absolute inset-0 z-20 grid place-items-center bg-black p-8 text-white"
+        >
+          <div className="max-w-md text-center">
+            <p className="font-serif text-3xl">Cannot play this</p>
+            <p className="mt-3 text-sm text-white/60">
+              {playbackError.replace(
+                /^Error invoking remote method '[^']+':\s*/i,
+                "",
+              )}
+            </p>
+            <button
+              className="mt-6 mr-3 rounded-lg border border-white/25 px-4 py-2"
+              onClick={() => send("retry")}
+            >
+              Retry episode
+            </button>
+            <button
+              className="mt-6 rounded-lg border border-white/25 px-4 py-2"
+              onClick={() => send("close")}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
       {/* Skip sits outside the fading chrome: it is offered for a fixed window
           of the episode and should not vanish with the controls. */}
       {activeSkip && !nowPlaying?.autoSkip ? (
@@ -361,162 +413,177 @@ export function PlayerChrome() {
       >
         {/* Scrims rather than panels: the video stays visible through them. */}
         {mpv.subtitleError && (
-          <p role="status" className="pointer-events-none absolute inset-x-6 top-16 rounded-lg bg-black/80 p-3 text-xs text-white">
+          <p
+            role="status"
+            className="pointer-events-none absolute inset-x-6 top-16 rounded-lg bg-black/80 p-3 text-xs text-white"
+          >
             {mpv.subtitleError}
           </p>
         )}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/85 to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/90 via-black/60 to-transparent" />
 
-      <header
-        className="absolute inset-x-0 top-0 flex h-14 items-center gap-2 px-3"
-        {...headerDragProps}
-      >
-        <IconButton label="Back" onClick={() => send("close")}>
-          <BackIcon className="size-4" />
-        </IconButton>
-
-        <p className="pointer-events-none absolute inset-x-0 truncate px-16 text-center font-serif text-[15px] leading-tight text-white">
-          {nowPlaying?.title ?? ""}
-          {nowPlaying?.episodeLabel ? (
-            <span className="text-white/55"> — {nowPlaying.episodeLabel}</span>
-          ) : null}
-        </p>
-
-        <div className="flex-1" />
-
-        <IconButton label="Close player" onClick={() => send("close")} danger>
-          <CloseIcon className="size-4" />
-        </IconButton>
-      </header>
-
-      <footer className="absolute inset-x-0 bottom-0 space-y-1 px-4 pb-3">
-        <Scrubber
-          position={mpv.position}
-          duration={mpv.duration}
-          skips={nowPlaying?.skips ?? []}
-          onSeek={seek}
-          onScrubbing={setScrubbing}
-        />
-
-        <div className="flex items-center gap-1">
-          <IconButton
-            label="Previous episode"
-            onClick={() => send("previous")}
-            disabled={!hasPrevious}
-          >
-            <PreviousIcon className="size-4" />
+        <header
+          className="absolute inset-x-0 top-0 flex h-14 items-center gap-2 px-3"
+          {...headerDragProps}
+        >
+          <IconButton label="Back" onClick={() => send("close")}>
+            <BackIcon className="size-4" />
           </IconButton>
 
-          <IconButton label={mpv.paused ? "Play" : "Pause"} onClick={togglePlay}>
-            {mpv.paused ? <PlayIcon className="size-5" /> : <PauseIcon className="size-5" />}
-          </IconButton>
-
-          <IconButton
-            label="Next episode"
-            onClick={() => send("next")}
-            disabled={!hasNext}
-          >
-            <NextIcon className="size-4" />
-          </IconButton>
-
-          <IconButton label="Back 10 seconds" onClick={() => seekBy(-10)}>
-            <RewindIcon className="size-4" />
-          </IconButton>
-
-          <IconButton label="Forward 10 seconds" onClick={() => seekBy(10)}>
-            <ForwardIcon className="size-4" />
-          </IconButton>
-
-          <div className="group/vol ml-1 flex items-center gap-1">
-            <IconButton
-              label={mpv.muted ? "Unmute" : "Mute"}
-              onClick={() => {
-                void bridge.mpv.setMuted(!mpv.muted).catch(() => undefined);
-              }}
-            >
-              {mpv.muted || mpv.volume === 0 ? (
-                <VolumeMutedIcon className="size-4" />
-              ) : mpv.volume < 0.5 ? (
-                <VolumeLowIcon className="size-4" />
-              ) : (
-                <VolumeHighIcon className="size-4" />
-              )}
-            </IconButton>
-
-            <input
-              type="range"
-              aria-label="Volume"
-              min={0}
-              max={1}
-              step={0.05}
-              value={mpv.muted ? 0 : mpv.volume}
-              onChange={(event) => {
-                const value = Number(event.currentTarget.value);
-                void bridge.mpv.setVolume(value).catch(() => undefined);
-                if (value > 0 && mpv.muted) {
-                  void bridge.mpv.setMuted(false).catch(() => undefined);
-                }
-              }}
-              className="h-1 w-0 cursor-pointer appearance-none rounded-full bg-white/30 opacity-0 transition-all duration-200 group-hover/vol:w-20 group-hover/vol:opacity-100 [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
-            />
-          </div>
-
-          <span className="index-mark ml-2 text-white/70 tabular-nums">
-            {formatTime(mpv.position)} / {formatTime(mpv.duration)}
-          </span>
+          <p className="pointer-events-none absolute inset-x-0 truncate px-16 text-center font-serif text-[15px] leading-tight text-white">
+            {nowPlaying?.title ?? ""}
+            {nowPlaying?.episodeLabel ? (
+              <span className="text-white/55">
+                {" "}
+                — {nowPlaying.episodeLabel}
+              </span>
+            ) : null}
+          </p>
 
           <div className="flex-1" />
 
-          <IconButton
-            label={subtitlesOn ? "Hide subtitles" : "Show subtitles"}
-            onClick={toggleSubtitles}
-            active={subtitlesOn}
-            disabled={subtitles.length === 0}
-          >
-            {subtitlesOn ? (
-              <SubtitlesIcon className="size-4" />
-            ) : (
-              <SubtitlesOffIcon className="size-4" />
-            )}
+          <IconButton label="Close player" onClick={() => send("close")} danger>
+            <CloseIcon className="size-4" />
           </IconButton>
+        </header>
 
-          {/* Anchored to its button and drawn over the video, which is the
-              whole point of this window existing. */}
-          <div className="relative">
+        <footer className="absolute inset-x-0 bottom-0 space-y-1 px-4 pb-3">
+          <Scrubber
+            position={mpv.position}
+            duration={mpv.duration}
+            skips={nowPlaying?.skips ?? []}
+            onSeek={seek}
+            onScrubbing={setScrubbing}
+          />
+
+          <div className="flex items-center gap-1">
             <IconButton
-              label="Settings"
-              onClick={() => setMenuOpen((open) => !open)}
-              active={menuOpen}
+              label="Previous episode"
+              onClick={() => send("previous")}
+              disabled={!hasPrevious}
             >
-              <PlayerSettingsIcon className="size-4" />
+              <PreviousIcon className="size-4" />
             </IconButton>
 
-            {menuOpen ? (
-              <SettingsMenu
-                mpv={mpv}
-                onClose={() => setMenuOpen(false)}
-                reportableSkips={(nowPlaying?.skips ?? [])
-                  .map((skip) => skip.skipId)
-                  .filter((id): id is string => Boolean(id))}
-                onOpenAppSettings={() => {
-                  setMenuOpen(false);
-                  send("open-settings");
-                }}
-              />
-            ) : null}
-          </div>
+            <IconButton
+              label={mpv.paused ? "Play" : "Pause"}
+              onClick={togglePlay}
+            >
+              {mpv.paused ? (
+                <PlayIcon className="size-5" />
+              ) : (
+                <PauseIcon className="size-5" />
+              )}
+            </IconButton>
 
-          <IconButton
-            label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
-            onClick={toggleFullscreen}
-          >
-            {fullscreen ? (
-              <ExitFullscreenIcon className="size-4" />
-            ) : (
-              <FullscreenIcon className="size-4" />
-            )}
-          </IconButton>
+            <IconButton
+              label="Next episode"
+              onClick={() => send("next")}
+              disabled={!hasNext}
+            >
+              <NextIcon className="size-4" />
+            </IconButton>
+
+            <IconButton label="Back 10 seconds" onClick={() => seekBy(-10)}>
+              <RewindIcon className="size-4" />
+            </IconButton>
+
+            <IconButton label="Forward 10 seconds" onClick={() => seekBy(10)}>
+              <ForwardIcon className="size-4" />
+            </IconButton>
+
+            <div className="group/vol ml-1 flex items-center gap-1">
+              <IconButton
+                label={mpv.muted ? "Unmute" : "Mute"}
+                onClick={() => {
+                  void bridge.mpv.setMuted(!mpv.muted).catch(() => undefined);
+                }}
+              >
+                {mpv.muted || mpv.volume === 0 ? (
+                  <VolumeMutedIcon className="size-4" />
+                ) : mpv.volume < 0.5 ? (
+                  <VolumeLowIcon className="size-4" />
+                ) : (
+                  <VolumeHighIcon className="size-4" />
+                )}
+              </IconButton>
+
+              <input
+                type="range"
+                aria-label="Volume"
+                min={0}
+                max={1}
+                step={0.05}
+                value={mpv.muted ? 0 : mpv.volume}
+                onChange={(event) => {
+                  const value = Number(event.currentTarget.value);
+                  void bridge.mpv.setVolume(value).catch(() => undefined);
+                  if (value > 0 && mpv.muted) {
+                    void bridge.mpv.setMuted(false).catch(() => undefined);
+                  }
+                }}
+                className="h-1 w-0 cursor-pointer appearance-none rounded-full bg-white/30 opacity-0 transition-all duration-200 group-hover/vol:w-20 group-hover/vol:opacity-100 [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
+              />
+            </div>
+
+            <span className="index-mark ml-2 text-white/70 tabular-nums">
+              {formatTime(mpv.position)} / {formatTime(mpv.duration)}
+            </span>
+
+            <div className="flex-1" />
+
+            <IconButton
+              label={subtitlesOn ? "Hide subtitles" : "Show subtitles"}
+              onClick={toggleSubtitles}
+              active={subtitlesOn}
+              disabled={subtitles.length === 0}
+            >
+              {subtitlesOn ? (
+                <SubtitlesIcon className="size-4" />
+              ) : (
+                <SubtitlesOffIcon className="size-4" />
+              )}
+            </IconButton>
+
+            {/* Anchored to its button and drawn over the video, which is the
+              whole point of this window existing. */}
+            <div className="relative">
+              <IconButton
+                label="Settings"
+                onClick={() => setMenuOpen((open) => !open)}
+                active={menuOpen}
+              >
+                <PlayerSettingsIcon className="size-4" />
+              </IconButton>
+
+              {menuOpen ? (
+                <SettingsMenu
+                  mpv={mpv}
+                  onClose={() => setMenuOpen(false)}
+                  reportableSkips={(nowPlaying?.skips ?? [])
+                    .map((skip) => skip.skipId)
+                    .filter((id): id is string => Boolean(id))}
+                  streamSource={nowPlaying?.streamSource ?? null}
+                  activeStream={nowPlaying?.activeStream ?? null}
+                  onOpenAppSettings={() => {
+                    setMenuOpen(false);
+                    send("open-settings");
+                  }}
+                />
+              ) : null}
+            </div>
+
+            <IconButton
+              label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+              onClick={toggleFullscreen}
+            >
+              {fullscreen ? (
+                <ExitFullscreenIcon className="size-4" />
+              ) : (
+                <FullscreenIcon className="size-4" />
+              )}
+            </IconButton>
           </div>
         </footer>
       </div>
@@ -595,15 +662,19 @@ function Scrubber({
   };
 
   const percent = duration > 0 ? (position / duration) * 100 : 0;
-  const ratio = (seconds: number) => (duration > 0 ? (seconds / duration) * 100 : 0);
+  const ratio = (seconds: number) =>
+    duration > 0 ? (seconds / duration) * 100 : 0;
 
   // Only meaningful once the duration is known; before that every range would
   // collapse to the left edge.
   const bands = duration > 0 ? skips : [];
 
-  const hovered = hover === null ? null : bands.find(
-    (band) => hover >= band.startSeconds && hover < band.endSeconds,
-  );
+  const hovered =
+    hover === null
+      ? null
+      : bands.find(
+          (band) => hover >= band.startSeconds && hover < band.endSeconds,
+        );
 
   return (
     <div className="group/bar relative py-2">
