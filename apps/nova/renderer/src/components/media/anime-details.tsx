@@ -233,15 +233,19 @@ export function AnimeDetails() {
   return (
     <article className="anime-details">
       <nav className="anime-navigation" aria-label="Anime navigation">
-        <button
-          type="button"
-          className="anime-text-button"
-          onClick={() => void navigate(-1)}
-        >
-          <ArrowLeft size={16} />
-          Back
-        </button>
-        <Link to="/extensions">Manage extensions</Link>
+        <div className="anime-nav-left">
+          <button
+            type="button"
+            className="anime-text-button"
+            onClick={() => void navigate(-1)}
+          >
+            <ArrowLeft size={16} />
+            Back
+          </button>
+        </div>
+        <div className="anime-nav-right">
+          <Link to="/extensions">Manage extensions</Link>
+        </div>
       </nav>
 
       {saveDialog && data && (
@@ -397,17 +401,7 @@ export function AnimeDetails() {
         className="anime-episodes"
         aria-labelledby="anime-episodes-title"
       >
-        <div className="anime-episode-heading">
-          <div>
-            <h2 id="anime-episodes-title">Episodes</h2>
-            <p>
-              {queue.length
-                ? `${queue.length} available, ${watchedCount} watched`
-                : linkMode
-                  ? "Open a link in your browser"
-                  : "Choose a playback source to watch"}
-            </p>
-          </div>
+        <div className="anime-source-row">
           <label className="anime-source-label">
             Playback source
             <select
@@ -435,6 +429,18 @@ export function AnimeDetails() {
               {hasLinks && <option value={LINK_SOURCE}>Other links</option>}
             </select>
           </label>
+        </div>
+        <div className="anime-episode-heading">
+          <div>
+            <h2 id="anime-episodes-title">Episodes</h2>
+            <p>
+              {queue.length
+                ? `${queue.length} available, ${watchedCount} watched`
+                : linkMode
+                  ? "Open a link in your browser"
+                  : "Choose a playback source to watch"}
+            </p>
+          </div>
         </div>
 
         {linkMode ? (

@@ -380,7 +380,7 @@ export function PlayerChrome() {
               className="mt-6 mr-3 rounded-lg border border-white/25 px-4 py-2"
               onClick={() => send("retry")}
             >
-              Retry episode
+              Try again
             </button>
             <button
               className="mt-6 rounded-lg border border-white/25 px-4 py-2"
@@ -534,7 +534,13 @@ export function PlayerChrome() {
             <div className="flex-1" />
 
             <IconButton
-              label={subtitlesOn ? "Hide subtitles" : "Show subtitles"}
+              label={
+                subtitles.length === 0
+                  ? "No subtitles for this source"
+                  : subtitlesOn
+                    ? "Hide subtitles"
+                    : "Show subtitles"
+              }
               onClick={toggleSubtitles}
               active={subtitlesOn}
               disabled={subtitles.length === 0}

@@ -208,6 +208,8 @@ interface RawBridge {
     setSubtitleDelay: (seconds: number) => Promise<unknown>;
     setSubtitleScale: (scale: number) => Promise<unknown>;
     setSubtitleStyleOverride: (enabled: boolean) => Promise<unknown>;
+    setSubtitleFont: (family: string | null) => Promise<unknown>;
+    setSubtitleColor: (color: string | null) => Promise<unknown>;
     setSurfaceVisible: (visible: boolean) => Promise<unknown>;
     selectTrack: (selection: unknown) => Promise<unknown>;
     setSubtitleVisible: (visible: boolean) => Promise<unknown>;
@@ -840,6 +842,14 @@ export const bridge = {
 
     setSubtitleStyleOverride: async (enabled: boolean): Promise<void> => {
       await raw().mpv.setSubtitleStyleOverride(enabled);
+    },
+
+    setSubtitleFont: async (family: string | null): Promise<void> => {
+      await raw().mpv.setSubtitleFont(family);
+    },
+
+    setSubtitleColor: async (color: string | null): Promise<void> => {
+      await raw().mpv.setSubtitleColor(color);
     },
 
     /** Step the video surface aside so an overlay can be seen. */

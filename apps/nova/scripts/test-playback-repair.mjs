@@ -180,3 +180,41 @@ test("hover, quality choices and playback share extraction; failed media invalid
   );
   assert.equal(calls, 2);
 });
+
+test("nested aggregate network faults retain retry codes without leaking request secrets", async (t) => {
+  let calls = 0;
+  network(t, async () => {
+    calls++;
+    throw new Error(
+      "fetch https://source.example/private-token?secret=hidden",
+      {
+        cause: new AggregateError([
+          Object.assign(new Error("Authorization: secret-value"), {
+            code: "ECONNRESET",
+          }),
+        ]),
+      },
+    );
+  });
+  const logs = [];
+  const warn = console.warn;
+  console.warn = (line) => logs.push(line);
+  t.after(() => (console.warn = warn));
+  await assert.rejects(
+    safeFetch({
+      url: "https://source.example/private-token?secret=hidden",
+      timeoutMs: 2000,
+    }),
+    (error) => {
+      assert.equal(error.code, "ECONNRESET");
+      assert.equal(error.transient, true);
+      assert.match(error.message, /source\.example.*ECONNRESET/);
+      assert.doesNotMatch(error.message, /private-token|hidden|secret-value/);
+      return true;
+    },
+  );
+  assert.equal(calls, 3);
+  assert.ok(
+    logs.every((line) => !/private-token|hidden|secret-value/.test(line)),
+  );
+});

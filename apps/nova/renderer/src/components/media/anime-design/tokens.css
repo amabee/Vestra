@@ -19,4 +19,8 @@
   --anime-wash: color-mix(in oklch, var(--color-base-100) 85%, transparent);
   --anime-title-size: 2.5rem;
   --anime-section-size: 1.5rem;
+  --anime-backdrop-height: 34rem;
+  --anime-poster-height: 26rem;
+  --anime-poster-width: 17rem;
+  --anime-nav-height: 3.5rem;
 }

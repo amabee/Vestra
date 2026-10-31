@@ -143,6 +143,10 @@ const api = {
       invoke("mpv:set-subtitle-scale", scale),
     setSubtitleStyleOverride: (enabled: boolean): Promise<unknown> =>
       invoke("mpv:set-subtitle-style-override", enabled),
+    setSubtitleFont: (family: string | null): Promise<unknown> =>
+      invoke("mpv:set-subtitle-font", family),
+    setSubtitleColor: (color: string | null): Promise<unknown> =>
+      invoke("mpv:set-subtitle-color", color),
     setSurfaceVisible: (visible: boolean): Promise<unknown> =>
       invoke("mpv:set-surface-visible", visible),
     selectTrack: (selection: unknown): Promise<unknown> =>

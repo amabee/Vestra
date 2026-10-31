@@ -262,6 +262,24 @@ export function registerMpvIpc(): void {
     return session.setSubtitleScale(scale).then(() => null);
   });
 
+  handle("mpv:set-subtitle-font", (_event, raw) => {
+    const family = parse(
+      z.string().regex(/^[\p{L}\p{N} .'_-]{1,64}$/u).nullable(),
+      raw,
+      "subtitle font",
+    );
+    return session.setSubtitleFont(family).then(() => null);
+  });
+
+  handle("mpv:set-subtitle-color", (_event, raw) => {
+    const color = parse(
+      z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable(),
+      raw,
+      "subtitle colour",
+    );
+    return session.setSubtitleColor(color).then(() => null);
+  });
+
   handle("mpv:set-subtitle-style-override", (_event, raw) => {
     const enabled = parse(z.boolean(), raw, "style override");
     return session.setSubtitleStyleOverride(enabled).then(() => null);

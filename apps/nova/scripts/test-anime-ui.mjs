@@ -92,6 +92,13 @@ try {
         if(process.env.VESTRA_ANIME_SCREENSHOT){
           for(const width of [1440,375]){win.setContentSize(width,900);await new Promise(r=>setTimeout(r,180));require('node:fs').mkdirSync(require('node:path').dirname(process.env.VESTRA_ANIME_SCREENSHOT),{recursive:true});require('node:fs').writeFileSync(process.env.VESTRA_ANIME_SCREENSHOT+'-'+width+'.png',(await win.webContents.capturePage()).toPNG());}
         }
+        for (const width of [1440,375]) {
+          win.setContentSize(width,900);
+          await new Promise(r=>setTimeout(r,100));
+          assert.equal(await run('document.documentElement.scrollWidth<=window.innerWidth'),true,'Details overflows at '+width);
+          assert.equal(await run('Array.from(document.querySelectorAll(".anime-backdrop")).every(e=>{const r=e.getBoundingClientRect();return r.left>=0 && r.right<=window.innerWidth})'),true,'Backdrop leaves viewport at '+width);
+          assert.equal(await run('Array.from(document.querySelectorAll(".anime-backdrop")).every(e=>e.getBoundingClientRect().bottom<=e.parentElement.getBoundingClientRect().bottom+1)'),true,'Backdrop covers episode controls at '+width);
+        }
         assert.equal(await run('window.fixture.calls[0].source'),'ext-second');
         assert.equal(await run('window.fixture.location.search'),'?source=ext-second');
         await run('Array.from(document.querySelectorAll("button")).find(b=>b.textContent.trim().toLowerCase()==="play episode 1").click()');
