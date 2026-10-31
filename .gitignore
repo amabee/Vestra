@@ -69,3 +69,10 @@ coverage/
 
 # Preserved dev runtime data (watchlist, progress, settings) - never commit.
 .vestra-preserved/
+
+
+# Homarchuelos Shits
+.hormachuelos
+
+# Hallmark
+.hallmark
