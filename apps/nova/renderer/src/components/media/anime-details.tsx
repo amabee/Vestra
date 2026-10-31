@@ -4,6 +4,7 @@ import {
 } from "./anime-source-preference";
 import { PlaylistPicker } from "./playlist-picker";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { formatDuration } from "@vestra/core/format";
 import {
   mediaKey,
   parseMediaKey,
@@ -17,10 +18,12 @@ import {
   Bookmark,
   BookmarkCheck,
   Check,
+  CheckCheck,
   ExternalLink,
   Film,
   Play,
   RotateCcw,
+  Star,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
@@ -34,6 +37,13 @@ const LOCAL_SOURCE = "local";
 
 /** Dropdown value for the deep links to the provider's own pages. */
 const LINK_SOURCE = "links";
+
+/** Scrolls to a section of this page. Plain scrolling, so the router is not touched. */
+function jumpTo(id: string) {
+  document
+    .getElementById(id)
+    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
 
 export function AnimeDetails() {
   const { source, kind, id } = useParams();
@@ -101,6 +111,7 @@ export function AnimeDetails() {
   const [limit, setLimit] = useState(50);
   const [failedCovers, setFailedCovers] = useState<string[]>([]);
   const [saveDialog, setSaveDialog] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const data =
     details.data ??
     (episodes.data?.item ? mediaDetailsSchema.parse(episodes.data.item) : null);
@@ -108,6 +119,10 @@ export function AnimeDetails() {
   const query = params.get("episode") ?? "";
   const filter = params.get("filter") ?? "all";
   const descending = params.get("order") === "newest";
+  const season = params.get("season") ?? "all";
+  const seasonNumbers = [
+    ...new Set(queue.map((entry) => entry.season ?? 1)),
+  ].sort((a, b) => a - b);
   const patch = (key: string, value: string) => {
     setParams(
       (current) => {
@@ -128,6 +143,20 @@ export function AnimeDetails() {
   };
   const saved = (entry: PlaybackSource): WatchProgress | undefined =>
     progress.data?.[keyFor(entry)];
+  const markAll = useMutation({
+    mutationFn: (entries: PlaybackSource[]) =>
+      Promise.all(
+        entries.map((entry) =>
+          bridge.progress.save({
+            ref: ref!,
+            episodeId: episodeId(entry),
+            positionSeconds: saved(entry)?.durationSeconds || 1,
+            durationSeconds: saved(entry)?.durationSeconds || 1,
+          }),
+        ),
+      ),
+    onSuccess: () => cache.invalidateQueries({ queryKey: keys.progress }),
+  });
   const mark = useMutation({
     mutationFn: ({
       entry,
@@ -189,6 +218,16 @@ export function AnimeDetails() {
           0,
           queue.findIndex((entry) => !saved(entry)?.completed),
         );
+  // Minutes left in the episode to resume, shown next to the play button.
+  const resumeWatch = resumeIndex >= 0 ? saved(queue[resumeIndex]!) : undefined;
+  const resumeLeft = resumeWatch?.durationSeconds
+    ? Math.max(
+        0,
+        Math.round(
+          (resumeWatch.durationSeconds - resumeWatch.positionSeconds) / 60,
+        ),
+      )
+    : null;
   const selectedEntry =
     player.item && mediaKey(player.item) === identity
       ? player.queue[player.index]
@@ -200,6 +239,7 @@ export function AnimeDetails() {
         `${entry.episode ?? ""} ${entry.label ?? ""}`
           .toLowerCase()
           .includes(query.toLowerCase()) &&
+        (season === "all" || (entry.season ?? 1) === Number(season)) &&
         (filter === "unwatched"
           ? !saved(entry)?.completed
           : filter === "bookmarked"
@@ -233,19 +273,17 @@ export function AnimeDetails() {
   return (
     <article className="anime-details">
       <nav className="anime-navigation" aria-label="Anime navigation">
-        <div className="anime-nav-left">
-          <button
-            type="button"
-            className="anime-text-button"
-            onClick={() => void navigate(-1)}
-          >
-            <ArrowLeft size={16} />
-            Back
-          </button>
-        </div>
-        <div className="anime-nav-right">
-          <Link to="/extensions">Manage extensions</Link>
-        </div>
+        <button
+          type="button"
+          className="anime-text-button"
+          onClick={() => void navigate(-1)}
+        >
+          <ArrowLeft size={16} />
+          Back
+        </button>
+        <Link to="/extensions" className="anime-text-link">
+          Manage extensions
+        </Link>
       </nav>
 
       {saveDialog && data && (
@@ -255,6 +293,7 @@ export function AnimeDetails() {
           onClose={() => setSaveDialog(false)}
         />
       )}
+
       <header className={`anime-hero${backdrop ? " anime-hero-backdrop" : ""}`}>
         <div className="anime-backdrop" aria-hidden="true">
           {backdrop ? (
@@ -268,428 +307,617 @@ export function AnimeDetails() {
             />
           ) : null}
         </div>
-        <div className="anime-poster">
-          {cover ? (
-            <img
-              key={cover}
-              src={cover}
-              width={400}
-              height={600}
-              alt=""
-              referrerPolicy="no-referrer"
-              decoding="async"
-              onError={() => setFailedCovers((values) => [...values, cover])}
-            />
-          ) : (
-            <div className="anime-cover-empty">
-              <Film size={36} />
-              <span>
-                {details.isPending ? "Loading artwork…" : "Artwork unavailable"}
-              </span>
-            </div>
-          )}
-        </div>
 
-        <div className="anime-introduction">
-          {details.isPending ? (
-            <div
-              className="anime-skeleton anime-title-skeleton"
-              role="status"
-              aria-label="Loading anime information"
-            />
-          ) : (
-            <h1>{data?.title ?? "Anime information unavailable"}</h1>
-          )}
-          {data?.originalTitle && data.originalTitle !== data.title && (
-            <p className="anime-alternative">{data.originalTitle}</p>
-          )}
-          {details.error && (
-            <div className="anime-message" role="alert">
-              <p>{details.error.message}</p>
-              <button type="button" onClick={() => void details.refetch()}>
-                Retry information
+        <div className="anime-hero-body">
+          <div className="anime-poster">
+            {cover ? (
+              <img
+                key={cover}
+                src={cover}
+                width={400}
+                height={600}
+                alt=""
+                referrerPolicy="no-referrer"
+                decoding="async"
+                onError={() => setFailedCovers((values) => [...values, cover])}
+              />
+            ) : (
+              <div className="anime-cover-empty">
+                <Film size={36} />
+                <span>
+                  {details.isPending
+                    ? "Loading artwork…"
+                    : "Artwork unavailable"}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="anime-introduction">
+            {details.isPending ? (
+              <div
+                className="anime-skeleton anime-title-skeleton"
+                role="status"
+                aria-label="Loading anime information"
+              />
+            ) : (
+              <h1>{data?.title ?? "Anime information unavailable"}</h1>
+            )}
+            {data?.originalTitle && data.originalTitle !== data.title && (
+              <p className="anime-alternative">{data.originalTitle}</p>
+            )}
+            {details.error && (
+              <div className="anime-message" role="alert">
+                <p>{details.error.message}</p>
+                <button type="button" onClick={() => void details.refetch()}>
+                  Retry information
+                </button>
+              </div>
+            )}
+
+            {data && (
+              <div className="anime-meta">
+                {data.rating.score != null && (
+                  <span className="anime-score">
+                    <Star size={13} className="fill-current" />
+                    {data.rating.score}%
+                  </span>
+                )}
+                {data.year && <span>{data.year}</span>}
+                {queue.length > 0 && <span>{queue.length} episodes</span>}
+                {data.certification && (
+                  <span className="anime-badge">{data.certification}</span>
+                )}
+                <span className="anime-status-pill">
+                  {data.status.replaceAll("-", " ")}
+                </span>
+              </div>
+            )}
+
+            {!!data?.genres.length && (
+              <ul className="anime-genres" aria-label="Genres">
+                {data.genres.map((genre) => (
+                  <li key={genre.id}>{genre.name}</li>
+                ))}
+              </ul>
+            )}
+
+            {data?.overview && (
+              <div className="anime-synopsis">
+                <p className={expanded ? undefined : "anime-clamp"}>
+                  {data.overview}
+                </p>
+                <button
+                  type="button"
+                  className="anime-text-button"
+                  aria-expanded={expanded}
+                  onClick={() => setExpanded((value) => !value)}
+                >
+                  {expanded ? "Show less" : "Read more"}
+                </button>
+              </div>
+            )}
+
+            <div className="anime-actions">
+              <button
+                type="button"
+                className="anime-primary"
+                disabled={!queue.length || busy || (!localMode && !available)}
+                onClick={() =>
+                  play(
+                    first,
+                    undefined,
+                    resumeIndex >= 0
+                      ? Math.floor(saved(queue[first]!)?.positionSeconds ?? 0)
+                      : 0,
+                  )
+                }
+              >
+                <Play size={17} className="fill-current" />
+                {busy
+                  ? "Finding episodes…"
+                  : resumeIndex >= 0
+                    ? `Resume episode ${queue[first]?.episode ?? first + 1}`
+                    : `Play episode ${queue[first]?.episode ?? 1}`}
+              </button>
+              {resumeLeft !== null && resumeIndex >= 0 && (
+                <span className="anime-resume-note">
+                  {resumeLeft} min left in episode{" "}
+                  {queue[resumeIndex]?.episode ?? resumeIndex + 1}
+                </span>
+              )}
+              <button
+                type="button"
+                aria-pressed={!!inLibrary}
+                disabled={library.isPending || !data}
+                onClick={() => library.mutate()}
+              >
+                {inLibrary ? (
+                  <BookmarkCheck size={17} />
+                ) : (
+                  <Bookmark size={17} />
+                )}
+                {inLibrary ? "In watchlist" : "Watch later"}
+              </button>
+              <button
+                type="button"
+                disabled={!data}
+                onClick={() => setSaveDialog(true)}
+              >
+                Add to playlist
               </button>
             </div>
-          )}
-          {data && (
-            <dl className="anime-facts">
-              {data.year && (
-                <div>
-                  <dt>Released</dt>
-                  <dd>{data.year}</dd>
-                </div>
-              )}
-              <div>
-                <dt>Status</dt>
-                <dd>{data.status.replaceAll("-", " ")}</dd>
-              </div>
-              {data.rating.score != null && (
-                <div>
-                  <dt>Rating</dt>
-                  <dd>{data.rating.score}%</dd>
-                </div>
-              )}
-              {!!data.studios.length && (
-                <div>
-                  <dt>Studio</dt>
-                  <dd>{data.studios.join(", ")}</dd>
-                </div>
-              )}
-            </dl>
-          )}
-          {!!data?.genres.length && (
-            <ul className="anime-genres" aria-label="Genres">
-              {data.genres.map((genre) => (
-                <li key={genre.id}>{genre.name}</li>
-              ))}
-            </ul>
-          )}
-          {data?.overview && (
-            <details className="anime-synopsis" open>
-              <summary>Synopsis</summary>
-              <p>{data.overview}</p>
-            </details>
-          )}
-          <div className="anime-actions">
-            <button
-              type="button"
-              className="anime-primary"
-              disabled={!queue.length || busy || (!localMode && !available)}
-              onClick={() =>
-                play(
-                  first,
-                  undefined,
-                  resumeIndex >= 0
-                    ? Math.floor(saved(queue[first]!)?.positionSeconds ?? 0)
-                    : 0,
-                )
-              }
-            >
-              <Play size={17} />
-              {busy
-                ? "Finding episodes…"
-                : resumeIndex >= 0
-                  ? `Resume episode ${queue[first]?.episode ?? first + 1}`
-                  : `Play episode ${queue[first]?.episode ?? 1}`}
-            </button>
-            <button
-              type="button"
-              aria-pressed={!!inLibrary}
-              disabled={library.isPending || !data}
-              onClick={() => library.mutate()}
-            >
-              {inLibrary ? <BookmarkCheck size={17} /> : <Bookmark size={17} />}
-              {inLibrary ? "Saved for later" : "Watch later"}
-            </button>
-            <button
-              type="button"
-              disabled={!data}
-              onClick={() => setSaveDialog(true)}
-            >
-              Add to playlist
-            </button>
+            {library.error && (
+              <p role="alert" className="anime-error">
+                {library.error.message}
+              </p>
+            )}
           </div>
-          {library.error && (
-            <p role="alert" className="anime-error">
-              {library.error.message}
-            </p>
-          )}
         </div>
       </header>
 
-      <section
-        className="anime-episodes"
-        aria-labelledby="anime-episodes-title"
-      >
-        <div className="anime-source-row">
-          <label className="anime-source-label">
-            Playback source
-            <select
-              aria-label="Streaming extension"
-              value={selected}
-              onChange={(event) => patch("source", event.target.value)}
-              disabled={
-                !hasLocal &&
-                !hasLinks &&
-                (extensions.isPending || !extensions.data?.length)
-              }
-            >
-              {!selected && <option value="">No sources available</option>}
-              {selected && !available && !localMode && !linkMode && (
-                <option value={selected} disabled>
-                  Selected source unavailable
-                </option>
-              )}
-              {extensions.data?.map((extension) => (
-                <option key={extension.id} value={extension.id}>
-                  {extension.name}
-                </option>
-              ))}
-              {hasLocal && <option value={LOCAL_SOURCE}>Local files</option>}
-              {hasLinks && <option value={LINK_SOURCE}>Other links</option>}
-            </select>
-          </label>
-        </div>
-        <div className="anime-episode-heading">
-          <div>
-            <h2 id="anime-episodes-title">Episodes</h2>
-            <p>
-              {queue.length
-                ? `${queue.length} available, ${watchedCount} watched`
-                : linkMode
-                  ? "Open a link in your browser"
-                  : "Choose a playback source to watch"}
-            </p>
-          </div>
-        </div>
+      <nav className="anime-tabs" aria-label="Page sections">
+        <button
+          type="button"
+          className="anime-tab"
+          onClick={() => jumpTo("anime-episodes")}
+        >
+          Episodes
+          {queue.length > 0 && <span>{queue.length}</span>}
+        </button>
+        {!!data?.related.length && (
+          <button
+            type="button"
+            className="anime-tab"
+            onClick={() => jumpTo("anime-related")}
+          >
+            Related anime
+            <span>{data.related.length}</span>
+          </button>
+        )}
+      </nav>
 
-        {linkMode ? (
-          <LinkList links={linkList} />
-        ) : !localMode && extensions.isPending ? (
-          <EpisodeSkeleton />
-        ) : !localMode && extensions.error ? (
-          <div className="anime-message" role="alert">
-            <p>Extensions could not be loaded. {extensions.error.message}</p>
-            <button type="button" onClick={() => void extensions.refetch()}>
-              Retry extensions
-            </button>
-          </div>
-        ) : !localMode && !extensions.data?.length ? (
-          <div className="anime-message">
-            <h3>No anime extensions enabled</h3>
-            <p>Install or enable an anime extension to load episodes.</p>
-            <Link to="/extensions">Open Extensions</Link>
-          </div>
-        ) : !localMode && !available ? (
-          <div className="anime-message" role="alert">
-            <p>
-              This extension was disabled or removed. Select an available
-              extension above.
-            </p>
-            <Link to="/extensions">Manage extensions</Link>
-          </div>
-        ) : !localMode && (episodes.isPending || busy) ? (
-          <EpisodeSkeleton />
-        ) : !localMode && episodes.error ? (
-          <div className="anime-message" role="alert">
-            <h3>Episodes could not be loaded</h3>
-            <p>{episodes.error.message}</p>
-            <button type="button" onClick={() => void episodes.refetch()}>
-              Retry episodes
-            </button>
-          </div>
-        ) : !localMode && !episodes.data ? (
-          <div className="anime-message">
-            <h3>No matching title on {available?.name ?? "this extension"}</h3>
-            <p>
-              This extension did not return a unique match for this anime.
-              Choose another extension or search its titles.
-            </p>
-            <Link to={`/anime?${new URLSearchParams({ source: selected })}`}>
-              Search this extension
-            </Link>
-          </div>
-        ) : !queue.length ? (
-          <div className="anime-message">
-            <h3>
-              {localMode
-                ? "No local files for this anime"
-                : "No episodes published by this extension"}
-            </h3>
+      <div className="anime-body">
+        <section
+          className="anime-episodes"
+          id="anime-episodes"
+          aria-labelledby="anime-episodes-title"
+        >
+          <div className="anime-section-head">
+            <div>
+              <h2 id="anime-episodes-title">Episodes</h2>
+              <p>
+                {queue.length
+                  ? `${queue.length} available, ${watchedCount} watched`
+                  : linkMode
+                    ? "Open a link in your browser"
+                    : "Choose a playback source to watch"}
+              </p>
+            </div>
             <button
               type="button"
-              onClick={() => void (localMode ? localFiles : episodes).refetch()}
+              className="anime-icon-button"
+              aria-label="Mark shown episodes as completed"
+              title="Mark shown episodes as completed"
+              disabled={markAll.isPending || busy || visible.length === 0}
+              onClick={() => markAll.mutate(visible.map(({ entry }) => entry))}
             >
-              {localMode ? "Refresh files" : "Refresh episodes"}
+              <CheckCheck size={17} />
             </button>
+            <label className="anime-source-label">
+              Playback source
+              <select
+                aria-label="Playback source"
+                value={selected}
+                onChange={(event) => patch("source", event.target.value)}
+                disabled={
+                  !hasLocal &&
+                  !hasLinks &&
+                  (extensions.isPending || !extensions.data?.length)
+                }
+              >
+                {!selected && <option value="">No sources available</option>}
+                {selected && !available && !localMode && !linkMode && (
+                  <option value={selected} disabled>
+                    Selected source unavailable
+                  </option>
+                )}
+                {extensions.data?.map((extension) => (
+                  <option key={extension.id} value={extension.id}>
+                    {extension.name}
+                  </option>
+                ))}
+                {hasLocal && <option value={LOCAL_SOURCE}>Local files</option>}
+                {hasLinks && <option value={LINK_SOURCE}>Other links</option>}
+              </select>
+            </label>
           </div>
-        ) : (
-          <>
-            {episodes.data?.providerTitle && (
-              <p className="anime-provider-title">
-                Listed as {episodes.data.providerTitle}
-              </p>
-            )}
-            <div className="anime-toolbar">
-              <label>
-                Find episode
-                <input
-                  type="search"
-                  value={query}
-                  placeholder="Number or title"
-                  onChange={(event) => patch("episode", event.target.value)}
-                />
-              </label>
-              <label>
-                Show
-                <select
-                  value={filter}
-                  onChange={(event) => patch("filter", event.target.value)}
-                >
-                  <option value="all">All episodes</option>
-                  <option value="unwatched">Unwatched</option>
-                  <option value="bookmarked">Bookmarked</option>
-                </select>
-              </label>
-              <label>
-                Order
-                <select
-                  value={descending ? "newest" : "oldest"}
-                  onChange={(event) =>
-                    patch(
-                      "order",
-                      event.target.value === "newest" ? "newest" : "",
-                    )
-                  }
-                >
-                  <option value="oldest">First to last</option>
-                  <option value="newest">Last to first</option>
-                </select>
-              </label>
-            </div>
 
-            {(mark.error || bookmark.error) && (
-              <p role="alert" className="anime-error">
-                {(mark.error ?? bookmark.error)?.message}
+          {linkMode ? (
+            <LinkList links={linkList} />
+          ) : !localMode && extensions.isPending ? (
+            <EpisodeSkeleton />
+          ) : !localMode && extensions.error ? (
+            <div className="anime-message" role="alert">
+              <p>Extensions could not be loaded. {extensions.error.message}</p>
+              <button type="button" onClick={() => void extensions.refetch()}>
+                Retry extensions
+              </button>
+            </div>
+          ) : !localMode && !extensions.data?.length ? (
+            <div className="anime-message">
+              <h3>No anime extensions enabled</h3>
+              <p>Install or enable an anime extension to load episodes.</p>
+              <Link to="/extensions">Open Extensions</Link>
+            </div>
+          ) : !localMode && !available ? (
+            <div className="anime-message" role="alert">
+              <p>
+                This extension was disabled or removed. Select an available
+                extension above.
               </p>
-            )}
-            {(progress.error || bookmarks.error) && (
-              <div className="anime-message" role="alert">
-                <p>Saved episode status is unavailable.</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void progress.refetch();
-                    void bookmarks.refetch();
-                  }}
-                >
-                  Retry saved status
-                </button>
-              </div>
-            )}
-            {visible.length === 0 ? (
-              <div className="anime-message">
-                <h3>No episodes match these filters</h3>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = new URLSearchParams(params);
-                    next.delete("episode");
-                    next.delete("filter");
-                    setParams(next, { replace: true });
-                    setLimit(50);
-                  }}
-                >
-                  Clear filters
-                </button>
-              </div>
-            ) : (
-              <ol className="anime-episode-list">
-                {visible.slice(0, limit).map(({ entry, index }) => {
-                  const watched = saved(entry)?.completed;
-                  const current =
-                    !!episodeId(entry) &&
-                    !!selectedEntry &&
-                    episodeId(selectedEntry) === episodeId(entry);
-                  const isBookmarked = !!bookmarks.data?.[keyFor(entry)];
-                  const number = entry.episode ?? index + 1;
-                  return (
-                    <li
-                      key={entry.locator}
-                      className={current ? "anime-episode-current" : ""}
-                      aria-current={current ? "true" : undefined}
-                    >
-                      <span className="anime-episode-number">
-                        {String(number).padStart(2, "0")}
-                      </span>
-                      <div className="anime-episode-name">
-                        <h3>{entry.label ?? `Episode ${number}`}</h3>
-                        <span>
-                          {current
-                            ? "Now playing"
-                            : watched
-                              ? "Watched"
-                              : saved(entry)?.percent
-                                ? "Continue watching"
-                                : "Unwatched"}
-                        </span>
-                      </div>
-                      <div className="anime-row-actions">
-                        <button
-                          type="button"
-                          aria-label={`${isBookmarked ? "Remove bookmark for" : "Bookmark"} episode ${number}`}
-                          aria-pressed={isBookmarked}
-                          disabled={
-                            bookmark.isPending ||
-                            bookmarks.isPending ||
-                            !!bookmarks.error
-                          }
-                          onClick={() => bookmark.mutate(entry)}
-                        >
-                          {isBookmarked ? (
-                            <BookmarkCheck size={17} />
-                          ) : (
-                            <Bookmark size={17} />
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={`Mark episode ${number} ${watched ? "unwatched" : "watched"}`}
-                          aria-pressed={!!watched}
-                          disabled={
-                            mark.isPending ||
-                            progress.isPending ||
-                            !!progress.error
-                          }
-                          onClick={() =>
-                            mark.mutate({ entry, watched: !watched })
-                          }
-                        >
-                          {watched ? (
-                            <RotateCcw size={17} />
-                          ) : (
-                            <Check size={17} />
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          className="anime-play-episode"
-                          aria-label={`Play episode ${number}`}
-                          onPointerEnter={() => {
-                            if (entry.locator.startsWith("vestra-stream://"))
-                              void bridge.media
-                                .streamQualities(entry.locator)
-                                .catch(() => undefined);
-                          }}
-                          onFocus={() => {
-                            if (entry.locator.startsWith("vestra-stream://"))
-                              void bridge.media
-                                .streamQualities(entry.locator)
-                                .catch(() => undefined);
-                          }}
-                          onClick={() => play(index)}
-                        >
-                          <Play size={15} />
-                          <span>Play</span>
-                        </button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
-            {visible.length > limit && (
+              <Link to="/extensions">Manage extensions</Link>
+            </div>
+          ) : !localMode && (episodes.isPending || busy) ? (
+            <EpisodeSkeleton />
+          ) : !localMode && episodes.error ? (
+            <div className="anime-message" role="alert">
+              <h3>Episodes could not be loaded</h3>
+              <p>{episodes.error.message}</p>
+              <button type="button" onClick={() => void episodes.refetch()}>
+                Retry episodes
+              </button>
+            </div>
+          ) : !localMode && !episodes.data ? (
+            <div className="anime-message">
+              <h3>
+                No matching title on {available?.name ?? "this extension"}
+              </h3>
+              <p>
+                This extension did not return a unique match for this anime.
+                Choose another extension or search its titles.
+              </p>
+              <Link to={`/anime?${new URLSearchParams({ source: selected })}`}>
+                Search this extension
+              </Link>
+            </div>
+          ) : !queue.length ? (
+            <div className="anime-message">
+              <h3>
+                {localMode
+                  ? "No local files for this anime"
+                  : "No episodes published by this extension"}
+              </h3>
               <button
                 type="button"
-                className="anime-load-more"
-                onClick={() => setLimit((value) => value + 50)}
+                onClick={() =>
+                  void (localMode ? localFiles : episodes).refetch()
+                }
               >
-                Show more episodes ({visible.length - limit} remaining)
+                {localMode ? "Refresh files" : "Refresh episodes"}
               </button>
-            )}
-          </>
-        )}
-      </section>
+            </div>
+          ) : (
+            <>
+              {episodes.data?.providerTitle && (
+                <p className="anime-provider-title">
+                  Listed as {episodes.data.providerTitle}
+                </p>
+              )}
+              <div className="anime-toolbar">
+                {seasonNumbers.length > 1 && (
+                  <select
+                    className="anime-season-select"
+                    aria-label="Season"
+                    value={season}
+                    onChange={(event) =>
+                      patch(
+                        "season",
+                        event.target.value === "all" ? "" : event.target.value,
+                      )
+                    }
+                  >
+                    <option value="all">All seasons</option>
+                    {seasonNumbers.map((number) => (
+                      <option key={number} value={number}>
+                        Season {number}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <label>
+                  Find episode
+                  <input
+                    type="search"
+                    value={query}
+                    placeholder="Number or title"
+                    onChange={(event) => patch("episode", event.target.value)}
+                  />
+                </label>
+                <label>
+                  Show
+                  <select
+                    value={filter}
+                    onChange={(event) => patch("filter", event.target.value)}
+                  >
+                    <option value="all">All episodes</option>
+                    <option value="unwatched">Unwatched</option>
+                    <option value="bookmarked">Bookmarked</option>
+                  </select>
+                </label>
+                <label>
+                  Order
+                  <select
+                    value={descending ? "newest" : "oldest"}
+                    onChange={(event) =>
+                      patch(
+                        "order",
+                        event.target.value === "newest" ? "newest" : "",
+                      )
+                    }
+                  >
+                    <option value="oldest">First to last</option>
+                    <option value="newest">Last to first</option>
+                  </select>
+                </label>
+              </div>
+
+              {(mark.error || bookmark.error) && (
+                <p role="alert" className="anime-error">
+                  {(mark.error ?? bookmark.error)?.message}
+                </p>
+              )}
+              {(progress.error || bookmarks.error) && (
+                <div className="anime-message" role="alert">
+                  <p>Saved episode status is unavailable.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void progress.refetch();
+                      void bookmarks.refetch();
+                    }}
+                  >
+                    Retry saved status
+                  </button>
+                </div>
+              )}
+              {visible.length === 0 ? (
+                <div className="anime-message">
+                  <h3>No episodes match these filters</h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = new URLSearchParams(params);
+                      next.delete("episode");
+                      next.delete("filter");
+                      setParams(next, { replace: true });
+                      setLimit(50);
+                    }}
+                  >
+                    Clear filters
+                  </button>
+                </div>
+              ) : (
+                <ol className="anime-episode-list">
+                  {visible.slice(0, limit).map(({ entry, index }) => {
+                    const saves = saved(entry);
+                    const watched = saves?.completed;
+                    const percent = Math.round((saves?.percent ?? 0) * 100);
+                    const partial = !watched && percent >= 1;
+                    const current =
+                      !!episodeId(entry) &&
+                      !!selectedEntry &&
+                      episodeId(selectedEntry) === episodeId(entry);
+                    const isBookmarked = !!bookmarks.data?.[keyFor(entry)];
+                    const number = entry.episode ?? index + 1;
+                    const runtime = saves?.durationSeconds
+                      ? formatDuration(saves.durationSeconds)
+                      : "";
+                    return (
+                      <li
+                        key={entry.locator}
+                        className={current ? "anime-episode-current" : ""}
+                        aria-current={current ? "true" : undefined}
+                      >
+                        <span className="anime-episode-number">
+                          {String(number).padStart(2, "0")}
+                        </span>
+                        <div className="anime-episode-thumb" aria-hidden="true">
+                          <Play size={13} className="fill-current" />
+                          {partial && (
+                            <span
+                              className="anime-episode-progress"
+                              style={{ width: `${percent}%` }}
+                            />
+                          )}
+                        </div>
+                        <div className="anime-episode-name">
+                          <h3>{entry.label ?? `Episode ${number}`}</h3>
+                          <span>
+                            {current
+                              ? "Now playing"
+                              : watched
+                                ? "Watched"
+                                : partial
+                                  ? `In progress, ${percent}%`
+                                  : "Not watched"}
+                          </span>
+                        </div>
+                        <span className="anime-episode-runtime">{runtime}</span>
+                        <div className="anime-row-actions">
+                          <button
+                            type="button"
+                            aria-label={`${isBookmarked ? "Remove bookmark for" : "Bookmark"} episode ${number}`}
+                            aria-pressed={isBookmarked}
+                            disabled={
+                              bookmark.isPending ||
+                              bookmarks.isPending ||
+                              !!bookmarks.error
+                            }
+                            onClick={() => bookmark.mutate(entry)}
+                          >
+                            {isBookmarked ? (
+                              <BookmarkCheck size={17} />
+                            ) : (
+                              <Bookmark size={17} />
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Mark episode ${number} ${watched ? "unwatched" : "watched"}`}
+                            aria-pressed={!!watched}
+                            disabled={
+                              mark.isPending ||
+                              progress.isPending ||
+                              !!progress.error
+                            }
+                            onClick={() =>
+                              mark.mutate({ entry, watched: !watched })
+                            }
+                          >
+                            {watched ? (
+                              <RotateCcw size={17} />
+                            ) : (
+                              <Check size={17} />
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            className="anime-play-episode"
+                            aria-label={`Play episode ${number}`}
+                            onPointerEnter={() => {
+                              if (entry.locator.startsWith("vestra-stream://"))
+                                void bridge.media
+                                  .streamQualities(entry.locator)
+                                  .catch(() => undefined);
+                            }}
+                            onFocus={() => {
+                              if (entry.locator.startsWith("vestra-stream://"))
+                                void bridge.media
+                                  .streamQualities(entry.locator)
+                                  .catch(() => undefined);
+                            }}
+                            onClick={() => play(index)}
+                          >
+                            <Play size={15} className="fill-current" />
+                            <span>Play</span>
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+              {visible.length > limit && (
+                <button
+                  type="button"
+                  className="anime-load-more"
+                  onClick={() => setLimit((value) => value + 50)}
+                >
+                  Show more episodes ({visible.length - limit} remaining)
+                </button>
+              )}
+            </>
+          )}
+        </section>
+
+        <aside className="anime-side" aria-label="Details">
+          {data && (
+            <section className="anime-panel">
+              <h2>Details</h2>
+              <dl className="anime-facts">
+                {data.year && (
+                  <div>
+                    <dt>Year</dt>
+                    <dd>{data.year}</dd>
+                  </div>
+                )}
+                <div>
+                  <dt>Status</dt>
+                  <dd>{data.status.replaceAll("-", " ")}</dd>
+                </div>
+                <div>
+                  <dt>Episodes</dt>
+                  <dd>{queue.length ? queue.length : "Unknown"}</dd>
+                </div>
+                {data.durationSeconds ? (
+                  <div>
+                    <dt>Runtime</dt>
+                    <dd>{formatDuration(data.durationSeconds)}</dd>
+                  </div>
+                ) : null}
+                {!!data.studios.length && (
+                  <div>
+                    <dt>Studio</dt>
+                    <dd>{data.studios.join(", ")}</dd>
+                  </div>
+                )}
+                {!!data.countries.length && (
+                  <div>
+                    <dt>Country</dt>
+                    <dd>{data.countries.join(", ")}</dd>
+                  </div>
+                )}
+                {!!data.languages.length && (
+                  <div>
+                    <dt>Languages</dt>
+                    <dd>{data.languages.join(", ")}</dd>
+                  </div>
+                )}
+                {data.rating.score != null && (
+                  <div>
+                    <dt>Score</dt>
+                    <dd>
+                      {data.rating.score}%
+                      <span className="anime-score-bar" aria-hidden="true">
+                        <i style={{ width: `${data.rating.score}%` }} />
+                      </span>
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            </section>
+          )}
+        </aside>
+      </div>
+
+      {!!data?.related.length && (
+        <section
+          className="anime-related"
+          id="anime-related"
+          aria-labelledby="anime-related-title"
+        >
+          <div className="anime-section-head">
+            <div>
+              <h2 id="anime-related-title">Related anime</h2>
+            </div>
+          </div>
+          <ul className="anime-related-grid">
+            {data.related.map((item) => (
+              <li key={mediaKey(item)} className="anime-related-card">
+                <div className="anime-related-art">
+                  {item.images.poster ? (
+                    <img
+                      src={item.images.poster}
+                      alt=""
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      decoding="async"
+                    />
+                  ) : (
+                    <Film size={22} />
+                  )}
+                </div>
+                <h3>{item.title}</h3>
+                <span>
+                  {item.year ? `${item.year} · ` : ""}
+                  {item.isSeries ? "Series" : "Movie"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </article>
   );
 }
@@ -702,10 +930,14 @@ function LinkList({ links }: { links: PlaybackSource[] }) {
           <span className="anime-episode-number">
             {String(index + 1).padStart(2, "0")}
           </span>
+          <div className="anime-episode-thumb" aria-hidden="true">
+            <ExternalLink size={13} />
+          </div>
           <div className="anime-episode-name">
             <h3>{link.label ?? link.kind}</h3>
             <span>{link.kind}</span>
           </div>
+          <span className="anime-episode-runtime" />
           <div className="anime-row-actions">
             <button
               type="button"

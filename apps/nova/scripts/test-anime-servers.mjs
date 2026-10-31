@@ -277,3 +277,44 @@ test("playback failover excludes previously used advertised mirrors", async () =
     /No playable mirror/,
   );
 });
+
+test("cancelling pending mirrors rejects without waiting for their network deadlines", async () => {
+  const controller = new AbortController();
+  const pending = resolveEpisodeServers(
+    ["One", "Two"],
+    undefined,
+    () => new Promise(() => {}),
+    undefined,
+    controller.signal,
+  );
+  controller.abort();
+  await assert.rejects(pending, { name: "AbortError" });
+});
+
+test("parallel extraction retains timely backups and ignores late mirrors", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let release;
+  const pending = resolveEpisodeServers(
+    ["One", "Two"],
+    undefined,
+    async (server) =>
+      server === "One"
+        ? result(server)
+        : new Promise((resolve) => {
+            release = resolve;
+          }),
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  t.mock.timers.tick(3001);
+  const rows = await pending;
+  assert.deepEqual(
+    rows.map((row) => row.server),
+    ["One"],
+  );
+  release(result("Two"));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(
+    rows.map((row) => row.server),
+    ["One"],
+  );
+});
