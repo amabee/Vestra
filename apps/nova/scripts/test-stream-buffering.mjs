@@ -395,3 +395,24 @@ test("mirror retry budget is finite even with many advertised mirrors", async (t
   assert.equal(next.lowerQuality, true);
   assert.match(next.playback.url, /D-720/);
 });
+
+test("loader waits for playback readiness rather than metadata or a position notification", async (t) => {
+  const { session, connection } = await sessionFixture(t);
+  assert.equal(session.state.loading, true);
+  assert.equal(session.state.idle, false);
+  connection.emit({ event: "property-change", name: "time-pos", data: 120 });
+  assert.equal(session.state.loading, true);
+  connection.emit({ event: "playback-restart" });
+  assert.equal(session.state.loading, false);
+  await session.load("paused.mkv");
+  connection.emit({ event: "property-change", name: "pause", data: true });
+  assert.equal(session.state.loading, true);
+  connection.emit({ event: "playback-restart" });
+  assert.equal(
+    session.state.loading,
+    false,
+    "a decoded paused frame is ready too",
+  );
+  connection.emit({ event: "end-file", reason: "error" });
+  assert.equal(session.state.loading, false);
+});

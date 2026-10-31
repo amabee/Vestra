@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { VideoLoader } from "./video-loader";
+import { getSubtitleColor, getSubtitleFont } from "./subtitle-style";
 import { bridge } from "@/lib/bridge";
 import { usePlayer } from "@/lib/player-store";
 import { useSettings, keys } from "@/lib/queries";
@@ -80,6 +81,15 @@ export function PlayerOverlay() {
   const usingMpv = engine === "mpv" && Boolean(item) && Boolean(source);
 
   const mpv = useMpvState(usingMpv);
+
+  // Put the saved subtitle font back whenever the player process starts.
+  useEffect(() => {
+    if (!mpv.running) return;
+    const family = getSubtitleFont();
+    if (family) void bridge.mpv.setSubtitleFont(family).catch(() => undefined);
+    const color = getSubtitleColor();
+    if (color) void bridge.mpv.setSubtitleColor(color).catch(() => undefined);
+  }, [mpv.running]);
   useSurfaceRect(surfaceRef, usingMpv);
 
   const [failed, setFailed] = useState<string | null>(null);
@@ -762,8 +772,8 @@ export function PlayerOverlay() {
               </p>
             ) : null}
             <p className="mt-3 text-sm text-base-content/70">
-              Retry this episode, or close the player to choose another
-              extension.
+              Try again, or try another playback source from the
+              anime page.
             </p>
             <button
               type="button"
@@ -781,14 +791,14 @@ export function PlayerOverlay() {
                   );
               }}
             >
-              Retry episode
+              Try again
             </button>
             <button
               type="button"
               onClick={close}
               className="mt-6 rounded-field border border-base-content/20 px-4 py-2 text-sm transition-colors hover:bg-base-content/10"
             >
-              Close
+              Try another source
             </button>
           </div>
         </div>

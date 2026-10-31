@@ -2,6 +2,13 @@ import { useEffect, useRef, useState } from "react";
 
 import { bridge, type MpvState, type MpvTrack } from "@/lib/bridge";
 
+import {
+  getSubtitleColor,
+  getSubtitleFont,
+  saveSubtitleColor,
+  saveSubtitleFont,
+} from "./subtitle-style";
+
 /**
  * The settings menu, anchored to its button and drawn over the video.
  *
@@ -9,8 +16,9 @@ import { bridge, type MpvState, type MpvTrack } from "@/lib/bridge";
  * it lives in the transparent window stacked above mpv's surface, so it
  * floats over the picture instead of displacing it.
  *
- * One level of nesting — a list of settings, then the values for whichever was
- * chosen — which keeps every option two clicks away at most.
+ * Settings are grouped under parents: Subtitles holds everything about how
+ * subtitles look and sound, More holds the rest. Every option is at most
+ * three clicks away.
  */
 
 type Page =
@@ -18,13 +26,29 @@ type Page =
   | "quality"
   | "speed"
   | "audio"
+  | "subtitle-group"
   | "subtitles"
   | "delay"
   | "size"
+  | "font"
+  | "color"
+  | "more"
   | "keys";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
 const SIZES = [0.75, 0.9, 1, 1.15, 1.3, 1.5] as const;
+
+/** Subtitle colours offered as swatches. White is mpv's default. */
+const SUBTITLE_COLORS: [string, string][] = [
+  ["White", "#FFFFFF"],
+  ["Yellow", "#FFE600"],
+  ["Green", "#7CFC00"],
+  ["Cyan", "#00E5FF"],
+  ["Pink", "#FF6EC7"],
+];
+
+/** Letters, digits, spaces and a few punctuation marks found in font names. */
+const FONT_NAME = /^[\p{L}\p{N} .'_-]{1,64}$/u;
 
 /**
  * Shortcuts, grouped the way they are reached for.
@@ -89,9 +113,12 @@ export function SettingsMenu({
     "idle" | "sending" | "done" | "failed"
   >("idle");
   const [page, setPage] = useState<Page>("root");
+  const [font, setFont] = useState<string | null>(getSubtitleFont);
+  const [color, setColor] = useState<string | null>(getSubtitleColor);
+  const [appearanceError, setAppearanceError] = useState<string | null>(null);
   const container = useRef<HTMLDivElement>(null);
 
-  // Dismiss on an outside click, and step back through pages on Escape.
+  // Dismiss on an outside click, and step back one page on Escape.
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
       if (!container.current?.contains(event.target as Node)) onClose();
@@ -100,7 +127,7 @@ export function SettingsMenu({
       if (event.key !== "Escape") return;
       event.stopPropagation();
       if (page === "root") onClose();
-      else setPage("root");
+      else setPage(parentOf(page));
     };
 
     document.addEventListener("pointerdown", onPointerDown);
@@ -115,6 +142,12 @@ export function SettingsMenu({
   const audio = mpv.tracks.filter((track) => track.type === "audio");
   const subtitles = mpv.tracks.filter((track) => track.type === "sub");
   const activeSubtitle = subtitles.find((track) => track.selected);
+  const trackValue =
+    subtitles.length === 0
+      ? "None"
+      : mpv.subtitleVisible && activeSubtitle
+        ? describe(activeSubtitle)
+        : "Off";
 
   return (
     <div
@@ -125,7 +158,7 @@ export function SettingsMenu({
       {page !== "root" ? (
         <button
           type="button"
-          onClick={() => setPage("root")}
+          onClick={() => setPage(parentOf(page))}
           className="mb-1 flex w-full items-center gap-2 border-b border-white/10 px-3 py-2 text-left text-sm text-white/70 transition-colors hover:text-white"
         >
           <Chevron className="size-3.5 rotate-180" />
@@ -159,78 +192,10 @@ export function SettingsMenu({
           />
           <Row
             label="Subtitles"
-            value={
-              mpv.subtitleVisible && activeSubtitle
-                ? describe(activeSubtitle)
-                : "Off"
-            }
-            onClick={() => setPage("subtitles")}
-            disabled={subtitles.length === 0}
+            value={trackValue}
+            onClick={() => setPage("subtitle-group")}
           />
-          <Row
-            label="Subtitle delay"
-            value={`${mpv.subtitleDelay > 0 ? "+" : ""}${mpv.subtitleDelay.toFixed(1)}s`}
-            onClick={() => setPage("delay")}
-          />
-          <Row
-            label="Subtitle size"
-            value={
-              mpv.subtitleScale === 1
-                ? "Default"
-                : `${Math.round(mpv.subtitleScale * 100)}%`
-            }
-            onClick={() => setPage("size")}
-          />
-          <Row
-            label="Keyboard shortcuts"
-            value=""
-            onClick={() => setPage("keys")}
-          />
-
-          {/*
-            Timings are community-submitted and occasionally belong to another
-            cut of the episode. Reporting corrects them for everyone rather
-            than leaving each viewer to work around it.
-
-            Shown only when there is something to report: a range read from the
-            file's own chapters has no submission behind it. Sends once, then
-            says so, because this writes to a shared database.
-          */}
-          {reportableSkips.length > 0 ? (
-            <Row
-              label="Report wrong timing"
-              value={
-                reported === "done"
-                  ? "Reported"
-                  : reported === "sending"
-                    ? "Sending…"
-                    : reported === "failed"
-                      ? "Could not send"
-                      : ""
-              }
-              disabled={reported === "sending" || reported === "done"}
-              onClick={() => {
-                setReported("sending");
-                void Promise.all(
-                  reportableSkips.map((id) => bridge.media.reportSkip(id)),
-                )
-                  .then((results) => {
-                    setReported(results.some(Boolean) ? "done" : "failed");
-                  })
-                  .catch(() => setReported("failed"));
-              }}
-            />
-          ) : null}
-
-          {/* Everything above is scoped to what is playing. Theme, accent and
-              library folders are not, and live on a page this window is
-              covering — so reaching them means leaving the player, which the
-              row says rather than springing it. */}
-          <Row
-            label="App settings"
-            value="Leaves the player"
-            onClick={onOpenAppSettings}
-          />
+          <Row label="More" value="" onClick={() => setPage("more")} />
         </>
       ) : null}
 
@@ -266,6 +231,52 @@ export function SettingsMenu({
           ))
         : null}
 
+      {page === "subtitle-group" ? (
+        <>
+          {subtitles.length === 0 ? (
+            <p className="px-3 pt-2 text-xs leading-relaxed text-white/50">
+              No subtitles for this source. Font, size and delay still apply to
+              any that come later.
+            </p>
+          ) : null}
+          <Row
+            label="Track"
+            value={trackValue}
+            onClick={() => setPage("subtitles")}
+            disabled={subtitles.length === 0}
+          />
+          <Row
+            label="Font"
+            value={font ?? "Default"}
+            onClick={() => setPage("font")}
+          />
+          <Row
+            label="Colour"
+            value={
+              color
+                ? (SUBTITLE_COLORS.find(([, hex]) => hex === color)?.[0] ??
+                  color)
+                : "White"
+            }
+            onClick={() => setPage("color")}
+          />
+          <Row
+            label="Size"
+            value={
+              mpv.subtitleScale === 1
+                ? "Default"
+                : `${Math.round(mpv.subtitleScale * 100)}%`
+            }
+            onClick={() => setPage("size")}
+          />
+          <Row
+            label="Delay"
+            value={`${mpv.subtitleDelay > 0 ? "+" : ""}${mpv.subtitleDelay.toFixed(1)}s`}
+            onClick={() => setPage("delay")}
+          />
+        </>
+      ) : null}
+
       {page === "subtitles" ? (
         <>
           <Option
@@ -289,6 +300,62 @@ export function SettingsMenu({
             />
           ))}
         </>
+      ) : null}
+
+      {page === "font" ? (
+        <FontPage
+          font={font}
+          onChange={(family) => {
+            saveSubtitleFont(family);
+            setFont(family);
+          }}
+        />
+      ) : null}
+
+      {page === "color" ? (
+        <div className="space-y-3 p-3">
+          <p className="text-xs leading-relaxed text-white/50">
+            Pick a text colour. Subtitles that style their own text may keep
+            their colours.
+          </p>
+          {appearanceError ? (
+            <p role="alert" className="text-xs text-red-300">
+              {appearanceError}
+            </p>
+          ) : null}
+          <div className="grid grid-cols-5 gap-2">
+            {SUBTITLE_COLORS.map(([name, hex]) => {
+              const selected = (color ?? "#FFFFFF") === hex;
+              return (
+                <button
+                  key={hex}
+                  type="button"
+                  title={name}
+                  aria-label={`Subtitle colour ${name}`}
+                  aria-pressed={selected}
+                  onClick={() => {
+                    setAppearanceError(null);
+                    void bridge.mpv
+                      .setSubtitleColor(hex)
+                      .then(() => {
+                        saveSubtitleColor(hex);
+                        setColor(hex);
+                      })
+                      .catch(() =>
+                        setAppearanceError(
+                          "Could not apply subtitle colour. Try again.",
+                        ),
+                      );
+                  }}
+                  style={{ backgroundColor: hex }}
+                  className={`size-9 rounded-full border-2 transition-transform hover:scale-110 ${
+                    selected ? "border-white" : "border-white/20"
+                  }`}
+                />
+              );
+            })}
+          </div>
+        </div>
       ) : null}
 
       {page === "delay" ? (
@@ -342,6 +409,61 @@ export function SettingsMenu({
             />
           ))
         : null}
+
+      {page === "more" ? (
+        <>
+          {/*
+            Timings are community-submitted and occasionally belong to another
+            cut of the episode. Reporting corrects them for everyone rather
+            than leaving each viewer to work around it.
+
+            Shown only when there is something to report: a range read from the
+            file's own chapters has no submission behind it. Sends once, then
+            says so, because this writes to a shared database.
+          */}
+          {reportableSkips.length > 0 ? (
+            <Row
+              label="Report wrong timing"
+              value={
+                reported === "done"
+                  ? "Reported"
+                  : reported === "sending"
+                    ? "Sending…"
+                    : reported === "failed"
+                      ? "Could not send"
+                      : ""
+              }
+              disabled={reported === "sending" || reported === "done"}
+              onClick={() => {
+                setReported("sending");
+                void Promise.all(
+                  reportableSkips.map((id) => bridge.media.reportSkip(id)),
+                )
+                  .then((results) => {
+                    setReported(results.some(Boolean) ? "done" : "failed");
+                  })
+                  .catch(() => setReported("failed"));
+              }}
+            />
+          ) : null}
+          <Row
+            label="Keyboard shortcuts"
+            value=""
+            onClick={() => setPage("keys")}
+          />
+
+          {/* Everything above is scoped to what is playing. Theme, accent and
+              library folders are not, and live on a page this window is
+              covering — so reaching them means leaving the player, which the
+              row says rather than springing it. */}
+          <Row
+            label="App settings"
+            value="Leaves the player"
+            onClick={onOpenAppSettings}
+          />
+        </>
+      ) : null}
+
       {page === "keys" ? (
         <div className="px-3 py-2">
           {SHORTCUTS.map((section) => (
@@ -368,6 +490,25 @@ export function SettingsMenu({
   );
 }
 
+/** The page a back step returns to. Subtitle pages go back to Subtitles. */
+function parentOf(page: Page): Page {
+  switch (page) {
+    case "subtitles":
+    case "delay":
+    case "size":
+    case "font":
+    case "color":
+      return "subtitle-group";
+    case "subtitle-group":
+    case "more":
+      return "root";
+    case "keys":
+      return "more";
+    default:
+      return "root";
+  }
+}
+
 function titleFor(page: Page): string {
   switch (page) {
     case "quality":
@@ -376,17 +517,99 @@ function titleFor(page: Page): string {
       return "Playback speed";
     case "audio":
       return "Audio";
-    case "subtitles":
+    case "subtitle-group":
       return "Subtitles";
+    case "subtitles":
+      return "Subtitle track";
     case "delay":
       return "Subtitle delay";
     case "size":
       return "Subtitle size";
+    case "font":
+      return "Subtitle font";
+    case "color":
+      return "Subtitle colour";
+    case "more":
+      return "More";
     case "keys":
       return "Keyboard shortcuts";
     default:
       return "Settings";
   }
+}
+
+/**
+ * Pick the subtitle font by name.
+ *
+ * Any font installed on this PC works. A name the PC does not have falls back
+ * to the default font without an error, so the picture never goes blank.
+ */
+function FontPage({
+  font,
+  onChange,
+}: {
+  font: string | null;
+  onChange: (family: string | null) => void;
+}) {
+  const [draft, setDraft] = useState(font ?? "");
+  const [error, setError] = useState<string | null>(null);
+
+  const apply = (value: string) => {
+    const family = value.trim() || null;
+    if (family && !FONT_NAME.test(family)) {
+      setError("Use letters, numbers and spaces only.");
+      return;
+    }
+    setError(null);
+    void bridge.mpv
+      .setSubtitleFont(family)
+      .then(() => {
+        setDraft(family ?? "");
+        onChange(family);
+      })
+      .catch(() => setError("Could not apply subtitle font. Try again."));
+  };
+
+  return (
+    <div className="space-y-3 p-3">
+      <p className="text-xs leading-relaxed text-white/50">
+        Type the name of a font installed on this PC, such as Arial or Georgia.
+      </p>
+      <input
+        type="text"
+        value={draft}
+        maxLength={64}
+        placeholder="Default font"
+        aria-label="Subtitle font name"
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") apply(draft);
+        }}
+        className="w-full rounded-field border border-white/20 bg-black/40 px-2.5 py-1.5 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/60"
+      />
+      {error ? (
+        <p role="alert" className="text-xs text-red-300">
+          {error}
+        </p>
+      ) : null}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => apply(draft)}
+          className="flex-1 rounded-field border border-white/20 py-1.5 text-sm text-white/80 transition-colors hover:bg-white/10"
+        >
+          Apply
+        </button>
+        <button
+          type="button"
+          onClick={() => apply("")}
+          className="flex-1 rounded-field border border-white/20 py-1.5 text-sm text-white/80 transition-colors hover:bg-white/10"
+        >
+          Default
+        </button>
+      </div>
+    </div>
+  );
 }
 
 /**

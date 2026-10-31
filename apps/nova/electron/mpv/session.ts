@@ -462,7 +462,7 @@ export class MpvSession {
     if (event.event === "property-change") {
       switch (event.name) {
         case "time-pos":
-          if (typeof event.data === "number")
+          if (typeof event.data === "number" && Number.isFinite(event.data))
             this.#emit({ position: event.data });
           break;
         case "duration":
@@ -542,7 +542,8 @@ export class MpvSession {
         this.#emit({ loading: true, buffering: false });
         break;
       case "file-loaded":
-        this.#emit({ idle: false, loading: false, ended: false, error: null });
+        // Metadata is ready; playback-restart signals that playback can begin.
+        this.#emit({ idle: false, ended: false, error: null });
         {
           const revision = this.#subtitles.revision;
           void this.#media(() => this.#subtitles.attach(this.#require())).then(
@@ -558,6 +559,11 @@ export class MpvSession {
             },
           );
         }
+        break;
+      case "playback-restart":
+        // Also emitted after seeking and when starting paused. A time-pos
+        // notification alone can arrive before the decoder is ready.
+        if (!this.#state.idle) this.#emit({ loading: false });
         break;
       case "end-file":
         this.#clearStall();
@@ -760,6 +766,19 @@ export class MpvSession {
   async setSubtitleScale(scale: number): Promise<void> {
     const clamped = Math.max(0.5, Math.min(2.5, scale));
     await this.#require().setProperty("sub-scale", clamped);
+  }
+
+  /** Subtitle font family. `null` puts back the default sans-serif font. */
+  async setSubtitleFont(family: string | null): Promise<void> {
+    await this.#require().setProperty(
+      "sub-font",
+      family?.trim() || "sans-serif",
+    );
+  }
+
+  /** Subtitle text colour as `#RRGGBB`. `null` puts back white. */
+  async setSubtitleColor(color: string | null): Promise<void> {
+    await this.#require().setProperty("sub-color", color ?? "#FFFFFF");
   }
 
   /**

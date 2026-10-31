@@ -193,6 +193,7 @@ test(
         }
       }
       assert.ok(socket, "mpv IPC did not become ready");
+      const events = [];
       let buffer = "";
       socket.setEncoding("utf8");
       socket.on("data", (chunk) => {
@@ -201,6 +202,7 @@ test(
         while ((n = buffer.indexOf("\n")) >= 0) {
           const message = JSON.parse(buffer.slice(0, n));
           buffer = buffer.slice(n + 1);
+          if (message.event) events.push(message.event);
           const p = pending.get(message.request_id);
           if (p) {
             pending.delete(message.request_id);
@@ -240,7 +242,16 @@ test(
         await command("get_property", "options/hls-bitrate"),
         AUTO_HLS_BITRATE,
       );
+      await command("set_property", "sub-font", "Georgia");
+      await command("set_property", "sub-color", "#FFE600");
+      assert.equal(await command("get_property", "sub-font"), "Georgia");
       await command("loadfile", `${base}/index.m3u8`, "replace");
+      for (let i = 0; i < 60 && !events.includes("playback-restart"); i++)
+        await new Promise((r) => setTimeout(r, 50));
+      assert.ok(
+        events.includes("playback-restart"),
+        "paused native playback signals readiness",
+      );
       let tracks = [];
       for (let i = 0; i < 60; i++) {
         tracks = await command("get_property", "track-list");

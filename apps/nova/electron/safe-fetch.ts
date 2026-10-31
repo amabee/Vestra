@@ -124,10 +124,32 @@ async function assertPublicHost(hostname: string): Promise<void> {
   }
 }
 
+/** Find a system code through nested fetch causes and AggregateErrors. */
+function failureCode(error: unknown): string {
+  const queue: unknown[] = [error];
+  let fallback = "unknown network error";
+  for (let seen = 0; queue.length > 0 && seen < 12; seen++) {
+    const current = queue.shift() as
+      { code?: unknown; cause?: unknown; errors?: unknown } | null | undefined;
+    if (!current || typeof current !== "object") continue;
+    if (
+      typeof current.code === "string" &&
+      /^[A-Z][A-Z0-9_]{0,63}$/.test(current.code)
+    ) {
+      if (TRANSIENT_CODES.has(current.code)) return current.code;
+      if (fallback === "unknown network error") fallback = current.code;
+    }
+    if (current.cause !== undefined) queue.push(current.cause);
+    if (Array.isArray(current.errors))
+      queue.push(...current.errors.slice(0, 12));
+  }
+  return fallback;
+}
+
 /**
  * Node reports every network failure as the same "fetch failed" message. The
- * real reason (DNS, refused, reset, TLS, timeout) sits in `cause`, so pull it
- * out and name the host. Only the host and the error code are kept: no path,
+ * real reason is in the cause chain, so pull it out and name the host. Only
+ * the host and the error code are kept: no path,
  * query or headers, since those can carry credentials.
  */
 async function fetchOrExplain(url: URL, init: RequestInit): Promise<Response> {
@@ -141,7 +163,7 @@ async function fetchOrExplain(url: URL, init: RequestInit): Promise<Response> {
         true,
       );
     }
-    const code = codeOf((error as { cause?: unknown } | null)?.cause);
+    const code = failureCode(error);
     throw new NetworkError(
       `Request to ${url.hostname} failed (${code}).`,
       code,

@@ -49,7 +49,7 @@ try {
     join(scratch, "index.html"),
     `<!doctype html><html lang="en" data-theme="vestra"><head><link rel="stylesheet" href="${pathToFileURL(join(nova, "dist-renderer/assets", css)).href}"><link rel="stylesheet" href="${pathToFileURL(join(scratch, "fixture.css")).href}"></head><body><div id="root"></div><script>
     window.fixture={calls:[],fail:false, noMatch:false, saved:{}, marks:{},later:[],lists:[],nextList:1};
-    const item={source:'anilist',kind:'anime',sourceId:'123',title:'Catalogue Anime',originalTitle:'Original Anime',images:{poster:"https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx154587-qQTzQnEJJ3oB.jpg"},rating:{score:null},isSeries:true,genres:[],seasons:[],studios:[],cast:[],status:'released'};
+    const item={source:'anilist',kind:'anime',sourceId:'123',title:'Catalogue Anime',originalTitle:'Original Anime',images:{poster:"https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx154587-qQTzQnEJJ3oB.jpg"},rating:{score:null},isSeries:true,genres:[],seasons:[],studios:[],cast:[],countries:[],languages:[],related:[],status:'released'};
     const queue=[1,2].map(n=>({kind:'stream',locator:'vestra-stream://fixture-'+n,mimeType:null,label:'Episode '+n,priority:80,episode:n}));
     window.fixture.managed=[{id:'existing-provider',name:'Existing Anime Extension',type:'onlinestream-provider',hosts:['source.example'],preferences:{},enabled:true,status:'ready',servers:[],versions:[],sourceHash:'a'.repeat(64)}];
     window.fixtureBridge={
@@ -92,9 +92,16 @@ try {
         if(process.env.VESTRA_ANIME_SCREENSHOT){
           for(const width of [1440,375]){win.setContentSize(width,900);await new Promise(r=>setTimeout(r,180));require('node:fs').mkdirSync(require('node:path').dirname(process.env.VESTRA_ANIME_SCREENSHOT),{recursive:true});require('node:fs').writeFileSync(process.env.VESTRA_ANIME_SCREENSHOT+'-'+width+'.png',(await win.webContents.capturePage()).toPNG());}
         }
+        for (const width of [1440,375]) {
+          win.setContentSize(width,900);
+          await new Promise(r=>setTimeout(r,100));
+          assert.equal(await run('document.documentElement.scrollWidth<=window.innerWidth'),true,'Details overflows at '+width);
+          assert.equal(await run('Array.from(document.querySelectorAll(".anime-backdrop")).every(e=>{const r=e.getBoundingClientRect();return r.left>=0 && r.right<=window.innerWidth})'),true,'Backdrop leaves viewport at '+width);
+          assert.equal(await run('Array.from(document.querySelectorAll(".anime-backdrop")).every(e=>e.getBoundingClientRect().bottom<=e.parentElement.getBoundingClientRect().bottom+1)'),true,'Backdrop covers episode controls at '+width);
+        }
         assert.equal(await run('window.fixture.calls[0].source'),'ext-second');
         assert.equal(await run('window.fixture.location.search'),'?source=ext-second');
-        await run('Array.from(document.querySelectorAll("button")).find(b=>b.textContent.trim().toLowerCase()==="play episode 1").click()');
+        await run('Array.from(document.querySelectorAll("button")).find(b=>b.getAttribute("aria-label")==="Play episode 1").click()');
         await until('window.fixture.player.queue.length===2');
         assert.equal(await run('window.fixture.player.item.sourceId'),'123');
         console.log('PASS selected anime provider follows catalogue navigation and hands all episodes to the player');
@@ -103,9 +110,9 @@ try {
         await run('Array.from(document.querySelectorAll("button")).find(b=>b.getAttribute("aria-label")==="Bookmark episode 2").click()');
         await until('Array.from(document.querySelectorAll("button")).some(b=>b.getAttribute("aria-label")==="Remove bookmark for episode 2")');
         console.log('PASS per-episode watched state and bookmarks use stable streaming identities');
-        await run('(()=>{const s=Array.from(document.querySelectorAll("select")).find(e=>e.getAttribute("aria-label")==="Streaming extension");s.value="ext-first";s.dispatchEvent(new Event("change",{bubbles:true}));})()');
+        await run('(()=>{const s=Array.from(document.querySelectorAll("select")).find(e=>e.getAttribute("aria-label")==="Playback source");s.value="ext-first";s.dispatchEvent(new Event("change",{bubbles:true}));})()');
         await until('window.fixture.calls.at(-1).source==="ext-first" && Array.from(document.querySelectorAll("button")).find(e=>e.getAttribute("aria-label")==="Mark episode 1 watched")');
-        await run('(()=>{const s=Array.from(document.querySelectorAll("select")).find(e=>e.getAttribute("aria-label")==="Streaming extension");s.value="ext-second";s.dispatchEvent(new Event("change",{bubbles:true}));})()');
+        await run('(()=>{const s=Array.from(document.querySelectorAll("select")).find(e=>e.getAttribute("aria-label")==="Playback source");s.value="ext-second";s.dispatchEvent(new Event("change",{bubbles:true}));})()');
         await until('Array.from(document.querySelectorAll("button")).find(e=>e.getAttribute("aria-label")==="Mark episode 1 unwatched")');
         console.log('PASS switching extensions in details reloads matching episodes and isolates watch status');
         await run('window.fixture.navigate(-1)');
