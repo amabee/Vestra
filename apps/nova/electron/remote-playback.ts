@@ -243,9 +243,9 @@ export function createRemoteRecovery(
       currentServer = ((await initialRows) ?? rows).find(
         (row) => row.playback.url === initial.url,
       )?.server;
-    const previous = rows.find(
-      (row) => row.server === currentServer || row.playback.url === current.url,
-    );
+    const previous =
+      rows.find((row) => row.playback.url === current.url) ??
+      rows.find((row) => row.server === currentServer);
     if (currentServer) usedServers.add(currentServer);
     if (usedServers.size && attempts++ < 3) {
       let alternatives = rows.filter(
@@ -283,8 +283,18 @@ export function createRemoteRecovery(
       }
     }
     // No more mirrors: one final lighter rendition on the current server.
+    const sameServer = rows.filter(
+      (row) => !previous?.server || row.server === previous.server,
+    );
+    const currentHeight = Number(
+      /\b(\d{3,4})p\b/i.exec(previous?.label ?? "")?.[1],
+    );
+    const lighter = sameServer.filter((row) => {
+      const height = Number(/\b(\d{3,4})p\b/i.exec(row.label)?.[1]);
+      return height > 0 && height < currentHeight;
+    });
     const selected = automaticVariant(
-      rows.filter((row) => !previous?.server || row.server === previous.server),
+      lighter.length ? lighter : sameServer,
       RECOVERY_HEIGHT,
     );
     if (!selected) throw Error("No recovery stream is available.");

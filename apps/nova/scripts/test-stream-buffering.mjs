@@ -501,3 +501,256 @@ test("manifest probing forwards cancellation to the guarded transport", async ()
   controller.abort();
   await assert.rejects(pending, { name: "AbortError" });
 });
+
+test("repeated short cache stalls recover in Auto without waiting for one twelve-second stall", async (t) => {
+  let attempts = 0;
+  const { session, connection } = await sessionFixture(t, true, async () => {
+    attempts++;
+    return {
+      playback: { ...remote, url: "https://cdn.example/hd-mirror.m3u8" },
+      lowerQuality: false,
+    };
+  });
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
+  connection.emit({ event: "playback-restart" });
+  const buffering = (data) =>
+    connection.emit({
+      event: "property-change",
+      name: "paused-for-cache",
+      data,
+    });
+  for (let i = 0; i < 2; i++) {
+    buffering(true);
+    t.mock.timers.tick(2200);
+    buffering(false);
+    connection.emit({
+      event: "property-change",
+      name: "time-pos",
+      data: 44 + i * 2,
+    });
+    t.mock.timers.tick(2000);
+  }
+  buffering(true);
+  t.mock.timers.tick(1599);
+  await settle();
+  assert.equal(attempts, 0);
+  t.mock.timers.tick(2);
+  await settle();
+  assert.equal(attempts, 1);
+  assert.equal(
+    connection.writes.filter((row) => row[0] === "loadfile").length,
+    2,
+  );
+  assert.ok(
+    connection.writes.some(
+      (row) => row[0] === "loadfile" && row[1].includes("hd-mirror"),
+    ),
+  );
+  assert.ok(
+    connection.writes.some(
+      (row) => row[1] === "options/start" && row[2] === "46",
+    ),
+  );
+  assert.equal(
+    connection.writes
+      .filter((row) => row[1] === "options/hls-bitrate")
+      .at(-1)[2],
+    8000000,
+  );
+});
+
+test("manual choices, seeking, pauses and advancing cache flags do not trigger recurring-stall recovery", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
+  let attempts = 0;
+  const fallback = async () => {
+    attempts++;
+    return { playback: remote, lowerQuality: false };
+  };
+  const manual = await sessionFixture(t, false, fallback);
+  manual.connection.emit({ event: "playback-restart" });
+  const events = (connection, count, advance = false) => {
+    for (let i = 0; i < count; i++) {
+      connection.emit({
+        event: "property-change",
+        name: "paused-for-cache",
+        data: true,
+      });
+      t.mock.timers.tick(2200);
+      if (advance)
+        connection.emit({
+          event: "property-change",
+          name: "time-pos",
+          data: 50 + i * 3,
+        });
+      connection.emit({
+        event: "property-change",
+        name: "paused-for-cache",
+        data: false,
+      });
+    }
+  };
+  events(manual.connection, 4);
+  assert.equal(attempts, 0);
+  const auto = await sessionFixture(t, true, fallback);
+  auto.connection.emit({ event: "playback-restart" });
+  events(auto.connection, 2);
+  await auto.session.seek(80);
+  events(auto.connection, 1);
+  auto.connection.emit({ event: "property-change", name: "pause", data: true });
+  auto.connection.emit({
+    event: "property-change",
+    name: "pause",
+    data: false,
+  });
+  events(auto.connection, 1);
+  events(auto.connection, 4, true);
+  await settle();
+  assert.equal(attempts, 0);
+});
+
+test("final recovery picks an actually lighter rendition when initial Auto already selected 720p", async () => {
+  const rows = [720, 480].map((height) => ({
+    key: String(height),
+    label: height + "p",
+    server: "One",
+    playback: { ...remote, url: "https://cdn.example/" + height + ".mp4" },
+  }));
+  const locator = registerDeferredVariants(async () => rows);
+  const initial = await resolveRemotePlayback(locator);
+  assert.match(initial.url, /720/);
+  const next = await createRemoteRecovery(locator, initial)();
+  assert.match(next.playback.url, /480/);
+  assert.equal(next.lowerQuality, true);
+});
+
+test("recurring-stall recovery can finish after playback resumes, but pause/resume or seek cancels its pending result", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
+  for (const action of ["continue", "pause-resume", "seek", "finish"]) {
+    let release;
+    const { session, connection } = await sessionFixture(
+      t,
+      true,
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    connection.emit({ event: "playback-restart" });
+    const buffer = (data) =>
+      connection.emit({
+        event: "property-change",
+        name: "paused-for-cache",
+        data,
+      });
+    for (let i = 0; i < 2; i++) {
+      buffer(true);
+      t.mock.timers.tick(2200);
+      buffer(false);
+    }
+    buffer(true);
+    t.mock.timers.tick(1601);
+    await settle();
+    assert.equal(typeof release, "function");
+    buffer(false);
+    connection.emit({ event: "property-change", name: "time-pos", data: 55 });
+    if (action === "pause-resume") {
+      connection.emit({ event: "property-change", name: "pause", data: true });
+      connection.emit({ event: "property-change", name: "pause", data: false });
+    }
+    if (action === "seek") await session.seek(70);
+    if (action === "finish")
+      connection.emit({ event: "end-file", reason: "eof" });
+    release({
+      playback: { ...remote, url: "https://cdn.example/mirror-HD.m3u8" },
+      lowerQuality: false,
+    });
+    await settle();
+    assert.equal(
+      connection.writes.filter((row) => row[0] === "loadfile").length,
+      action === "continue" ? 2 : 1,
+    );
+    if (action === "continue")
+      assert.equal(
+        connection.writes.filter((row) => row[1] === "options/start").at(-1)[2],
+        "55",
+      );
+    assert.equal(session.state.error, null);
+    await session.stop();
+  }
+});
+
+test("old short stalls expire, and an advancing stale cache flag clears the recurring budget", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
+  let calls = 0;
+  const { session, connection } = await sessionFixture(t, true, async () => {
+    calls++;
+    return { playback: remote, lowerQuality: false };
+  });
+  connection.emit({ event: "playback-restart" });
+  const buffer = (data) =>
+    connection.emit({
+      event: "property-change",
+      name: "paused-for-cache",
+      data,
+    });
+  for (let i = 0; i < 2; i++) {
+    buffer(true);
+    t.mock.timers.tick(2200);
+    buffer(false);
+  }
+  t.mock.timers.tick(60001);
+  buffer(true);
+  t.mock.timers.tick(2200);
+  buffer(false);
+  await settle();
+  assert.equal(calls, 0);
+  buffer(true);
+  t.mock.timers.tick(2200);
+  buffer(false);
+  buffer(true);
+  t.mock.timers.tick(1599);
+  connection.emit({ event: "property-change", name: "time-pos", data: 50 });
+  t.mock.timers.tick(2);
+  await settle();
+  for (let i = 0; i < 14; i++) {
+    connection.emit({
+      event: "property-change",
+      name: "time-pos",
+      data: 51 + i,
+    });
+    t.mock.timers.tick(1000);
+  }
+  await settle();
+  assert.equal(calls, 0);
+});
+
+test("aging pauses cannot trigger a stale short timer, while the continuous deadline is retained", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
+  let calls = 0;
+  const { connection } = await sessionFixture(t, true, async () => {
+    calls++;
+    return { playback: remote, lowerQuality: false };
+  });
+  connection.emit({ event: "playback-restart" });
+  const buffer = (data) =>
+    connection.emit({
+      event: "property-change",
+      name: "paused-for-cache",
+      data,
+    });
+  for (let i = 0; i < 2; i++) {
+    buffer(true);
+    t.mock.timers.tick(2200);
+    buffer(false);
+  }
+  t.mock.timers.tick(55000);
+  buffer(true);
+  for (let i = 0; i < 11; i++) {
+    t.mock.timers.tick(1000);
+    await settle();
+    assert.equal(calls, 0);
+  }
+  t.mock.timers.tick(1001);
+  await settle();
+  assert.equal(calls, 1);
+});
