@@ -1,3 +1,7 @@
+import {
+  ExtensionArtwork,
+  extensionDescription,
+} from "@/components/extensions/extension-artwork";
 import { RemoteSourceReview } from "@/components/sources/remote-source";
 import type { RemoteSourcePlan } from "../../../shared/sources";
 import { ProviderExtensions } from "@/components/extensions/provider-extensions";
@@ -405,7 +409,7 @@ export function ExtensionsRoute() {
         hidden={tab !== "providers"}
         className="mt-6"
       >
-        <ProviderExtensions />
+        <ProviderExtensions artwork={browse.data?.entries ?? []} />
       </div>
 
       <div
@@ -434,12 +438,16 @@ export function ExtensionsRoute() {
               {installedGroups.map((group) => (
                 <div key={group.label}>
                   <SectionRule label={group.label} count={group.items.length} />
-                  <div className="mt-2 space-y-2">
+                  <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                     {group.items.map((entry) => (
                       <article
                         key={entry.id}
-                        className="flex items-start gap-4 rounded-box border rule bg-base-200/40 px-4 py-3"
+                        className="flex min-h-80 flex-col gap-4 rounded-box border rule bg-base-200/40 p-5"
                       >
+                        <ExtensionArtwork
+                          name={entry.name}
+                          icon={entry.manifest.icon}
+                        />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <span
@@ -464,9 +472,20 @@ export function ExtensionsRoute() {
                             ) : null}
                           </div>
 
+                          <p className="mt-2 text-sm text-base-content/60">
+                            {extensionDescription(
+                              entry.manifest.description,
+                              entry.type,
+                            )}
+                          </p>
+                          {entry.manifest.author && (
+                            <p className="meta mt-2">
+                              By {entry.manifest.author}
+                            </p>
+                          )}
                           <p className="filename truncate">{entry.id}</p>
 
-                          <p className="meta mt-1">
+                          <p className="meta mt-1 break-words">
                             {entry.grant.granted.length === 0
                               ? "No permissions"
                               : entry.grant.granted.join(" · ")}
@@ -572,7 +591,7 @@ export function ExtensionsRoute() {
               {availableGroups.map((group) => (
                 <div key={group.label}>
                   <SectionRule label={group.label} count={group.items.length} />
-                  <div className="mt-2 space-y-2">
+                  <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                     {group.items.map((entry) => (
                       <AvailableRow
                         key={`${entry.registryUrl}:${entry.id}`}
@@ -846,7 +865,7 @@ function Registries({
   );
 }
 
-/** One registry listing. */
+/** A registry listing with a primary installation action and optional details. */
 function AvailableRow({
   entry,
   installed,
@@ -860,66 +879,62 @@ function AvailableRow({
 }) {
   const support = EXTENSION_TYPE_SUPPORT[entry.type];
   const health = healthOf(entry);
-
-  /*
-    A registry may contain only a manifest URL. Preview resolves the payload
-    and execution format from that manifest before presenting permissions.
-  */
   const installable = support.supported && entry.manifestURI.length > 0;
-
   return (
-    <article className="flex items-start gap-4 rounded-box border rule bg-base-200/40 px-4 py-3">
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm">{entry.name}</p>
-          <span className="meta">v{entry.version}</span>
-          <span className="meta rounded-selector border rule px-1.5">
-            {EXTENSION_TYPE_LABEL[entry.type]}
-          </span>
-          {health === "broken" ? (
-            <span className="meta text-error">reported broken</span>
-          ) : null}
-          {health === "deprecated" ? (
-            <span className="meta text-warning">deprecated</span>
-          ) : null}
-        </div>
-
-        {entry.description ? (
-          <p className="mt-1 text-xs text-base-content/60">
-            {entry.description}
-          </p>
-        ) : null}
-
-        {/* The refusal is a decision, not a gap, so the reason is shown in
-            full rather than reduced to a disabled button. */}
-        {support.supported ? null : (
-          <p className="mt-2 max-w-[70ch] text-xs text-base-content/50">
-            {support.reason}
-          </p>
-        )}
-
-        {support.supported && !installable ? (
-          <p className="mt-2 max-w-[70ch] text-xs text-base-content/50">
-            This listing has no manifest URL. Ask its author to publish an
-            installation manifest.
-          </p>
-        ) : null}
+    <article className="flex aspect-square min-h-80 w-full min-w-0 flex-col rounded-box border rule bg-base-200/40 p-5 transition-colors hover:border-primary/30">
+      <div className="flex items-start justify-between gap-3">
+        <ExtensionArtwork name={entry.name} icon={entry.icon} />
+        <span className="meta rounded-selector border rule px-2 py-1">
+          {EXTENSION_TYPE_LABEL[entry.type]}
+        </span>
       </div>
-
-      {installable ? (
+      <h3 className="mt-4 break-words text-lg font-semibold">{entry.name}</h3>
+      <p className="meta mt-1">
+        v{entry.version}
+        {entry.author ? ` · By ${entry.author}` : ""}
+      </p>
+      <p className="mt-3 line-clamp-3 text-sm text-base-content/60">
+        {extensionDescription(entry.description, entry.type)}
+      </p>
+      {health === "broken" && (
+        <p className="meta mt-2 text-error">Reported broken</p>
+      )}
+      {health === "deprecated" && (
+        <p className="meta mt-2 text-warning">Deprecated</p>
+      )}
+      {!support.supported && (
+        <p className="mt-2 text-xs text-base-content/50">{support.reason}</p>
+      )}
+      {support.supported && !installable && (
+        <p className="mt-2 text-xs text-base-content/50">
+          This listing has no manifest URL. Ask its author to publish an
+          installation manifest.
+        </p>
+      )}
+      <div className="mt-auto pt-5">
         <button
           type="button"
-          disabled={busy || installed}
+          disabled={busy || installed || !installable}
           onClick={onReview}
-          className="shrink-0 rounded-field border border-primary/40 px-3 py-1.5 text-xs text-primary transition-colors hover:bg-primary hover:text-primary-content disabled:opacity-40"
+          className="btn btn-primary w-full"
         >
-          {installed ? "Installed" : "Review"}
+          {installed ? "Installed" : installable ? "Install" : "Unavailable"}
         </button>
-      ) : (
-        <span className="meta shrink-0 self-center">
-          {support.supported ? "No manifest listed" : "Not installable"}
-        </span>
-      )}
+        <details className="mt-2 text-center text-xs text-base-content/60">
+          <summary className="cursor-pointer rounded-field py-2 hover:text-primary">
+            Review
+          </summary>
+          <div className="mt-2 rounded-field border rule p-3 text-left">
+            <p>{extensionDescription(entry.description, entry.type)}</p>
+            <p className="mt-2 break-all">ID: {entry.id}</p>
+            <p className="mt-1 break-all">Registry: {entry.registryUrl}</p>
+            <p className="mt-2">
+              Install opens the manifest and permissions review before any
+              extension is enabled.
+            </p>
+          </div>
+        </details>
+      </div>
     </article>
   );
 }

@@ -1,3 +1,4 @@
+import { ExtensionArtwork } from "./extension-artwork";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
@@ -14,7 +15,11 @@ import type {
 } from "../../../../shared/sources";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
-export function ProviderExtensions() {
+export function ProviderExtensions({
+  artwork = [],
+}: {
+  artwork?: { id: string; icon?: string }[];
+}) {
   const cache = useQueryClient();
   const sources = useQuery({
     queryKey: ["managed-sources"],
@@ -212,10 +217,14 @@ export function ProviderExtensions() {
               No {group.label.toLowerCase()} provider installed.
             </p>
           )}
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-4 sm:grid-cols-2 xl:grid-cols-3">
             {group.items.map((source) => (
               <article key={source.id} className="rounded-xl border rule p-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                <ExtensionArtwork
+                  name={source.name}
+                  icon={artwork.find((entry) => entry.id === source.id)?.icon}
+                />
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-semibold">{source.name}</h2>
                     <p className="text-sm text-base-content/60">

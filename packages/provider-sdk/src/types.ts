@@ -209,6 +209,8 @@ export interface ExtensionManifest {
   author?: string;
   homepage?: string;
   description?: string;
+  /** Optional HTTPS extension logo. */
+  icon?: string;
 }
 
 export type ExtensionPermission =

@@ -45,3 +45,22 @@ Earlier migration inventories and external runtime comparisons remain available
 as historical technical evidence. They are not product branding or current
 acceptance criteria. Original attribution and dependency notices remain intact.
 The [current roadmap](roadmap.md) is the source of truth for future work.
+
+## Native source replacement sequence
+
+The gallery uses registry logos (or monograms), category summaries and an Install
+button followed by an optional Review disclosure. Descriptions that advertise
+another application are replaced in the presentation layer; registry records,
+author credits, source code notices and compatibility identities are retained.
+Native manifests can declare an optional HTTPS `icon` URL.
+
+Replace imported sources one at a time with implementations of the Vestra SDK;
+renaming or wrapping a compatibility script does not count as a native provider.
+For each source, verify search, title identification, details, episodes or chapters,
+artwork, headers, playback or reading, cancellation and failure states. Design a
+mapping for existing saved titles and progress before switching users. Only retire
+the corresponding compatibility import after the replacement passes these flows.
+No provider is removed automatically by the gallery update.
+
+The next UI module is Films. Native provider replacements remain tracked separately
+in the roadmap and are not claimed complete by this presentation change.
