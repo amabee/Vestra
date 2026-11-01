@@ -18,7 +18,11 @@ export interface GuardedTransport {
     body: string | null;
     timeoutMs: number;
     maxBytes: number;
-  }): Promise<{ status: number; headers: Record<string, string>; body: string }>;
+  }): Promise<{
+    status: number;
+    headers: Record<string, string>;
+    body: string;
+  }>;
 }
 
 export interface BrokeredRequest {
@@ -62,16 +66,26 @@ export const DEFAULT_NETWORK_LIMITS: NetworkLimits = {
 /**
  * Headers an extension may set.
  *
- * An allowlist rather than a blocklist. The blocked set is the interesting
- * part: `cookie` and `authorization` would let an extension attach credentials
- * it should never have, and `host` would let it aim a request somewhere other
- * than the URL it was checked against.
+ * An allowlist rather than a blocklist. Cookie and Host remain unavailable.
+ * Authorization and source headers require the separate session capability;
+ * those values come from the extension, never a browser account or cookie jar.
  */
 const ALLOWED_REQUEST_HEADERS = new Set([
   "accept",
   "accept-language",
   "content-type",
   "user-agent",
+]);
+
+/** Opt-in headers for extension-owned sessions, scoped by the same host grant. */
+const SESSION_REQUEST_HEADERS = new Set([
+  "authorization",
+  "referer",
+  "origin",
+  "x-client-info",
+  "x-request-lang",
+  "x-source",
+  "x-vip-restrict",
 ]);
 
 export class NetworkDeniedError extends Error {
@@ -183,7 +197,9 @@ export function createBrokeredFetch(
   let windowStart = Date.now();
   let sent = 0;
 
-  return async function brokeredFetch(request: BrokeredRequest): Promise<BrokeredResponse> {
+  return async function brokeredFetch(
+    request: BrokeredRequest,
+  ): Promise<BrokeredResponse> {
     const now = Date.now();
     if (now - windowStart >= 60_000) {
       windowStart = now;
@@ -218,14 +234,30 @@ export function createBrokeredFetch(
     }
 
     const body = request.body ?? null;
-    if (body !== null && Buffer.byteLength(body, "utf8") > limits.maxRequestBytes) {
+    if (
+      body !== null &&
+      Buffer.byteLength(body, "utf8") > limits.maxRequestBytes
+    ) {
       throw new NetworkDeniedError("Request body is too large.");
     }
 
     const headers: Record<string, string> = {};
     for (const [key, value] of Object.entries(request.headers ?? {})) {
       const name = key.toLowerCase();
-      if (!ALLOWED_REQUEST_HEADERS.has(name)) continue;
+      if (
+        !ALLOWED_REQUEST_HEADERS.has(name) &&
+        !(can(grant, "network:session") && SESSION_REQUEST_HEADERS.has(name))
+      )
+        continue;
+      if (
+        typeof value !== "string" ||
+        value.length > 4096 ||
+        /[\r\n\0]/.test(value)
+      )
+        throw new NetworkDeniedError("Invalid request header value.");
+      // Sources can enforce this restriction, never turn it off through this capability.
+      if (name === "x-vip-restrict" && value !== "1")
+        throw new NetworkDeniedError("Invalid source restriction header.");
       headers[name] = value;
     }
 

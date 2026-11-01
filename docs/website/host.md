@@ -10,7 +10,7 @@ Available only when network access is granted:
 ```js
 const response = await host.fetch({
   url: "https://api.your-domain.com/titles",
-  headers: { accept: "application/json" }
+  headers: { accept: "application/json" },
 });
 if (response.status !== 200) throw new Error("Title request failed.");
 const data = JSON.parse(response.body);
@@ -23,6 +23,14 @@ this is not a browser Response with `.json()` or `.text()` methods.
 Requests are host-brokered, bounded and rate limited. Declare each exact API host
 and obtain its grant. Private and loopback destinations are unsupported. Loading
 a local folder does not create a local HTTP API permission.
+
+SDK 1.4 adds the opt-in `network:session` permission alongside `network`. It
+allows extension-provided `Authorization`, `Referer`, `Origin`, `X-Client-Info`,
+`X-Request-Lang` and `X-Source` headers to the same approved hosts. It also accepts
+`X-Vip-Restrict: 1` to enforce source restrictions; other values are rejected.
+Cookie and Host remain blocked. Header values are bounded and reject control
+characters. No browser cookies or signed-in browser sessions are exposed.
+Keep source-issued guest credentials in memory and out of logs.
 
 ## host.log
 

@@ -8,7 +8,8 @@ watched state and Plan to Watch use Vestra's existing storage and player.
 The Catalogue tab retains configured metadata providers such as TMDb and existing
 local-file playback. A catalogue listing is not a promise of source availability.
 If no Movies/TV source is installed, Vestra shows an installation empty state.
-This first support pass does not ship a live website scraper.
+The [native MovieBox source](moviebox.md) is now available for its public guest
+flow. Other website integrations are separate extensions.
 
 ## Start an extension
 
@@ -56,7 +57,7 @@ player or application routes.
 
 ## Choosing the first site
 
-Choose a site next, then record its search, title, season, episode and stream
+For another site, record its search, title, season, episode and stream
 responses as fixtures. Implement and validate that site's mapping independently
 of this app support. A registry JSON describes installable packages; it does not
 contain their scraping implementation. The supplied

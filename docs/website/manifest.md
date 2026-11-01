@@ -17,12 +17,17 @@ native SDK rather than a compatibility-script manifest.
 
 ## Permissions
 
-`permissions` may contain `network`, `library:read` and `progress:read`. Network
+`permissions` may contain `network`, `network:session`, `library:read` and `progress:read`. Network
 requests also need explicit bare hostnames in `hosts`. Undeclared hosts and
 subdomains do not inherit grants. Network without hosts is not a valid manifest.
 
 The review determines what is granted; asking is not receiving. A host method
 for an ungranted capability is absent.
+
+Source-owned API sessions use SDK `1.4.0` and require both `network` and
+`network:session`. This capability permits a bounded set of session headers;
+see the [Host API](host.md). An older network-only grant cannot be reused for
+this wider request without a new permission review.
 
 ## Presentation
 
