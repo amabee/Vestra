@@ -17,7 +17,7 @@ site and your region.
 You can also paste the
 [pinned MovieBox manifest](https://raw.githubusercontent.com/amabee/Vestra/d84273671c613d0d55a1042caabc071f387b80b8/extensions/moviebox/manifest.json)
 into Add an extension, or add the optional
-[Vestra source registry](https://raw.githubusercontent.com/amabee/Vestra/moviebox-native-extension/extensions/registry.json)
+[Vestra source registry](https://raw.githubusercontent.com/amabee/Vestra/main/extensions/registry.json)
 under Registries. These paths use the same permission review; nothing is
 installed automatically.
 
@@ -46,10 +46,10 @@ catalogue.
 
 Each website can be its own native extension, sharing Vestra's browsing, player,
 subtitles and progress. It keeps its own IDs, host grants and extraction logic.
-KissKH is the next candidate for Asian dramas; Pinoymoviepedia is another
+[KissKH](kisskh.md) is now available for Asian dramas and movies. Pinoymoviepedia is another
 candidate listed with Filipino language support in the supplied
 [CloudStream catalogue](https://raw.githubusercontent.com/Shakzz890/cloudstream-extensions-shakzz/builds/plugins.json).
-These candidates have not been implemented or live-verified in Vestra.
+Pinoymoviepedia has not been implemented or live-verified in Vestra.
 
 Use the [Movies/TV authoring guide](movies-tv.md) to build another source. A
 CloudStream `.cs3`/`.jar` package is not directly installable as a Vestra extension.

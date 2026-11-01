@@ -8,8 +8,9 @@ watched state and Plan to Watch use Vestra's existing storage and player.
 The Catalogue tab retains configured metadata providers such as TMDb and existing
 local-file playback. A catalogue listing is not a promise of source availability.
 If no Movies/TV source is installed, Vestra shows an installation empty state.
-The [native MovieBox source](moviebox.md) is now available for its public guest
-flow. Other website integrations are separate extensions.
+The [native MovieBox source](moviebox.md) supports its public guest flow, and
+[KissKH](kisskh.md) supports Asian dramas and movies. Other website integrations
+are separate extensions.
 
 ## Start an extension
 

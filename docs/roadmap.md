@@ -69,7 +69,8 @@ for catalogue coverage, progress migration limits and the completed checks.
 - [x] Native MovieBox public guest source: Popular/Latest, search, seasons, accessible MP4/HLS and subtitles; live bounded video checks.
 - [x] SDK 1.4 opt-in source sessions with existing host grants and separate permission review.
 - [ ] Verify sustained Movies/TV playback and evaluate HD-capable sources; MovieBox guest samples returned SD only.
-- [ ] Evaluate KissKH and Pinoymoviepedia as separate native sources; neither is implemented yet.
+- [x] Native KissKH: typed Movies/TV feeds, request keys, stable/fractional entries, direct MP4/HLS and plain subtitles; live bounded media and caption checks.
+- [ ] Evaluate Pinoymoviepedia as another native source.
 
 ## Independent extension platform
 
