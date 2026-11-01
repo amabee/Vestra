@@ -176,17 +176,20 @@ export async function extractStreamplay(
       (parsed.port && parsed.port !== "443")
     )
       throw new Error("Streamplay returned an invalid HTTPS endpoint.");
-    const response = await fetch({
-      url,
-      method,
-      body,
-      headers: {
-        ...headers,
-        ...(method === "POST" ? { "Content-Type": "text/plain" } : {}),
+    const response = await fetch(
+      {
+        url,
+        method,
+        body,
+        headers: {
+          ...headers,
+          ...(method === "POST" ? { "Content-Type": "text/plain" } : {}),
+        },
+        maxBytes: 1048576,
+        timeoutMs: Math.min(3000, remaining),
       },
-      maxBytes: 1048576,
-      timeoutMs: Math.min(3000, remaining),
-    });
+      signal,
+    );
     signal?.throwIfAborted();
     if (response.status < 200 || response.status >= 300)
       throw new Error(

@@ -10,12 +10,13 @@ import type { RemoteSourcePlan } from "../shared/sources";
 
 /** Resolve the manifest before choosing its existing execution/installation format. */
 export async function prepareExtensionReview(
-  candidate: InstallCandidate,
+  input: InstallCandidate | string,
   transport: GuardedTransport,
   providerReview: (url: string, document: unknown) => Promise<RemoteSourcePlan>,
 ): Promise<ExtensionReview> {
-  assertLoadable(candidate.id, candidate.type);
-  const url = secureSourceUrl.parse(candidate.manifestURI);
+  const url = secureSourceUrl.parse(
+    typeof input === "string" ? input : input.manifestURI,
+  );
   const response = await transport.request({
     url,
     method: "GET",
@@ -36,6 +37,34 @@ export async function prepareExtensionReview(
   }
   if (!document || Array.isArray(document) || typeof document !== "object")
     throw new Error("The extension manifest must be a JSON object.");
+  let candidate: InstallCandidate;
+  if (typeof input === "string") {
+    if (
+      typeof document.id !== "string" ||
+      !/^[a-zA-Z0-9._-]{1,100}$/.test(document.id) ||
+      typeof document.name !== "string" ||
+      !document.name.trim() ||
+      document.name.length > 120
+    )
+      throw new Error("The extension manifest needs a valid ID and name.");
+    candidate = {
+      id: document.id,
+      name: document.name,
+      version:
+        typeof document.version === "string" ? document.version : "0.0.0",
+      type:
+        document.role === "manga-source" || document.type === "manga-provider"
+          ? "manga-provider"
+          : document.role === "stream-source" ||
+              document.type === "onlinestream-provider"
+            ? "onlinestream-provider"
+            : "custom-source",
+      manifestURI: url,
+      payloadURI: "",
+      registryUrl: "direct:manifest",
+    };
+  } else candidate = input;
+  assertLoadable(candidate.id, candidate.type);
   if (document.id !== candidate.id)
     throw new Error(
       "The manifest identity does not match this registry listing.",

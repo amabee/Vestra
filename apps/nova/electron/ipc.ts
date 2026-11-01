@@ -675,7 +675,11 @@ export function registerDataIpc(): void {
    * no code is executed. Provider previews pin downloaded bytes for review.
    */
   handle("extensions:prepare", async (raw: unknown) => {
-    const candidate = parse(installCandidateSchema, raw, "extension");
+    const candidate = parse(
+      z.union([installCandidateSchema, z.string().trim().url().max(4096)]),
+      raw,
+      "extension",
+    );
     return prepareExtensionReview(
       candidate,
       transport,

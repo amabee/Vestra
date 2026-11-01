@@ -19,12 +19,15 @@ export async function probePlayableStream(
     remaining = remaining.filter((video) => video.url !== choice.url);
     try {
       if (choice.type === "hls") {
-        const response = await fetcher({
-          url: choice.url,
-          headers: { ...result.headers, ...choice.headers },
-          maxBytes: 1048576,
-          timeoutMs: 7000,
-        });
+        const response = await fetcher(
+          {
+            url: choice.url,
+            headers: { ...result.headers, ...choice.headers },
+            maxBytes: 1048576,
+            timeoutMs: 7000,
+          },
+          signal,
+        );
         signal?.throwIfAborted();
         if (response.status < 200 || response.status >= 300)
           throw Error(`Video manifest HTTP ${response.status}`);

@@ -1,3 +1,4 @@
+import { setTimeout as delay } from "node:timers/promises";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
@@ -278,6 +279,7 @@ export interface SafeFetchResult {
 }
 
 interface AttemptOptions {
+  signal?: AbortSignal;
   method: "GET" | "POST";
   headers: Record<string, string>;
   body: string | null;
@@ -307,8 +309,19 @@ async function attemptOnce(
     }, timeoutMs);
   });
 
-  try {
-    await Promise.race([assertPublicHost(parsed.hostname), timeout]);
+  let removeAbort = () => {};
+  const cancelled = new Promise<never>((_resolve, reject) => {
+    const abort = () => {
+      controller.abort();
+      reject(options.signal!.reason);
+    };
+    removeAbort = () => options.signal?.removeEventListener("abort", abort);
+    options.signal?.addEventListener("abort", abort, { once: true });
+    if (options.signal?.aborted) abort();
+  });
+  async function download(): Promise<SafeFetchResult> {
+    await assertPublicHost(parsed.hostname);
+    controller.signal.throwIfAborted();
     const response = await fetchOrExplain(parsed, {
       method,
       headers,
@@ -338,8 +351,13 @@ async function attemptOnce(
       headers: Object.fromEntries(response.headers.entries()),
       body: text,
     };
+  }
+  try {
+    return await Promise.race([download(), timeout, cancelled]);
   } finally {
     clearTimeout(timer!);
+    removeAbort();
+    controller.abort();
   }
 }
 
@@ -348,22 +366,26 @@ async function waitBeforeRetry(
   hostname: string,
   reason: string,
   attempt: number,
+  signal?: AbortSignal,
 ): Promise<void> {
   const waitMs = RETRY_BASE_MS * 2 ** attempt;
   console.warn(
     `[safe-fetch] ${hostname} failed (${reason}); retry ${attempt + 1} of ${RETRY_LIMIT} in ${waitMs} ms.`,
   );
-  await new Promise((resolve) => setTimeout(resolve, waitMs));
+  await delay(waitMs, undefined, { signal });
 }
 
-export async function safeFetch(input: {
-  url: string;
-  method?: "GET" | "POST";
-  headers?: Record<string, string>;
-  body?: string | null;
-  timeoutMs?: number;
-  maxBytes?: number;
-}): Promise<SafeFetchResult> {
+export async function safeFetch(
+  input: {
+    url: string;
+    method?: "GET" | "POST";
+    headers?: Record<string, string>;
+    body?: string | null;
+    timeoutMs?: number;
+    maxBytes?: number;
+  },
+  signal?: AbortSignal,
+): Promise<SafeFetchResult> {
   const {
     url,
     method = "GET",
@@ -373,6 +395,7 @@ export async function safeFetch(input: {
     maxBytes = DEFAULT_MAX_BYTES,
   } = input;
 
+  signal?.throwIfAborted();
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -396,9 +419,11 @@ export async function safeFetch(input: {
     body,
     timeoutMs,
     maxBytes,
+    signal,
   };
 
   for (let attempt = 0; ; attempt++) {
+    signal?.throwIfAborted();
     const outOfTries = !retryable || attempt >= RETRY_LIMIT;
     try {
       const remaining = deadline - Date.now();
@@ -418,8 +443,14 @@ export async function safeFetch(input: {
         Date.now() + RETRY_BASE_MS * 2 ** attempt >= deadline
       )
         return result;
-      await waitBeforeRetry(parsed.hostname, `HTTP ${result.status}`, attempt);
+      await waitBeforeRetry(
+        parsed.hostname,
+        `HTTP ${result.status}`,
+        attempt,
+        signal,
+      );
     } catch (error) {
+      signal?.throwIfAborted();
       const transient = error instanceof NetworkError && error.transient;
       if (
         outOfTries ||
@@ -431,6 +462,7 @@ export async function safeFetch(input: {
         parsed.hostname,
         (error as NetworkError).code,
         attempt,
+        signal,
       );
     }
   }

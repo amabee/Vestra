@@ -1,6 +1,28 @@
 # Extension listing installation
 
-Updated: 2026-10-30.
+Updated: 2026-11-01.
+
+## Install flow
+
+Extensions has a single Add an extension form: paste a manifest URL, review its
+permissions, then install. No registry or manually entered extension ID is needed
+for a direct link. The host fetches one bounded manifest, derives identity and
+format, and uses the same SDK or optional compatibility review as registry installs.
+Preview does not execute or install the extension. Folder installation and script
+import are available beside the URL form, and success messages point users to
+their installed source.
+
+Installed and Browse have search and Anime/Manga/Other category filters. Browse
+has a direct Add a registry action when empty. Compatibility remains a separate
+optional section. Mobile navigation wraps into two columns instead of hiding tabs
+behind a horizontal scrollbar.
+
+The direct-link path is tested for native manga SDK detection, compatibility
+dispatch, malformed identity rejection and one manifest fetch. The hidden UI
+fixture exercises URL review/cancel, search, existing source controls and registry
+installation; layouts were inspected at 1200 and 375 pixels.
+
+## Registry installation history
 
 The Available list previously required `payloadURI` on every registry row. The
 configured Seanime-Providers registry often supplies only `manifestURI`, with the

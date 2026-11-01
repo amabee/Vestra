@@ -254,3 +254,48 @@ test("binary downloads bound DNS, fetch and stream waits and stop oversized chun
     /timed out/,
   );
 });
+
+test("cancelled manifest HTTP work aborts DNS/body waits and never retries", async (t) => {
+  let calls = 0;
+  let requestSignal;
+  network(t, async (_url, options) => {
+    calls++;
+    requestSignal = options.signal;
+    return {
+      headers: new Headers(),
+      status: 200,
+      text: () => new Promise(() => {}),
+    };
+  });
+  const controller = new AbortController();
+  const pending = safeFetch(
+    { url: "https://cdn.example/playlist.m3u8", timeoutMs: 7000 },
+    controller.signal,
+  );
+  const rejected = assert.rejects(pending, { name: "AbortError" });
+  await new Promise((resolve) => setImmediate(resolve));
+  controller.abort();
+  await rejected;
+  assert.equal(requestSignal.aborted, true);
+  assert.equal(calls, 1);
+  let release;
+  globalThis.fixtureLookup = () =>
+    new Promise((resolve) => {
+      release = resolve;
+    });
+  const dnsAbort = new AbortController();
+  const dnsPending = safeFetch(
+    { url: "https://cdn.example/other.m3u8" },
+    dnsAbort.signal,
+  );
+  const dnsRejected = assert.rejects(dnsPending, { name: "AbortError" });
+  dnsAbort.abort();
+  await dnsRejected;
+  release([{ address: "93.184.216.34", family: 4 }]);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(
+    calls,
+    1,
+    "DNS completion after cancellation must not start HTTP",
+  );
+});

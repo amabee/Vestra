@@ -205,3 +205,50 @@ if (process.argv.includes("--live"))
       worker.stop();
     }
   });
+
+test("direct manifest links detect native and compatibility formats with one manifest fetch", async () => {
+  const native = transport({
+    id: "fixture",
+    name: "Fixture",
+    version: "1.0.0",
+    sdkVersion: "1.1.0",
+    role: "manga-source",
+    main: "index.js",
+    permissions: [],
+  });
+  const review = await prepareExtensionReview(
+    candidate.manifestURI,
+    native,
+    () => assert.fail("Native manifest used compatibility"),
+  );
+  assert.equal(review.kind, "sdk");
+  assert.equal(review.plan.candidate.type, "manga-provider");
+  assert.equal(review.plan.candidate.registryUrl, "direct:manifest");
+  assert.equal(native.calls.length, 1);
+  const legacy = transport({
+    id: "fixture",
+    name: "Fixture",
+    version: "1",
+    type: "manga-provider",
+    payloadURI: "https://cdn.example/index.js",
+  });
+  let imported;
+  const result = await prepareExtensionReview(
+    candidate.manifestURI,
+    legacy,
+    async (url, document) => {
+      imported = { url, document };
+      return { token: "review-only" };
+    },
+  );
+  assert.equal(result.kind, "provider");
+  assert.equal(imported.document.type, "manga-provider");
+  await assert.rejects(
+    prepareExtensionReview(
+      candidate.manifestURI,
+      transport({ name: "Missing ID" }),
+      async () => assert.fail(),
+    ),
+    /valid ID/,
+  );
+});
