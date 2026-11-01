@@ -65,7 +65,8 @@ for catalogue coverage, progress migration limits and the completed checks.
 - [x] Label catalogue discovery for older search-only sources; do not claim source availability until matching.
 - [ ] Implement real native provider discovery integrations beyond the authoring template.
 - [ ] Publish the documentation to a chosen public host/domain.
-- [ ] Continue Films and TV module work after the documentation/source browser pass.
+- [x] Movies/TV installed-source search and discovery, season-aware queues and native SDK 1.3 authoring template.
+- [ ] Choose and implement the first live Movies/TV website extension; verify its search-to-play flow.
 
 ## Independent extension platform
 

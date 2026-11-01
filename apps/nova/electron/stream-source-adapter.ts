@@ -1,6 +1,12 @@
 import type { StreamSourceProvider } from "@vestra/extension-host";
 import type { SourceAdapter } from "@vestra/provider-sdk";
-import type { MediaItem, PlaybackSource } from "@vestra/types";
+import {
+  mediaItemSchema,
+  type MediaItem,
+  type PlaybackSource,
+} from "@vestra/types";
+import { createHash } from "node:crypto";
+import type { Episode } from "@vestra/extension-host";
 import { registerDeferredVariants, streamVariants } from "./remote-playback";
 
 const MAX_EXTENSION_EPISODES = 2000;
@@ -64,20 +70,27 @@ export async function matchSourceAnime(
       ),
     ),
   ]) {
-    const candidates = await source.search(query, { limit: 10 }, context);
+    const candidates = await source.search(
+      query,
+      { limit: 10, kind: item.kind },
+      context,
+    );
     check();
     const matches = [
       ...new Map(
         candidates
-          .filter((candidate) =>
-            itemTitles.includes(normaliseTitle(candidate.title)),
+          .filter(
+            (candidate) =>
+              itemTitles.includes(normaliseTitle(candidate.title)) &&
+              (!candidate.kind || candidate.kind === item.kind) &&
+              (!candidate.year || !item.year || candidate.year === item.year),
           )
           .map((candidate) => [candidate.id, candidate]),
       ).values(),
     ];
     if (matches.length > 1)
       throw new Error(
-        "Multiple source editions match this anime. Choose a title in source search.",
+        "Multiple source editions match this title. Choose a title in source search.",
       );
     match = matches[0];
     if (match) break;
@@ -86,13 +99,61 @@ export async function matchSourceAnime(
   return match ?? null;
 }
 
+/** One stable identity across search, saved-title reopening and catalogue matching. */
+export function sourceEpisodeQueue(
+  source: StreamSourceProvider,
+  item: MediaItem,
+  episodes: Episode[],
+  check: () => void,
+): PlaybackSource[] {
+  const seen = new Set<string>();
+  return episodes
+    .filter((episode) => episode.animeId === item.sourceId)
+    .filter((episode) => {
+      if (seen.has(episode.id)) return false;
+      seen.add(episode.id);
+      return true;
+    })
+    .sort((a, b) => (a.season ?? 1) - (b.season ?? 1) || a.number - b.number)
+    .slice(0, MAX_EXTENSION_EPISODES)
+    .map((episode) => ({
+      kind: "stream",
+      locator: registerSourceEpisode(source, episode.id, check),
+      progressId:
+        "stream-" +
+        createHash("sha256")
+          .update(
+            JSON.stringify([
+              source.id,
+              item.kind,
+              item.sourceId,
+              episode.id,
+              episode.season ?? null,
+            ]),
+          )
+          .digest("hex"),
+      mimeType: null,
+      label:
+        item.kind === "movie"
+          ? episode.title || item.title
+          : `${episode.season === undefined ? "" : `S${episode.season} · `}E${episode.number}${episode.title ? ` · ${episode.title}` : ""}`,
+      priority: 80,
+      ...(item.kind !== "movie" && Number.isInteger(episode.number)
+        ? { episode: episode.number }
+        : {}),
+      ...(item.kind !== "movie" && episode.season !== undefined
+        ? { season: episode.season }
+        : {}),
+    }));
+}
+
 export function createStreamSourceAdapter(
   source: StreamSourceProvider,
   isCurrent: () => boolean = () => true,
 ): SourceAdapter {
   const requireCurrent = () => {
     if (!isCurrent())
-      throw new Error("Anime source changed or was disabled. Reload episodes.");
+      throw new Error("Streaming source changed or was disabled. Reload episodes.");
   };
   return {
     id: `ext-stream-${source.id.slice("ext-".length)}`,
@@ -103,16 +164,26 @@ export function createStreamSourceAdapter(
 
     async resolve(item, context): Promise<PlaybackSource[]> {
       requireCurrent();
-      const match = await matchSourceAnime(
-        source,
-        item,
-        context,
-        requireCurrent,
-      );
+      const match =
+        (item.kind === "movie" || item.kind === "tv") &&
+        item.source === source.id
+          ? { id: item.sourceId }
+          : await matchSourceAnime(source, item, context, requireCurrent);
       if (!match) return [];
 
       const episodes = await source.getEpisodes(match.id, context);
       requireCurrent();
+      if (item.kind === "movie" || item.kind === "tv")
+        return sourceEpisodeQueue(
+          source,
+          mediaItemSchema.parse({
+            ...item,
+            source: source.id,
+            sourceId: match.id,
+          }),
+          episodes,
+          requireCurrent,
+        );
       const playable: PlaybackSource[] = [];
 
       for (const episode of episodes.slice(0, MAX_EXTENSION_EPISODES)) {

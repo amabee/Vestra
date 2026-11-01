@@ -3,6 +3,11 @@
 SDK 1.2 adds optional source-owned anime discovery. The three required streaming
 methods stay unchanged; older sources do not need to implement new methods.
 
+SDK 1.3 also enables Movies/TV feeds. Their manifest declares `kinds: ["movie",
+"tv"]`, and `browse(category, { kind, page, limit })` receives the requested kind.
+Return `kind` on every result from a mixed source. See the
+[Movies and TV guide](movies-tv.md).
+
 ## Declare categories
 
 Add `discovery` to a native stream-source manifest:
@@ -12,7 +17,9 @@ Add `discovery` to a native stream-source manifest:
   "sdkVersion": "1.2.0",
   "role": "stream-source",
   "kinds": ["anime"],
-  "discovery": { "categories": ["suggested", "ongoing", "latest", "upcoming", "popular"] }
+  "discovery": {
+    "categories": ["suggested", "ongoing", "latest", "upcoming", "popular"]
+  }
 }
 ```
 

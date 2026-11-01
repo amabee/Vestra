@@ -1,6 +1,7 @@
 import { prepareExtensionReview } from "./extension-install";
 import { prepareProviderExtension } from "./source-ipc";
 import { resolveCataloguePlayback } from "./catalogue-playback";
+import { getScreenService, screenSnapshot } from "./screen-ipc";
 import { randomUUID } from "node:crypto";
 import { remoteQualities } from "./remote-playback";
 
@@ -278,7 +279,8 @@ export function registerDataIpc(): void {
     const ref = parse(mediaRefSchema, raw, "media reference") as MediaItem;
     const provider = getProviderRegistry().forRef(ref);
 
-    if (!provider?.capabilities.details || !provider.getDetails) return null;
+    if (!provider?.capabilities.details || !provider.getDetails)
+      return screenSnapshot(ref);
 
     return provider.getDetails(ref, {
       signal: AbortSignal.timeout(15_000),
@@ -288,6 +290,19 @@ export function registerDataIpc(): void {
 
   handle("playback:resolve", async (raw: unknown, rawSource?: unknown) => {
     const ref = parse(mediaRefSchema, raw, "media reference") as MediaItem;
+
+    if (
+      (ref.kind === "movie" || ref.kind === "tv") &&
+      (getStreamSourceRegistry().get(ref.source) ||
+        (ref.source.startsWith("ext-") && !getProviderRegistry().forRef(ref)))
+    ) {
+      const item = await screenSnapshot(ref);
+      if (!item)
+        throw Error(
+          "Title information expired. Find this title in Movies or Series again.",
+        );
+      return (await getScreenService().open(item)).queue;
+    }
 
     const selectedSource = z
       .string()

@@ -111,12 +111,16 @@ export const extensionManifestSchema = z
   .superRefine((manifest, ctx) => {
     if (
       manifest.discovery &&
-      (manifest.role !== "stream-source" || !manifest.kinds.includes("anime"))
+      (manifest.role !== "stream-source" ||
+        !manifest.kinds.some((kind) =>
+          ["anime", "movie", "tv", "kdrama"].includes(kind),
+        ))
     ) {
       ctx.addIssue({
         code: "custom",
         path: ["discovery"],
-        message: "Discovery feeds require an anime stream-source role.",
+        message:
+          "Discovery feeds require a stream-source role supporting anime, movies or series.",
       });
     }
     if (manifest.role === "manga-source" && manifest.kinds.length !== 0) {

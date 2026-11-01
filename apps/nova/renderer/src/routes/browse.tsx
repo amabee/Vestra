@@ -1,4 +1,6 @@
 import { AnimeWorkspace } from "@/components/media/anime-workspace";
+import { ScreenWorkspace } from "@/components/media/screen-workspace";
+import { Link, useSearchParams } from "react-router";
 import { mediaKey, type MediaKind } from "@vestra/types";
 
 import {
@@ -12,8 +14,8 @@ import { useLibrary, useTrending } from "@/lib/queries";
 /**
  * Browse a single kind.
  *
- * Anime has a focused search/play/save workspace. Films and series retain
- * the shared catalogue view. Results stay grouped by provider rather than being
+ * Anime, films and series have source workspaces. The optional catalogue view
+ * keeps results grouped by provider rather than being
  * merged into one ranked list: which source a title came from is information,
  * and flattening it away would hide that TMDb is down while AniList is fine.
  */
@@ -22,6 +24,12 @@ export function BrowseRoute(props: {
   title: string;
   lead: string;
 }) {
+  const [params] = useSearchParams();
+  if (
+    (props.kind === "movie" || props.kind === "tv") &&
+    params.get("view") !== "catalogue"
+  )
+    return <ScreenWorkspace key={props.kind} kind={props.kind} />;
   return props.kind === "anime" ? (
     <AnimeWorkspace />
   ) : (
@@ -52,6 +60,14 @@ function OtherBrowseRoute({
   return (
     <Page>
       <PageHeader eyebrow="Browse" title={title} lead={lead} />
+      {(kind === "movie" || kind === "tv") && (
+        <Link
+          className="btn btn-ghost btn-sm mt-4"
+          to={kind === "movie" ? "/films" : "/series"}
+        >
+          Browse installed sources
+        </Link>
+      )}
 
       {trending.isPending || groups.length === 0 ? (
         <section className="mt-10">

@@ -179,6 +179,19 @@ Users add registries under **Extensions → Registries**. Vestra ships none.
 
 ## Native and compatibility formats
 
+### Movies and TV (SDK 1.3)
+
+Native stream sources can declare `kinds: ["movie", "tv"]`. Start with
+`examples/screen-source-template` and the
+[Movies/TV authoring guide](../../docs/website/movies-tv.md). The template is
+contract-only, with invented titles and non-playable placeholder URLs.
+
+Search and discovery receive `options.kind`. Mixed sources return `kind` on
+each title, with optional `year` for remake matching. Episodes may include
+`season` (0 for specials); stable episode IDs must distinguish seasons.
+Movies normally expose one feature entry through `getEpisodes`. Existing anime
+methods and the `animeId` parent field remain compatible.
+
 New extensions should use the Vestra SDK manifest and `activate` contract above.
 Registry category labels such as `onlinestream-provider` and `manga-provider` do
 not decide the execution format: `sdkVersion` identifies the native SDK manifest.
