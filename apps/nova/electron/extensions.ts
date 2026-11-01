@@ -1,4 +1,7 @@
-import { assertMangaSourceMethods } from "@vestra/extension-host";
+import {
+  assertMangaSourceMethods,
+  assertDiscoveryMethods,
+} from "@vestra/extension-host";
 import { join } from "node:path";
 
 import {
@@ -158,6 +161,7 @@ export async function loadExtension(input: {
   source: string;
   grant: PermissionGrant;
   role?: string;
+  discovery?: boolean;
 }): Promise<string[]> {
   // The fetcher is built here, from the grant, and stays here. The worker only
   // ever receives the outcome of a request it asked for.
@@ -179,6 +183,7 @@ export async function loadExtension(input: {
       ? methods.filter((m) => typeof m === "string")
       : [];
     assertMangaSourceMethods(input.role, names);
+    assertDiscoveryMethods(!!input.discovery, names);
     return names;
   } catch (error) {
     await unloadExtension(input.extensionId).catch(() => undefined);
@@ -257,6 +262,7 @@ export async function loadInstalledExtensions(
         source,
         grant: record.grant,
         role: record.manifest.role,
+        discovery: !!record.manifest.discovery,
       });
 
       report.loaded.push(record.id);

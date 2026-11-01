@@ -1,3 +1,4 @@
+import { AnimeSourceBrowse } from "./anime-source-browse";
 import { animeMessage } from "./anime-message";
 import {
   preferredAnimeSource,
@@ -186,7 +187,9 @@ export function AnimeWorkspace() {
             aria-label="Streaming extension"
             value={provider}
             disabled={sources.isPending || (!sources.data?.length && !hasLocal)}
-            onChange={(event) => patch({ source: event.target.value })}
+            onChange={(event) =>
+              patch({ source: event.target.value, category: "", page: "" })
+            }
           >
             {!provider && <option value="">Choose a source</option>}
             {provider && !available && (
@@ -240,6 +243,12 @@ export function AnimeWorkspace() {
       </form>
       <nav className="anime-hub-tabs" aria-label="Anime library">
         <button
+          aria-current={view === "browse" ? "page" : undefined}
+          onClick={() => patch({ view: "browse", list: "", q: "" })}
+        >
+          Browse sources
+        </button>
+        <button
           aria-current={view === "discover" ? "page" : undefined}
           onClick={() => patch({ view: "discover", list: "" })}
         >
@@ -292,6 +301,16 @@ export function AnimeWorkspace() {
             </button>
           )}
         </div>
+      )}
+      {view === "browse" && (
+        <AnimeSourceBrowse
+          provider={provider}
+          available={!!available && provider !== "local"}
+          categories={
+            sources.data?.find((row) => row.id === provider)?.categories
+          }
+          renderCards={cards}
+        />
       )}
       {view === "discover" && (
         <>

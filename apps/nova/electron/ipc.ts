@@ -713,6 +713,7 @@ export function registerDataIpc(): void {
       source,
       grant: record.grant,
       role: record.manifest.role,
+      discovery: !!record.manifest.discovery,
     });
 
     getProviderRegistry().setEnabled(`ext-${record.id}`, true);
@@ -750,6 +751,7 @@ export function registerDataIpc(): void {
       source,
       grant: record.grant,
       role: record.manifest.role,
+      discovery: !!record.manifest.discovery,
     });
     try {
       getProviderRegistry().setEnabled(`ext-${record.id}`, true);
@@ -822,6 +824,7 @@ export function registerDataIpc(): void {
       source,
       grant: record.grant,
       role: record.manifest.role,
+      discovery: !!record.manifest.discovery,
     });
 
     getProviderRegistry().setEnabled(`ext-${record.id}`, true);

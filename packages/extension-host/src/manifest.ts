@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { mediaKindSchema } from "@vestra/types";
+import { discoveryManifestSchema } from "./discovery";
 
 /**
  * The manifest a community extension ships, and the rules it must satisfy
@@ -88,6 +89,7 @@ export const extensionManifestSchema = z
      * re-roling an installed extension would change what the user consented to.
      */
     role: extensionRoleSchema.default("metadata"),
+    discovery: discoveryManifestSchema.optional(),
     author: z.string().max(120).optional(),
     homepage: z.string().url().optional(),
     description: z.string().max(2000).optional(),
@@ -107,6 +109,16 @@ export const extensionManifestSchema = z
       .optional(),
   })
   .superRefine((manifest, ctx) => {
+    if (
+      manifest.discovery &&
+      (manifest.role !== "stream-source" || !manifest.kinds.includes("anime"))
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["discovery"],
+        message: "Discovery feeds require an anime stream-source role.",
+      });
+    }
     if (manifest.role === "manga-source" && manifest.kinds.length !== 0) {
       ctx.addIssue({
         code: "custom",

@@ -40,6 +40,15 @@ export function activate(context) {
   const { host } = context;
 
   return {
+    // Optional native discovery: this template offers one static demo page.
+    async browse(category, { page = 1, limit = 24 } = {}) {
+      return {
+        items: category === "suggested" && page === 1
+          ? TITLES.slice(0, limit).map(({ id, title }) => ({ id, title }))
+          : [],
+        hasMore: false,
+      };
+    },
     /**
      * Find candidate titles on this source.
      *

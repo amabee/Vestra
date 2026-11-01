@@ -3,6 +3,7 @@
 Start with the [native extension quickstart](../../docs/extension-quickstart.md)
 for the folder layout, anime and manga templates, and local installation.
 
+SDK 1.2 adds optional anime [discovery feeds](../../docs/website/discovery.md).
 SDK 1.1 also supports native manga sources with `role: "manga-source"` and
 `search`, `getChapters`, `getPages` exports. See the
 [manga SDK guide](../../docs/native-manga-sdk.md) and

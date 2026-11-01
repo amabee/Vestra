@@ -211,6 +211,10 @@ export interface ExtensionManifest {
   description?: string;
   /** Optional HTTPS extension logo. */
   icon?: string;
+  /** Optional native anime discovery categories (SDK 1.2). */
+  discovery?: {
+    categories: ("suggested" | "ongoing" | "latest" | "upcoming" | "popular")[];
+  };
 }
 
 export type ExtensionPermission =
