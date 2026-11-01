@@ -96,7 +96,7 @@ export function ExtensionsRoute() {
     null,
   );
   const reviewRegion = useRef<HTMLDivElement>(null);
-  const [tab, setTab] = useState<ExtensionTab>("providers");
+  const [tab, setTab] = useState<ExtensionTab>("installed");
   useEffect(() => {
     if (providerReview) reviewRegion.current?.focus();
   }, [providerReview?.token]);
@@ -229,7 +229,7 @@ export function ExtensionsRoute() {
       <PageHeader
         eyebrow="System"
         title="Extensions"
-        lead="Install and manage anime, manga and catalogue extensions in one place."
+        lead="Add sources with Vestra extensions, or import existing providers through Compatibility."
       />
 
       {providerReview && (
@@ -298,7 +298,7 @@ export function ExtensionsRoute() {
                   installUnpacked.isPending
                 }
                 onClick={() => pickUnpacked.mutate()}
-                title="Review an extension from a folder on this machine"
+                title="Review a Vestra SDK extension from a folder on this machine"
                 className="flex items-center gap-1.5 rounded-field border rule px-2.5 py-1 text-xs transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-40"
               >
                 {pickUnpacked.isPending ? (
@@ -320,7 +320,7 @@ export function ExtensionsRoute() {
           {(installed.data ?? []).length === 0 ? (
             <Notice
               title="Nothing installed"
-              body="Add a registry in the Registries tab to see what is available."
+              body="Load a Vestra extension folder, or add a registry to browse extensions. Existing provider scripts are managed in Compatibility."
             />
           ) : (
             <div className="space-y-6">
@@ -547,14 +547,9 @@ type ExtensionTab = "providers" | "installed" | "available" | "registries";
 
 const EXTENSION_TABS: { id: ExtensionTab; label: string; hint: string }[] = [
   {
-    id: "providers",
-    label: "Providers",
-    hint: "Anime and manga provider scripts you imported.",
-  },
-  {
     id: "installed",
     label: "Installed",
-    hint: "Extensions on this PC, what they may do, and whether they run.",
+    hint: "Vestra SDK extensions on this PC, their permissions and runtime status.",
   },
   {
     id: "available",
@@ -565,6 +560,11 @@ const EXTENSION_TABS: { id: ExtensionTab; label: string; hint: string }[] = [
     id: "registries",
     label: "Registries",
     hint: "Web addresses of the registries you trust.",
+  },
+  {
+    id: "providers",
+    label: "Compatibility",
+    hint: "Optional imports for existing anime and manga provider scripts.",
   },
 ];
 

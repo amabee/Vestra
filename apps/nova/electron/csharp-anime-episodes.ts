@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { AbortableCache } from "./abortable-cache";
 
-export interface SeanimeEpisode {
+export interface ProviderEpisode {
   id: string;
   number: number;
   title?: string;
@@ -11,14 +11,14 @@ export interface SeanimeEpisode {
 
 /** Cache raw provider metadata, never signed streams; keep opaque handles outside the cache. */
 export class CSharpAnimeEpisodes {
-  private cache = new AbortableCache<SeanimeEpisode[]>(5 * 60_000, 8);
-  private episodes = new Map<string, SeanimeEpisode>();
+  private cache = new AbortableCache<ProviderEpisode[]>(5 * 60_000, 8);
+  private episodes = new Map<string, ProviderEpisode>();
   private handles = new Map<string, string>();
   constructor(
     private load: (
       animeId: string,
       signal: AbortSignal,
-    ) => Promise<SeanimeEpisode[]>,
+    ) => Promise<ProviderEpisode[]>,
   ) {}
 
   async list(animeId: string, signal?: AbortSignal) {

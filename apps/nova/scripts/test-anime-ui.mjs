@@ -208,6 +208,11 @@ try {
         console.log('PASS unmatched titles, empty episode lists and disabled or missing extensions have distinct recovery states');
         await run('window.fixture.navigate("/extensions")');
         await until('document.getElementById("root").textContent.includes("Existing Anime Extension")');
+        assert.equal(await run('document.getElementById("ext-panel-installed").hidden'),false);
+        assert.equal(await run('document.querySelector("[role=tab]").id'),'ext-tab-installed');
+        assert.equal(await run('document.getElementById("ext-panel-providers").hidden'),true);
+        await run('document.getElementById("ext-tab-providers").click()');
+        await until('!document.getElementById("ext-panel-providers").hidden');
         await run('Array.from(document.querySelectorAll("button")).find(b=>b.textContent.trim()==="Disable").click()');
         await until('document.getElementById("root").textContent.includes("Disabled")');
         assert.equal(await run('window.fixture.managed[0].enabled'),false);

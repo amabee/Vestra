@@ -75,10 +75,11 @@ export function ProviderExtensions() {
     },
   ];
   return (
-    <section aria-label="Provider extensions">
-      <h2 className="font-serif text-2xl">Provider extensions</h2>
+    <section aria-label="Compatibility imports">
+      <h2 className="font-serif text-2xl">Compatibility imports</h2>
       <p className="mt-2 text-sm text-base-content/60">
-        Manage anime and manga extensions, permissions, servers and updates.
+        Import existing anime and manga provider scripts. Your installed
+        sources, settings and progress stay available.
       </p>
       <div className="flex items-center justify-between gap-3 py-5">
         <p className="text-sm text-base-content/60">
@@ -194,8 +195,8 @@ export function ProviderExtensions() {
       )}
       {sources.data?.length === 0 && (
         <p className="py-10 text-base-content/60">
-          No provider extensions installed. Import a script or a manifest to get
-          started.
+          No compatibility imports yet. Import a provider script or manifest if
+          you want to use an existing third-party source.
         </p>
       )}
       {sourceGroups.map((group) => (

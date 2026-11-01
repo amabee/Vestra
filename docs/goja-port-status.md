@@ -1,5 +1,9 @@
 # Goja and Seanime port status
 
+> Historical reference. As of 2026-11-01, engine porting and application parity
+> are no longer project goals. See [Vestra extension direction](extension-direction.md)
+> and the [current roadmap](roadmap.md). Compatibility remains optional.
+
 **The Goja engine has not been ported. Full Seanime extension-host parity is not complete.**
 Vestra runs JavaScript in Jint, a C# interpreter, and implements selected Seanime
 host APIs around it. TypeScript is preprocessed by Nova's trusted TypeScript

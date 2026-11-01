@@ -1,5 +1,9 @@
 # Vestra C# migration
 
+> Historical reference. As of 2026-11-01, engine porting and application parity
+> are no longer project goals. See [Vestra extension direction](extension-direction.md)
+> and the [current roadmap](roadmap.md). Compatibility remains optional.
+
 The current work checklist is [roadmap.md](roadmap.md). This document retains
 earlier implementation checkpoints; later passes supersede their pending items.
 

@@ -1,13 +1,14 @@
 # Vestra development checklist
 
-Updated: 2026-10-30. This is the working checklist for continuing Vestra with a
-C# backend and the existing TypeScript UI/player. Checkmarks mean the stated
-implementation and automated verification exist; they do not imply full Seanime
-parity or a visually verified release. Unchecked items may already have a
-TypeScript implementation in Vestra; their C# migration or validation is pending.
+Updated: 2026-11-01. Vestra is an independent product with a C# backend and
+TypeScript UI/player. Its own extension SDK and user experience set the direction.
+Existing third-party providers remain available through optional compatibility
+imports. Porting Goja and matching another application's complete feature set are
+not goals. Jint is the current C# JavaScript engine.
 
-Goja itself has not been translated. Jint replaces the JavaScript engine, with
-selected Seanime host APIs implemented in C#. No speed advantage has been measured.
+Checkmarks record implementations and automated checks, not a fully verified
+release. Earlier migration and engine-port documents are historical evidence;
+they do not define the current roadmap.
 
 ## Implemented and automated checks passing
 
@@ -18,7 +19,7 @@ selected Seanime host APIs implemented in C#. No speed advantage has been measur
 - [x] Online-stream provider methods: search, episodes, stream resolution and settings.
 - [x] Manga provider methods: search, chapters, page metadata and settings.
 - [x] Guarded HTTPS transport with explicit hosts, public-address checks, redirect checks and response caps.
-- [x] Seanime synchronous response text/JSON semantics, Headers and text form helpers.
+- [x] Synchronous provider response text/JSON semantics, Headers and text form helpers.
 - [x] Read-only HTML selection subset, Buffer subset and URL/query helpers.
 - [x] Crypto subset: AES-CBC, implemented hashes/encoders and random bytes.
 - [x] Trusted TypeScript preprocessing for global Provider scripts.
@@ -42,10 +43,20 @@ pass. Native mpv passed a controlled local HLS/header/subtitle fixture. Live che
 are source-specific observations and can become stale. Visual end-to-end checks
 remain unchecked below.
 
-Recent feature work is on stacked branches: `codex/remote-provider-updates`,
-then `codex/stream-quality-selection`, then `codex/subtitle-track-metadata`.
-The final branch includes the earlier two. Native playback tests remain deferred;
-the optional native mpv fixture was skipped in these passes.
+Recent performance work adds immediate first-mirror startup, bounded anime
+provider isolation and cancellable episode metadata caching; see
+[provider performance](anime-provider-performance.md). Builds and hidden native
+checks pass; sustained live HD playback and packaged release gates remain open.
+
+## Independent extension platform
+
+- [x] Make Vestra SDK extensions the default Extensions view.
+- [x] Keep existing provider scripts in an explicit, optional Compatibility tab.
+- [x] Preserve existing provider IDs, host grants, settings and reading progress.
+- [ ] Publish a supported native SDK contract and versioned authoring examples for anime and manga.
+- [ ] Complete native manga extension routing and verify it through the reader.
+- [ ] Offer native replacements for commonly used imported sources.
+- [ ] Define extension update, testing and publishing requirements around Vestra's own contract.
 
 ## 1. Package the working preview — implementation complete; clean-machine gate open
 
@@ -87,7 +98,7 @@ after that observation still need visual verification and an installer refresh.
 
 ## 3. Measure performance and fix demonstrated bottlenecks
 
-- [ ] Capture a Seanime baseline and current Vestra measurements on the same machine.
+- [ ] Capture a Vestra baseline and compare changes on the same machine.
 - [ ] Measure cold/warm startup, idle/peak memory and time to first video frame.
 - [ ] Measure provider execution separately from network latency, including p50/p95.
 - [ ] Measure library scan and manga page-load times with repeatable fixtures.
@@ -118,13 +129,13 @@ one successful provider does not establish full compatibility.
 
 ## 5. Migrate the remaining application data and services to C#
 
-- [ ] Inventory the existing Vestra repositories and corresponding Seanime behaviors.
+- [ ] Inventory Vestra services and define their product requirements.
 - [ ] Define versioned database/configuration schemas and migration ownership.
 - [ ] Migrate the managed-source registry from Node-backed persistence to C#.
 - [ ] Migrate catalogue metadata, credentials and account/list synchronization.
 - [ ] Migrate library scanning, matching, incremental updates and local-media services.
 - [ ] Migrate watchlists, history, video progress, bookmarks and remaining settings.
-- [ ] Add explicit import paths for existing Vestra data and supported Seanime data.
+- [ ] Add versioned import paths for existing Vestra data.
 - [ ] Verify restart, offline operation, migration rollback/recovery and backup restoration.
 - [ ] Define ownership for multiple application instances accessing the same data.
 
@@ -147,7 +158,7 @@ and provider storage are already implemented; they do not constitute a full data
 - [ ] Implement persistent download queues, progress, cancellation and recovery.
 - [ ] Implement and verify supported torrent-client and debrid integrations.
 - [ ] Implement torrent/direct streaming, range requests, seeking and cleanup.
-- [ ] Audit custom-source contracts and remaining media services against upstream behavior.
+- [ ] Audit custom-source contracts and media services against Vestra requirements.
 
 Acceptance: each supported transport has playback, seek, cancellation and cleanup
 coverage, including failed and interrupted downloads.
@@ -171,13 +182,13 @@ supported layouts and provider variations.
 
 ## 8. Complete the feature audit and release gates
 
-- [ ] Trace remaining Seanime endpoints/features and turn the broad inventory into concrete parity cases.
+- [ ] Define the remaining Vestra features and their concrete acceptance cases.
 - [ ] Implement required events, notifications, scheduled work and integrations.
 - [ ] Audit updater behavior, diagnostics, configuration and remaining support services.
-- [ ] Document replacements and deliberately excluded features in the parity matrix.
+- [ ] Document supported features and deliberately excluded integrations.
 - [ ] Resolve component licensing, notices and attribution for distributed code/dependencies.
 - [ ] Run packaged release regression checks and document supported platforms.
-- [ ] Mark full parity only when the agreed feature matrix passes.
+- [ ] Mark release readiness only when the agreed Vestra feature matrix passes.
 
 The later phases remain a broad inventory. Add concrete acceptance cases as each
 subsystem is traced; do not use these headings as evidence that every upstream
@@ -186,7 +197,8 @@ feature has already been identified.
 ## Supporting records
 
 - [C# migration history and upstream inventory](csharp-migration.md)
-- [Engine and host-API compatibility gaps](goja-port-status.md)
+- [Vestra extension direction](extension-direction.md)
+- [Historical engine and host-API compatibility observations](goja-port-status.md)
 - [Source management behavior and limits](source-management.md)
 - [Manga implementation and verification](manga-provider-status.md)
 - [Provider runtime observations](provider-runtime-status.md)

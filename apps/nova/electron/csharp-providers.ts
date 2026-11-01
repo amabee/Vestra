@@ -14,7 +14,7 @@ import { CSharpProviderSession } from "./csharp-worker";
 import { CSharpAnimePool } from "./csharp-anime-pool";
 import {
   CSharpAnimeEpisodes,
-  type SeanimeEpisode,
+  type ProviderEpisode,
 } from "./csharp-anime-episodes";
 import { createImagePool, type CSharpImagePool } from "./csharp-image-pool";
 import { resolveWorkerTarget } from "./worker-target";
@@ -138,7 +138,7 @@ export async function activateCSharpSource(
   }
   const episodes = new CSharpAnimeEpisodes(
     async (animeId, signal) =>
-      (await call("findEpisodes", [animeId], signal)) as SeanimeEpisode[],
+      (await call("findEpisodes", [animeId], signal)) as ProviderEpisode[],
   );
   const provider = createStreamSourceProvider({
     extensionId: id,
