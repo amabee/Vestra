@@ -93,6 +93,16 @@ describe("the reference extension", () => {
 });
 
 describe("manifest validation", () => {
+  it("preserves optional HTTPS artwork and rejects executable or credential-bearing URLs", async () => {
+    const base = JSON.parse((await exampleFiles()).manifest);
+    const icon = "https://example.test/logo.png";
+    expect(parseManifest({ ...base, icon }).manifest?.icon).toBe(icon);
+    expect(parseManifest(base).errors).toEqual([]);
+    for (const invalid of ["javascript:alert(1)", "http://example.test/logo.png", "https://user:secret@example.test/logo.png", "../logo.png"]) {
+      expect(parseManifest({ ...base, icon: invalid }).manifest).toBeNull();
+    }
+  });
+
   it("refuses network permission without declared hosts", () => {
     const { errors } = parseManifest({
       id: "a",

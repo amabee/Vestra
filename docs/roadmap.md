@@ -55,6 +55,7 @@ checks pass; sustained live HD playback and packaged release gates remain open.
 - [x] Preserve existing provider IDs, host grants, settings and reading progress.
 - [x] Publish native SDK contracts and authoring examples for anime streaming and manga sources (SDK 1.1).
 - [x] Connect native manga extensions to matching, details, covers, reader and host progress; verify with the real isolate and controlled image transport.
+- [x] Extension gallery with logos, square cards, primary Install and secondary Review; native manifest artwork support.
 - [ ] Offer native replacements for commonly used imported sources.
 - [ ] Define extension update, testing and publishing requirements around Vestra's own contract.
 

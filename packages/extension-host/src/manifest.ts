@@ -91,6 +91,20 @@ export const extensionManifestSchema = z
     author: z.string().max(120).optional(),
     homepage: z.string().url().optional(),
     description: z.string().max(2000).optional(),
+    /** Optional HTTPS logo, displayed without changing its aspect ratio. */
+    icon: z
+      .string()
+      .max(4096)
+      .url()
+      .refine((value) => {
+        try {
+          const url = new URL(value);
+          return url.protocol === "https:" && !url.username && !url.password;
+        } catch {
+          return false;
+        }
+      }, "Artwork must use HTTPS without credentials")
+      .optional(),
   })
   .superRefine((manifest, ctx) => {
     if (manifest.role === "manga-source" && manifest.kinds.length !== 0) {
