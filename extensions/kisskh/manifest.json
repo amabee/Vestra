@@ -1,0 +1,24 @@
+{
+  "id": "vestra-kisskh",
+  "name": "KissKH",
+  "version": "0.1.0",
+  "sdkVersion": "1.4.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": ["movie", "tv"],
+  "permissions": ["network", "network:session"],
+  "hosts": [
+    "kisskh.co",
+    "media.themoviedb.org",
+    "wsrv.nl",
+    "serveproxy.com",
+    "hls03.videocdndelivery05.site",
+    "hls.cdnvideo11.shop",
+    "sub.cdnvideo11.shop"
+  ],
+  "author": "Vestra",
+  "description": "Native Asian Movies/TV source with source-owned collections, available episodes, direct video and plain SRT/VTT subtitles. Quality is chosen by the source.",
+  "homepage": "https://kisskh.co/",
+  "icon": "https://kisskh.co/favicon.ico",
+  "discovery": { "categories": ["popular", "latest", "ongoing", "upcoming"] }
+}

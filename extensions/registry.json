@@ -15,5 +15,22 @@
     "tags": ["vestra", "native", "movies", "tv"],
     "workingTag": true,
     "lastWorkingVersion": "0.1.0"
+  },
+  {
+    "id": "vestra-kisskh",
+    "name": "KissKH",
+    "version": "0.1.0",
+    "author": "Vestra",
+    "description": "Native Asian Movies/TV source with Popular, Latest, Ongoing and Upcoming feeds, direct MP4/HLS and plain subtitles. Source quality is Auto.",
+    "type": "custom-source",
+    "language": "javascript",
+    "lang": "multi",
+    "icon": "https://kisskh.co/favicon.ico",
+    "manifestURI": "https://raw.githubusercontent.com/amabee/Vestra/08f69c7f19b23065115989e24bb16f03c1ff4163/extensions/kisskh/manifest.json",
+    "payloadURI": "https://raw.githubusercontent.com/amabee/Vestra/08f69c7f19b23065115989e24bb16f03c1ff4163/extensions/kisskh/index.js",
+    "website": "https://github.com/amabee/Vestra/tree/08f69c7f19b23065115989e24bb16f03c1ff4163/extensions/kisskh",
+    "tags": ["vestra", "native", "movies", "tv", "asian-drama"],
+    "workingTag": true,
+    "lastWorkingVersion": "0.1.0"
   }
 ]

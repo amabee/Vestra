@@ -1,0 +1,86 @@
+{
+  "checkedAt": "2026-11-01T15:51:59.543Z",
+  "extension": "vestra-kisskh",
+  "version": "0.1.0",
+  "checks": [
+    {
+      "kind": "movie",
+      "category": "popular",
+      "items": 10,
+      "hasMore": true
+    },
+    {
+      "kind": "movie",
+      "category": "latest",
+      "items": 10,
+      "hasMore": true
+    },
+    {
+      "kind": "movie",
+      "category": "ongoing",
+      "items": 4,
+      "hasMore": false
+    },
+    {
+      "kind": "movie",
+      "category": "upcoming",
+      "items": 0,
+      "hasMore": false
+    },
+    {
+      "kind": "tv",
+      "category": "popular",
+      "items": 10,
+      "hasMore": true
+    },
+    {
+      "kind": "tv",
+      "category": "latest",
+      "items": 10,
+      "hasMore": true
+    },
+    {
+      "kind": "tv",
+      "category": "ongoing",
+      "items": 10,
+      "hasMore": true
+    },
+    {
+      "kind": "tv",
+      "category": "upcoming",
+      "items": 10,
+      "hasMore": true
+    },
+    {
+      "kind": "tv",
+      "title": "Goblin - Guardian: The Lonely and Great God",
+      "searchResults": 3,
+      "episodes": 17,
+      "quality": "auto",
+      "media": "mp4",
+      "mediaHost": "hls03.videocdndelivery05.site",
+      "subtitleHost": "sub.cdnvideo11.shop",
+      "subtitleTracks": 6,
+      "captionVerified": true,
+      "resolutionMs": 1121,
+      "sampleBytes": 4096,
+      "sampleMs": 320
+    },
+    {
+      "kind": "movie",
+      "title": "Train to Busan",
+      "searchResults": 3,
+      "episodes": 1,
+      "quality": "auto",
+      "media": "hls",
+      "mediaHost": "hls.cdnvideo11.shop",
+      "subtitleHost": "sub.cdnvideo11.shop",
+      "subtitleTracks": 6,
+      "captionVerified": true,
+      "resolutionMs": 1143,
+      "sampleBytes": 4096,
+      "sampleMs": 223
+    }
+  ],
+  "scope": "Source discovery, search, actual isolate/broker resolution and bounded media/subtitle bytes. No installation or sustained playback."
+}
