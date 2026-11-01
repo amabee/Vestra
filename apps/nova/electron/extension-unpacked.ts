@@ -12,7 +12,6 @@ import {
   type ValidatedManifest,
 } from "@vestra/extension-host";
 
-
 const MANIFEST_FILE = "manifest.json";
 
 /** Marks a record as having come from disk rather than a registry. */
@@ -58,7 +57,9 @@ async function readManifest(folder: string): Promise<ValidatedManifest> {
 
   const { manifest, errors } = parseManifest(document);
   if (!manifest) {
-    throw new InstallError(`${MANIFEST_FILE} is not valid:\n${errors.join("\n")}`);
+    throw new InstallError(
+      `${MANIFEST_FILE} is not valid:\n${errors.join("\n")}`,
+    );
   }
 
   return manifest;
@@ -86,7 +87,9 @@ export async function prepareUnpacked(folder: string): Promise<InstallPlan> {
     if (!stats.isFile()) throw new Error("not a file");
     bytes = stats.size;
   } catch {
-    throw new InstallError(`The manifest points at "${manifest.main}", which is not there.`);
+    throw new InstallError(
+      `The manifest points at "${manifest.main}", which is not there.`,
+    );
   }
 
   if (bytes > MAX_PAYLOAD_BYTES) {
@@ -98,10 +101,12 @@ export async function prepareUnpacked(folder: string): Promise<InstallPlan> {
   ];
 
   if (manifest.permissions.length === 0) {
-    warnings.push("Requests no permissions — it cannot reach the network or your library.");
+    warnings.push(
+      "Requests no permissions — it cannot reach the network or your library.",
+    );
   }
 
-  if (manifest.kinds.length === 0) {
+  if (manifest.kinds.length === 0 && manifest.role !== "manga-source") {
     warnings.push(
       "Declares no content kinds, so it will load but will not be offered as a search source.",
     );
@@ -112,7 +117,7 @@ export async function prepareUnpacked(folder: string): Promise<InstallPlan> {
       id: manifest.id,
       name: manifest.name,
       version: manifest.version,
-      type: "plugin",
+      type: manifest.role === "manga-source" ? "manga-provider" : "plugin",
       manifestURI: resolveInside(folder, MANIFEST_FILE),
       payloadURI: payload,
       registryUrl: LOCAL_REGISTRY,

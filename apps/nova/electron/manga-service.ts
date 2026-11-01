@@ -465,10 +465,13 @@ export class MangaService {
     const key = this.book(id, book);
     if (!this.chaptersByBook.get(key)?.some((c) => c.id === chapter))
       throw new Error("Load the chapter list first.");
+    const provider = this.provider(id);
     const rows = z
       .array(pageSchema)
       .max(2000)
-      .parse(await this.provider(id).call("findChapterPages", [chapter]));
+      .parse(await provider.call("findChapterPages", [chapter]));
+    if (this.providers.get(id) !== provider)
+      throw new Error("Manga source changed. Reopen the chapter.");
     const sorted = [...rows].sort((a, b) => a.index - b.index);
     this.counts.set(JSON.stringify([id, book, chapter]), sorted.length);
     if (this.counts.size > 100)

@@ -71,8 +71,10 @@ import { buildLibraryEntries } from "./library-entries";
 import {
   attachExtensionProvider,
   attachStreamSourceProvider,
+  attachMangaSourceProvider,
   detachExtensionProvider,
   detachStreamSourceProvider,
+  detachMangaSourceProvider,
 } from "./extension-providers";
 import { completeUnpacked, prepareUnpacked } from "./extension-unpacked";
 import { probeMedia, resolveFfprobe, skipPointsFrom } from "./media-probe";
@@ -673,7 +675,11 @@ export function registerDataIpc(): void {
    * no code is executed. Provider previews pin downloaded bytes for review.
    */
   handle("extensions:prepare", async (raw: unknown) => {
-    const candidate = parse(installCandidateSchema, raw, "extension");
+    const candidate = parse(
+      z.union([installCandidateSchema, z.string().trim().url().max(4096)]),
+      raw,
+      "extension",
+    );
     return prepareExtensionReview(
       candidate,
       transport,
@@ -706,12 +712,14 @@ export function registerDataIpc(): void {
       extensionId: record.id,
       source,
       grant: record.grant,
+      role: record.manifest.role,
     });
 
     getProviderRegistry().setEnabled(`ext-${record.id}`, true);
     getStreamSourceRegistry().setEnabled(`ext-${record.id}`, true);
     attachExtensionProvider(record, methods);
     attachStreamSourceProvider(record, methods);
+    attachMangaSourceProvider(record, methods);
 
     return record;
   });
@@ -728,6 +736,7 @@ export function registerDataIpc(): void {
       getStreamSourceRegistry().setEnabled(`ext-${id}`, false);
       detachExtensionProvider(id);
       detachStreamSourceProvider(id);
+      detachMangaSourceProvider(id);
       await unloadExtension(id);
       return;
     }
@@ -740,16 +749,19 @@ export function registerDataIpc(): void {
       extensionId: id,
       source,
       grant: record.grant,
+      role: record.manifest.role,
     });
     try {
       getProviderRegistry().setEnabled(`ext-${record.id}`, true);
       getStreamSourceRegistry().setEnabled(`ext-${record.id}`, true);
       attachExtensionProvider(record, methods);
       attachStreamSourceProvider(record, methods);
+      attachMangaSourceProvider(record, methods);
       await setInstalledEnabled(driver, id, true);
     } catch (error) {
       detachExtensionProvider(id);
       detachStreamSourceProvider(id);
+      detachMangaSourceProvider(id);
       await unloadExtension(id);
       throw error;
     }
@@ -760,6 +772,7 @@ export function registerDataIpc(): void {
 
     detachExtensionProvider(id);
     detachStreamSourceProvider(id);
+    detachMangaSourceProvider(id);
     await unloadExtension(id);
     await removeInstalled(getDriver(), id);
 
@@ -808,12 +821,14 @@ export function registerDataIpc(): void {
       extensionId: record.id,
       source,
       grant: record.grant,
+      role: record.manifest.role,
     });
 
     getProviderRegistry().setEnabled(`ext-${record.id}`, true);
     getStreamSourceRegistry().setEnabled(`ext-${record.id}`, true);
     attachExtensionProvider(record, methods);
     attachStreamSourceProvider(record, methods);
+    attachMangaSourceProvider(record, methods);
 
     return record;
   });

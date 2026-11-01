@@ -91,12 +91,16 @@ function splitByKind<T extends { type: string }>(entries: T[]): KindGroup<T>[] {
  */
 export function ExtensionsRoute() {
   const queryClient = useQueryClient();
+  const [manifestUrl, setManifestUrl] = useState("");
+  const [search, setSearch] = useState("");
+  const [kind, setKind] = useState("all");
+  const [installedMessage, setInstalledMessage] = useState("");
   const [reviewing, setReviewing] = useState<InstallPlan | null>(null);
   const [providerReview, setProviderReview] = useState<RemoteSourcePlan | null>(
     null,
   );
   const reviewRegion = useRef<HTMLDivElement>(null);
-  const [tab, setTab] = useState<ExtensionTab>("providers");
+  const [tab, setTab] = useState<ExtensionTab>("installed");
   useEffect(() => {
     if (providerReview) reviewRegion.current?.focus();
   }, [providerReview?.token]);
@@ -150,9 +154,10 @@ export function ExtensionsRoute() {
   });
 
   const prepare = useMutation({
-    mutationFn: (candidate: InstallCandidate) =>
+    mutationFn: (candidate: InstallCandidate | string) =>
       bridge.extensions.prepare(candidate),
     onSuccess: (review) => {
+      setInstalledMessage("");
       installProvider.reset();
       if (review.kind === "provider") {
         setReviewing(null);
@@ -169,6 +174,10 @@ export function ExtensionsRoute() {
       bridge.sources.applyRemote(token, hosts),
     onSuccess: () => {
       setProviderReview(null);
+      setInstalledMessage(
+        "Provider installed. It is ready in Compatibility and your library source menu.",
+      );
+      setTab("providers");
       refresh();
     },
   });
@@ -177,6 +186,8 @@ export function ExtensionsRoute() {
       bridge.extensions.install(input),
     onSuccess: () => {
       setReviewing(null);
+      setInstalledMessage("Extension installed and ready to use.");
+      setTab("installed");
       refresh();
     },
   });
@@ -201,6 +212,8 @@ export function ExtensionsRoute() {
       bridge.extensions.installUnpacked(input),
     onSuccess: () => {
       setReviewing(null);
+      setInstalledMessage("Extension installed and ready to use.");
+      setTab("installed");
       refresh();
     },
   });
@@ -221,16 +234,109 @@ export function ExtensionsRoute() {
     ...(managed.data ?? []).map((entry) => entry.id),
   ]);
   const runningIds = new Set(running.data ?? []);
-  const installedGroups = splitByKind(installed.data ?? []);
-  const availableGroups = splitByKind(browse.data?.entries ?? []);
+  const matches = (entry: { name: string; id: string; type: string }) =>
+    `${entry.name} ${entry.id}`
+      .toLowerCase()
+      .includes(search.trim().toLowerCase()) &&
+    (kind === "all" ||
+      (kind === "other"
+        ? !["manga-provider", "onlinestream-provider"].includes(entry.type)
+        : entry.type === kind));
+  const installedGroups = splitByKind((installed.data ?? []).filter(matches));
+  const availableGroups = splitByKind(
+    (browse.data?.entries ?? []).filter(matches),
+  );
+  const installing =
+    prepare.isPending ||
+    installProvider.isPending ||
+    install.isPending ||
+    installUnpacked.isPending;
 
   return (
     <Page>
       <PageHeader
         eyebrow="System"
         title="Extensions"
-        lead="Install and manage anime, manga and catalogue extensions in one place."
+        lead="Find a source, review its permissions, and install. Your sources appear in the anime or manga library."
       />
+
+      <section
+        aria-label="Add extension"
+        className="mt-6 rounded-box border rule bg-base-200/40 p-4 sm:p-5"
+      >
+        <h2 className="font-serif text-xl">Add an extension</h2>
+        <p className="mt-1 text-sm text-base-content/60">
+          Paste a manifest link or choose a folder. Vestra detects the format
+          for you.
+        </p>
+        <form
+          className="mt-4 flex flex-col gap-2 sm:flex-row"
+          onSubmit={(event) => {
+            event.preventDefault();
+            prepare.mutate(manifestUrl.trim());
+          }}
+        >
+          <label className="sr-only" htmlFor="extension-manifest-url">
+            Extension manifest URL
+          </label>
+          <input
+            id="extension-manifest-url"
+            type="url"
+            required
+            maxLength={4096}
+            value={manifestUrl}
+            onChange={(event) => setManifestUrl(event.target.value)}
+            placeholder="https://example.org/manifest.json"
+            className="input input-bordered h-10 min-w-0 shrink-0 sm:flex-1"
+          />
+          <button
+            className="btn btn-primary"
+            disabled={installing || !manifestUrl.trim()}
+          >
+            {prepare.isPending ? "Checking…" : "Review installation"}
+          </button>
+        </form>
+        <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
+          <button
+            type="button"
+            className="flex items-center gap-1.5 hover:text-primary disabled:opacity-40"
+            disabled={installing || pickUnpacked.isPending}
+            onClick={() => pickUnpacked.mutate()}
+          >
+            <FolderOpen className="size-4" />
+            {pickUnpacked.isPending ? "Opening…" : "Choose extension folder"}
+          </button>
+          <button
+            type="button"
+            className="text-base-content/60 hover:text-primary"
+            onClick={() => setTab("available")}
+          >
+            Browse sources
+          </button>
+          <button
+            type="button"
+            className="text-base-content/60 hover:text-primary"
+            onClick={() => setTab("providers")}
+          >
+            Import a provider script
+          </button>
+        </div>
+        {prepare.error && (
+          <p role="alert" className="mt-3 text-sm text-error">
+            {prepare.error.message}
+          </p>
+        )}
+        {pickUnpacked.error && (
+          <p role="alert" className="mt-3 text-sm text-error">
+            {pickUnpacked.error.message}
+          </p>
+        )}
+        {installedMessage && (
+          <p role="status" className="mt-3 text-sm text-success">
+            {installedMessage}
+          </p>
+        )}
+      </section>
 
       {providerReview && (
         <div
@@ -267,6 +373,31 @@ export function ExtensionsRoute() {
         }}
       />
 
+      {(tab === "installed" || tab === "available") && (
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+          <input
+            id="extension-search"
+            aria-label="Search extensions"
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search extensions…"
+            className="input input-bordered h-10 min-w-0 shrink-0 sm:flex-1"
+          />
+          <select
+            aria-label="Extension category"
+            value={kind}
+            onChange={(event) => setKind(event.target.value)}
+            className="select select-bordered"
+          >
+            <option value="all">All categories</option>
+            <option value="onlinestream-provider">Anime</option>
+            <option value="manga-provider">Manga</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      )}
+
       <div
         role="tabpanel"
         id="ext-panel-providers"
@@ -285,45 +416,21 @@ export function ExtensionsRoute() {
         className="mt-6"
       >
         <section>
-          <SectionRule
-            label="Installed"
-            count={installed.data?.length}
-            trailing={
-              <button
-                type="button"
-                disabled={
-                  pickUnpacked.isPending ||
-                  installProvider.isPending ||
-                  install.isPending ||
-                  installUnpacked.isPending
-                }
-                onClick={() => pickUnpacked.mutate()}
-                title="Review an extension from a folder on this machine"
-                className="flex items-center gap-1.5 rounded-field border rule px-2.5 py-1 text-xs transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-40"
-              >
-                {pickUnpacked.isPending ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <FolderOpen className="size-3.5" />
-                )}
-                Load unpacked
-              </button>
-            }
-          />
-
-          {pickUnpacked.error ? (
-            <p className="mt-3 text-xs text-error">
-              {(pickUnpacked.error as Error).message}
-            </p>
-          ) : null}
+          <SectionRule label="Installed" count={installed.data?.length} />
 
           {(installed.data ?? []).length === 0 ? (
             <Notice
               title="Nothing installed"
-              body="Add a registry in the Registries tab to see what is available."
+              body="Load a Vestra extension folder, or add a registry to browse extensions. Existing provider scripts are managed in Compatibility."
             />
           ) : (
             <div className="space-y-6">
+              {installedGroups.length === 0 && (
+                <Notice
+                  title="No matching extensions"
+                  body="Try another name or category."
+                />
+              )}
               {installedGroups.map((group) => (
                 <div key={group.label}>
                   <SectionRule label={group.label} count={group.items.length} />
@@ -431,10 +538,18 @@ export function ExtensionsRoute() {
           />
 
           {(registries.data ?? []).length === 0 ? (
-            <Notice
-              title="No registry configured"
-              body="Vestra ships no marketplace of its own. Add the URL of a registry you trust."
-            />
+            <>
+              <button
+                className="btn btn-sm mt-3"
+                onClick={() => setTab("registries")}
+              >
+                Add a registry
+              </button>
+              <Notice
+                title="No registry configured"
+                body="Add a registry to browse its extensions, or install directly using a manifest link above."
+              />
+            </>
           ) : browse.error ? (
             <Notice
               title="Could not browse"
@@ -448,6 +563,12 @@ export function ExtensionsRoute() {
             />
           ) : (
             <div className="space-y-6">
+              {availableGroups.length === 0 && (
+                <Notice
+                  title="No matching extensions"
+                  body="Try another name or category."
+                />
+              )}
               {availableGroups.map((group) => (
                 <div key={group.label}>
                   <SectionRule label={group.label} count={group.items.length} />
@@ -547,24 +668,24 @@ type ExtensionTab = "providers" | "installed" | "available" | "registries";
 
 const EXTENSION_TABS: { id: ExtensionTab; label: string; hint: string }[] = [
   {
-    id: "providers",
-    label: "Providers",
-    hint: "Anime and manga provider scripts you imported.",
-  },
-  {
     id: "installed",
     label: "Installed",
-    hint: "Extensions on this PC, what they may do, and whether they run.",
+    hint: "Vestra SDK extensions on this PC, their permissions and runtime status.",
   },
   {
     id: "available",
-    label: "Available",
+    label: "Browse",
     hint: "Extensions listed by the registries you added.",
   },
   {
     id: "registries",
     label: "Registries",
     hint: "Web addresses of the registries you trust.",
+  },
+  {
+    id: "providers",
+    label: "Compatibility",
+    hint: "Optional imports for existing anime and manga provider scripts.",
   },
 ];
 
@@ -585,7 +706,7 @@ function ExtensionTabs({
       <div
         role="tablist"
         aria-label="Extension sections"
-        className="flex gap-6 overflow-x-auto border-b rule"
+        className="grid grid-cols-2 gap-x-6 gap-y-3 border-b rule sm:flex"
       >
         {EXTENSION_TABS.map((entry) => {
           const active = entry.id === tab;

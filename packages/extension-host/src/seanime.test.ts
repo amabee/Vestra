@@ -51,14 +51,19 @@ describe("translating a source", () => {
   });
 
   it("reads hosts out of the code, because the manifest has none", () => {
-    const { manifest, hostsInferred, notes } = translateSeanimeManifest(seanime(), {
-      payload: PAYLOAD,
-    });
+    const { manifest, hostsInferred, notes } = translateSeanimeManifest(
+      seanime(),
+      {
+        payload: PAYLOAD,
+      },
+    );
 
     expect(manifest?.hosts).toEqual(["api.example.test", "cdn.example.test"]);
     expect(manifest?.permissions).toEqual(["network"]);
     expect(hostsInferred).toBe(true);
-    expect(notes.some((note) => note.includes("read out of the code"))).toBe(true);
+    expect(notes.some((note) => note.includes("read out of the code"))).toBe(
+      true,
+    );
   });
 
   it("prefers a payload inlined in the manifest", () => {
@@ -76,11 +81,15 @@ describe("translating a source", () => {
 
     expect(manifest?.permissions).toEqual([]);
     expect(manifest?.hosts).toEqual([]);
-    expect(notes.some((note) => note.includes("No code was supplied"))).toBe(true);
+    expect(notes.some((note) => note.includes("No code was supplied"))).toBe(
+      true,
+    );
   });
 
   it("says the content kind was assumed rather than declared", () => {
-    const { manifest, notes } = translateSeanimeManifest(seanime(), { payload: PAYLOAD });
+    const { manifest, notes } = translateSeanimeManifest(seanime(), {
+      payload: PAYLOAD,
+    });
 
     expect(manifest?.kinds).toEqual(["anime"]);
     expect(notes.some((note) => note.includes("assumed"))).toBe(true);
@@ -88,14 +97,21 @@ describe("translating a source", () => {
 });
 
 describe("refusals", () => {
-  it("refuses the scraper provider types on product grounds", () => {
-    for (const type of ["manga-provider", "onlinestream-provider", "anime-torrent-provider"]) {
-      const { manifest, blockers } = translateSeanimeManifest(seanime({ type }), {
-        payload: PAYLOAD,
-      });
+  it("does not mislabel provider scripts as native metadata extensions", () => {
+    for (const type of [
+      "manga-provider",
+      "onlinestream-provider",
+      "anime-torrent-provider",
+    ]) {
+      const { manifest, blockers } = translateSeanimeManifest(
+        seanime({ type }),
+        {
+          payload: PAYLOAD,
+        },
+      );
 
       expect(manifest).toBeNull();
-      expect(blockers.join(" ")).toMatch(/licen|tracker|indexer/i);
+      expect(blockers.join(" ")).toMatch(/compatibility importer/i);
     }
   });
 
@@ -107,7 +123,9 @@ describe("refusals", () => {
           version: "1",
           permissions: {
             allow: {
-              unsafeFlags: [{ flag: "dom-script-manipulation", reason: "inject a widget" }],
+              unsafeFlags: [
+                { flag: "dom-script-manipulation", reason: "inject a widget" },
+              ],
             },
           },
         },
@@ -124,7 +142,10 @@ describe("refusals", () => {
     const { manifest, blockers } = translateSeanimeManifest(
       seanime({
         type: "plugin",
-        plugin: { version: "1", permissions: { scopes: ["anilist-token", "system"] } },
+        plugin: {
+          version: "1",
+          permissions: { scopes: ["anilist-token", "system"] },
+        },
       }),
       { payload: PAYLOAD },
     );
@@ -151,7 +172,9 @@ describe("refusals", () => {
   });
 
   it("refuses Go and TypeScript payloads for different reasons", () => {
-    const go = translateSeanimeManifest(seanime({ language: "go" }), { payload: PAYLOAD });
+    const go = translateSeanimeManifest(seanime({ language: "go" }), {
+      payload: PAYLOAD,
+    });
     expect(go.blockers.join(" ")).toContain("Go");
 
     const ts = translateSeanimeManifest(seanime({ language: "typescript" }), {
@@ -196,7 +219,9 @@ describe("declared domains", () => {
           version: "1",
           permissions: {
             allow: {
-              networkAccess: { allowedDomains: ["*.example.test", "https://other.test/path"] },
+              networkAccess: {
+                allowedDomains: ["*.example.test", "https://other.test/path"],
+              },
             },
           },
         },
@@ -207,32 +232,43 @@ describe("declared domains", () => {
     // Declared wins over inferred — the author said it, so we don't guess.
     expect(manifest?.hosts).toEqual(["example.test", "other.test"]);
     expect(hostsInferred).toBe(false);
-    expect(notes.some((note) => note.includes("subdomains are not covered"))).toBe(true);
+    expect(
+      notes.some((note) => note.includes("subdomains are not covered")),
+    ).toBe(true);
   });
 });
 
 describe("proposeHosts", () => {
   it("dedupes, lowercases and sorts", () => {
     expect(
-      proposeHosts('a "https://B.example.test/x" b "https://a.example.test" c "https://b.example.test"'),
+      proposeHosts(
+        'a "https://B.example.test/x" b "https://a.example.test" c "https://b.example.test"',
+      ),
     ).toEqual(["a.example.test", "b.example.test"]);
   });
 
   it("ignores loopback and bare addresses, which are refused anyway", () => {
-    expect(proposeHosts('fetch("https://localhost:8080/x"); fetch("https://127.0.0.1/y")')).toEqual(
-      [],
-    );
+    expect(
+      proposeHosts(
+        'fetch("https://localhost:8080/x"); fetch("https://127.0.0.1/y")',
+      ),
+    ).toEqual([]);
   });
 
   it("finds nothing in code that builds its URLs", () => {
     // The honest limit of the heuristic, asserted so nobody mistakes it for a guarantee.
-    expect(proposeHosts('const host = "api" + ".example.test"; fetch(`https://${host}/x`)')).toEqual(
-      [],
-    );
+    expect(
+      proposeHosts(
+        'const host = "api" + ".example.test"; fetch(`https://${host}/x`)',
+      ),
+    ).toEqual([]);
   });
 
   it("caps the list", () => {
-    const many = Array.from({ length: 40 }, (_, i) => `https://h${i}.example.test`).join(" ");
+    const many = Array.from(
+      { length: 40 },
+      (_, i) => `https://h${i}.example.test`,
+    ).join(" ");
     expect(proposeHosts(many)).toHaveLength(20);
   });
 });

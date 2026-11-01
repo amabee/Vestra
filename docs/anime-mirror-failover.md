@@ -9,7 +9,7 @@ Recovery prefers Full HD on each untried mirror before making a final lighter-qu
 - The provider interface accepts an optional `excludeServers` argument on stream resolution. Existing initial calls remain one-argument guest calls.
 - The C# adapter skips excluded advertised server IDs. The chosen ID is authoritative even when a guest returns a generic display name. Extraction and manifest validation still use the existing guarded paths.
 - The shared source-episode registration helper keeps initial resolution and recovery attached to the same provider and episode ID. Anime details and catalogue adapters reuse it.
-- Additional mirrors are resolved lazily only when recovery is needed. No full mirror sweep is added to startup.
+- Startup races advertised mirrors and returns the first validated result immediately. It cancels unfinished extraction and manifest probes instead of waiting three seconds to gather backups. Recovery resolves untried mirrors on demand. The C# worker serializes guest calls, so starting these promises together does not provide parallel JavaScript execution. Cancelling an active guest call stops that worker; the existing session replays loaded providers before its next operation.
 - Providers returning several server groups can recover from their existing results. Providers ignoring exclusion hints are filtered by returned server identity; if no untried mirror exists, recovery proceeds to its final lighter attempt.
 - Mirror history and rendition candidates belong to one playback recovery plan. They neither alter the selected library provider nor rewrite shared manual quality handles.
 - Manual quality selections remain explicit and do not silently switch mirrors. Pause, close or replacement playback suppress stale recovery results; a late failure cannot publish an error over another episode.
@@ -19,3 +19,12 @@ Recovery prefers Full HD on each untried mirror before making a final lighter-qu
 Deterministic regression fixtures cover mirror exclusion through the provider boundary, stable episode/progress identity, HD preference, headers/subtitles, same-position native reload, immediate native-error recovery, finite retry budgets, cache expiry during recovery, provider removal and stale results after episode replacement. Existing service, quality, subtitle, loader and server-fallback checks remain applicable.
 
 This does not establish a live speed multiplier or guarantee that another mirror is available. It does not switch to another provider, infer episode matches across providers, download video segments into a new proxy, or introduce a browser adaptive-HLS engine. Signed URLs and upstream server availability can still fail; exhausted recovery retains actionable playback errors.
+
+
+## Startup optimization check (2026-11-01)
+
+Removed the fixed three-second backup collection window. Headers, subtitles and HD rendition selection still follow the existing validation and playback paths. Cancellation now reaches guest extraction, Streamplay extraction and manifest probes; late results cannot start a new probe after completion. Failed mirrors still fall back, and the aggregate deadline cancels unfinished work.
+
+A hidden live check using the installed DonghuaStream extension resolved a title, loaded three episodes, validated an HLS manifest and decoded one frame with bundled mpv. Search took 1,065 ms, episode listing 1,037 ms, settings 7 ms, and mirror extraction plus manifest validation 2,187 ms. This is one upstream sample, not a benchmark of all providers or sustained playback. The subsequent [provider performance changes](anime-provider-performance.md) add repeated episode-list caching and isolate anime provider workers.
+
+Verification: Nova typecheck and production build; anime service, stream-buffering and mirror fixtures; live installed-provider manifest and hidden native frame decode. Mirror fixtures cover immediate first success, cancellation, deadline cancellation during probing, late result suppression, failed-mirror fallback and recovery exclusions.

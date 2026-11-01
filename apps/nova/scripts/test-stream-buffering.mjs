@@ -11,7 +11,7 @@ const scratch = await mkdtemp(join(tmpdir(), "vestra-buffering-"));
 after(() => rm(scratch, { recursive: true, force: true }));
 await build({
   stdin: {
-    contents: `export {probePlayableStream} from './apps/nova/electron/probe-stream'; export {MpvSession} from './apps/nova/electron/mpv/session'; export {automaticVariant, STREAM_CACHE_ARGS} from './apps/nova/electron/mpv/stream-policy'; export {registerDeferredVariants, resolveRemotePlayback, remoteQualities, isAutomaticStream, createRemoteRecovery} from './apps/nova/electron/remote-playback';`,
+    contents: `export {probePlayableStream} from './apps/nova/electron/probe-stream'; export {MpvSession} from './apps/nova/electron/mpv/session'; export {MpvStatePublisher} from './apps/nova/electron/mpv/state-publisher'; export {automaticVariant, STREAM_CACHE_ARGS} from './apps/nova/electron/mpv/stream-policy'; export {registerDeferredVariants, resolveRemotePlayback, remoteQualities, isAutomaticStream, createRemoteRecovery} from './apps/nova/electron/remote-playback';`,
     resolveDir: root,
   },
   bundle: true,
@@ -55,6 +55,7 @@ await build({
 const {
   probePlayableStream,
   MpvSession,
+  MpvStatePublisher,
   automaticVariant,
   STREAM_CACHE_ARGS,
   registerDeferredVariants,
@@ -441,4 +442,62 @@ test("fonts installed during playback refresh the native font directory on each 
       (row) => row[1] === "sub-font" && row[2] === "Open Sans",
     ),
   );
+});
+
+test("player telemetry bursts publish at most ten times a second; readiness and controls remain immediate", (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
+  const published = [];
+  const publisher = new MpvStatePublisher((state) => published.push(state));
+  const base = {
+    position: 0,
+    bufferedSeconds: 0,
+    downloadBytesPerSecond: 0,
+    loading: true,
+    paused: false,
+    error: null,
+  };
+  publisher.push(base);
+  for (let i = 1; i <= 100; i++)
+    publisher.push({ ...base, position: i, bufferedSeconds: i });
+  assert.equal(published.length, 1);
+  t.mock.timers.tick(100);
+  assert.equal(published.length, 2);
+  assert.equal(published[1].position, 100);
+  publisher.push({ ...base, position: 101, loading: false });
+  assert.equal(published.length, 3);
+  publisher.push({ ...base, position: 102, loading: false, paused: true });
+  assert.equal(published.length, 4);
+  publisher.push({ ...base, position: 103, loading: false, paused: true });
+  publisher.dispose();
+  t.mock.timers.tick(100);
+  assert.equal(published.length, 4);
+});
+
+test("manifest probing forwards cancellation to the guarded transport", async () => {
+  const controller = new AbortController();
+  const pending = probePlayableStream(
+    {
+      server: "One",
+      headers: {},
+      videoSources: [
+        {
+          type: "hls",
+          quality: "1080p",
+          url: "https://cdn.example/video.m3u8",
+          subtitles: [],
+        },
+      ],
+    },
+    async (_input, signal) => {
+      assert.equal(signal, controller.signal);
+      return new Promise((_resolve, reject) =>
+        signal.addEventListener("abort", () => reject(signal.reason), {
+          once: true,
+        }),
+      );
+    },
+    controller.signal,
+  );
+  controller.abort();
+  await assert.rejects(pending, { name: "AbortError" });
 });

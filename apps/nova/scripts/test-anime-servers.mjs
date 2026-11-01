@@ -12,7 +12,7 @@ const scratch = await mkdtemp(join(tmpdir(), "vestra-servers-"));
 after(() => rm(scratch, { recursive: true, force: true }));
 await build({
   stdin: {
-    contents: `export {resolveEpisodeServers} from './apps/nova/electron/episode-servers'; export {CSharpProviderWorker} from './apps/nova/electron/csharp-worker'; export {transpileProvider} from './apps/nova/electron/provider-transpile'; export {safeFetch} from './apps/nova/electron/safe-fetch';`,
+    contents: `export {resolveEpisodeServers} from './apps/nova/electron/episode-servers'; export {CSharpProviderSession} from './apps/nova/electron/csharp-worker'; export {CSharpAnimePool} from './apps/nova/electron/csharp-anime-pool'; export {CSharpAnimeEpisodes} from './apps/nova/electron/csharp-anime-episodes'; export {transpileProvider} from './apps/nova/electron/provider-transpile'; export {safeFetch} from './apps/nova/electron/safe-fetch';`,
     resolveDir: root,
   },
   bundle: true,
@@ -22,7 +22,9 @@ await build({
 });
 const {
   resolveEpisodeServers,
-  CSharpProviderWorker,
+  CSharpProviderSession,
+  CSharpAnimePool,
+  CSharpAnimeEpisodes,
   transpileProvider,
   safeFetch,
 } = createRequire(import.meta.url)(join(scratch, "test.cjs"));
@@ -121,28 +123,32 @@ if (process.argv.includes("--live"))
       (row) => row.enabled && row.type === "onlinestream-provider",
     );
     assert.ok(definition, "No installed anime provider to verify");
-    const worker = new CSharpProviderWorker(
-      join(root, "apps/server/bin/Release/net10.0/Vestra.Server.dll"),
-      join(scratch, "worker-store"),
+    const worker = new CSharpAnimePool(
+      () =>
+        new CSharpProviderSession(
+          join(root, "apps/server/bin/Release/net10.0/Vestra.Server.dll"),
+          join(scratch, "worker-store"),
+        ),
     );
     try {
-      await worker.request({
-        kind: "load",
-        provider: {
-          id: definition.id,
-          type: definition.type,
-          source: transpileProvider(definition.source, definition.filename),
-          hosts: definition.hosts,
-          preferences: definition.preferences,
-        },
+      await worker.load({
+        id: definition.id,
+        type: definition.type,
+        source: transpileProvider(definition.source, definition.filename),
+        hosts: definition.hosts,
+        preferences: definition.preferences,
       });
-      const call = (method, args = []) =>
-        worker.request({
-          kind: "call",
-          providerId: definition.id,
-          method,
-          args,
-        });
+      const timings = {};
+      const call = async (method, args = [], signal) => {
+        const started = performance.now();
+        try {
+          return await worker.call(definition.id, method, args, signal);
+        } finally {
+          (timings[method] ??= []).push(
+            Math.round(performance.now() - started),
+          );
+        }
+      };
       const titles = await call("search", [
         {
           query: "Battle",
@@ -160,21 +166,41 @@ if (process.argv.includes("--live"))
         },
       ]);
       assert.ok(titles.length);
-      const episodes = await call("findEpisodes", [titles[0].id]);
+      const episodeStore = new CSharpAnimeEpisodes((animeId, signal) =>
+        call("findEpisodes", [animeId], signal),
+      );
+      const episodes = await episodeStore.list(titles[0].id);
       assert.ok(episodes.length);
+      const cachedStart = performance.now();
+      const cached = await episodeStore.list(titles[0].id);
+      timings.cachedEpisodes = [Math.round(performance.now() - cachedStart)];
+      assert.equal(
+        timings.findEpisodes.length,
+        1,
+        "repeat listing must use cache",
+      );
+      assert.equal(cached[0].id, episodes[0].id);
       const settings = await call("getSettings");
       const rows = await resolveEpisodeServers(
         settings.episodeServers,
         definition.preferredServer,
-        (server) => call("findEpisodeServer", [episodes[0], server]),
-        async (row) => {
+        (server, signal) =>
+          call(
+            "findEpisodeServer",
+            [episodeStore.get(episodes[0].id), server],
+            signal,
+          ),
+        async (row, signal) => {
           for (const video of row.videoSources) {
-            const response = await safeFetch({
-              url: video.url,
-              headers: { ...row.headers, ...video.headers },
-              maxBytes: 1048576,
-              timeoutMs: 7000,
-            });
+            const response = await safeFetch(
+              {
+                url: video.url,
+                headers: { ...row.headers, ...video.headers },
+                maxBytes: 1048576,
+                timeoutMs: 7000,
+              },
+              signal,
+            );
             assert.equal(response.status, 200);
             assert.match(response.body.trimStart(), /^#EXTM3U/);
           }
@@ -189,6 +215,7 @@ if (process.argv.includes("--live"))
           episodes: episodes.length,
           server: rows[0].server,
           manifest: "verified",
+          timingsMs: timings,
         }),
       );
       if (process.argv.includes("--native")) {
@@ -291,22 +318,28 @@ test("cancelling pending mirrors rejects without waiting for their network deadl
   await assert.rejects(pending, { name: "AbortError" });
 });
 
-test("parallel extraction retains timely backups and ignores late mirrors", async (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
+test("first validated mirror starts playback immediately and cancels late work", async () => {
   let release;
+  let lateSignal;
+  const probed = [];
   const pending = resolveEpisodeServers(
     ["One", "Two"],
     undefined,
-    async (server) =>
-      server === "One"
-        ? result(server)
-        : new Promise((resolve) => {
-            release = resolve;
-          }),
+    async (server, signal) => {
+      if (server === "One") return result(server);
+      lateSignal = signal;
+      return new Promise((resolve) => {
+        release = resolve;
+      });
+    },
+    async (row) => {
+      probed.push(row.server);
+      return row;
+    },
   );
-  await new Promise((resolve) => setImmediate(resolve));
-  t.mock.timers.tick(3001);
+  // No timer needs to elapse to receive the playable stream.
   const rows = await pending;
+  assert.equal(lateSignal.aborted, true);
   assert.deepEqual(
     rows.map((row) => row.server),
     ["One"],
@@ -314,7 +347,32 @@ test("parallel extraction retains timely backups and ignores late mirrors", asyn
   release(result("Two"));
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(
+    probed,
+    ["One"],
+    "late extraction must not start a manifest request",
+  );
+  assert.deepEqual(
     rows.map((row) => row.server),
     ["One"],
   );
+});
+
+test("mirror budget cancels outstanding manifest probes", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let probeSignal;
+  const pending = resolveEpisodeServers(
+    ["One"],
+    undefined,
+    async () => result("One"),
+    async (_row, signal) => {
+      probeSignal = signal;
+      return new Promise(() => {});
+    },
+  );
+  const rejected = assert.rejects(pending, /time limit/);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(probeSignal.aborted, false);
+  t.mock.timers.tick(40001);
+  await rejected;
+  assert.equal(probeSignal.aborted, true);
 });

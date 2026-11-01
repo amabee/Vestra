@@ -1,5 +1,32 @@
 # Streaming buffering policy
 
+## Loading and UI overhead (2026-11-01)
+
+Manifest probes and Streamplay extractor HTTP requests now pass cancellation to
+the guarded transport. Previously they only checked the signal between requests;
+losing mirrors could keep downloading until their individual timeout. The HTTP
+helper now races the entire DNS/fetch/body operation against cancellation and its
+deadline, cancels retry waits, and does not start HTTP after cancelled DNS finishes.
+Actual DNS resolution itself cannot be interrupted; its late result is ignored.
+
+Progress and cache telemetry sent to both player renderers is coalesced on a
+100 ms interval. Loading readiness, buffering transitions, pause, tracks, errors
+and other controls still publish immediately. The native playback/recovery state
+is updated at its original frequency. A fixture sending 100 telemetry changes
+publishes one initial state and one latest state after 100 ms, reducing redundant
+IPC copies and React updates without adding delay to the first-ready event.
+
+The HD-first quality policy and native cache profile below are unchanged. These
+changes reduce abandoned network work and UI update churn; they do not increase
+CDN bandwidth or establish a live playback speed multiplier.
+
+Verification includes DNS/body cancellation without retries, probe signal
+forwarding, telemetry coalescing with immediate control events, existing mirror,
+HD/recovery and OP/ED fixtures, Streamplay protocol fixtures, hidden native HLS
+decoding with headers/subtitles, Nova typecheck and production builds.
+
+## Cache and quality policy
+
 The reported failure was long startup followed by repeated stalls lasting roughly two minutes. This change addresses application-controlled waits and excessive default bandwidth; it does not establish the throughput of the user's CDN or claim a measured 2–3× live improvement.
 
 ## Changes

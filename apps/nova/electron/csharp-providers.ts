@@ -3,7 +3,6 @@ import { extractStreamplay, streamplayEmbed } from "./streamplay";
 import { resolveEpisodeServers } from "./episode-servers";
 import { safeFetch } from "./safe-fetch";
 import { readFile, stat } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
 import { basename, dirname, resolve } from "node:path";
 
 import { createStreamSourceProvider } from "@vestra/extension-host";
@@ -12,6 +11,11 @@ import { z } from "zod";
 
 import type { ManagedSource } from "./source-manager";
 import { CSharpProviderSession } from "./csharp-worker";
+import { CSharpAnimePool } from "./csharp-anime-pool";
+import {
+  CSharpAnimeEpisodes,
+  type ProviderEpisode,
+} from "./csharp-anime-episodes";
 import { createImagePool, type CSharpImagePool } from "./csharp-image-pool";
 import { resolveWorkerTarget } from "./worker-target";
 import { csharpMangaProgress } from "./csharp-manga-progress";
@@ -21,7 +25,7 @@ import {
 } from "./manga-bookmarks";
 import { transpileProvider } from "./provider-transpile";
 import { applyProviderCompatibility } from "./provider-compat";
-import { createStreamSourceAdapter } from "./extension-providers";
+import { createStreamSourceAdapter } from "./stream-source-adapter";
 import { getMangaService } from "./manga-ipc";
 import {
   getAdapterRegistry,
@@ -48,15 +52,8 @@ const configSchema = z.object({
     .max(32),
 });
 
-interface SeanimeEpisode {
-  id: string;
-  number: number;
-  title?: string;
-  url: string;
-  provider: string;
-}
-
 let worker: CSharpProviderSession | null = null;
+let animePool: CSharpAnimePool | null = null;
 let imagePool: CSharpImagePool | null = null;
 let shuttingDown = false;
 const mangaRegistrations = new Set<string>();
@@ -82,6 +79,16 @@ function clientForSources(): CSharpProviderSession {
     resolve(resolveDataDir(), "csharp-provider-store"),
   ));
 }
+function animeRuntime(): CSharpAnimePool {
+  if (shuttingDown) throw new Error("Source runtime is shutting down.");
+  return (animePool ??= new CSharpAnimePool(
+    () =>
+      new CSharpProviderSession(
+        workerTarget(),
+        resolve(resolveDataDir(), "csharp-provider-store"),
+      ),
+  ));
+}
 export function fetchCSharpImage(request: unknown): Promise<unknown> {
   if (shuttingDown) throw new Error("Image runtime is shutting down.");
   return (imagePool ??= createImagePool(workerTarget())).image(request);
@@ -94,28 +101,36 @@ export function getMangaBookmarks(): MangaBookmarkRepository {
   };
 }
 
+/** Native SDK sources share the existing host-owned progress store. */
+export function getMangaProgress(providerId: string) {
+  return csharpMangaProgress(clientForSources(), providerId);
+}
+
 export async function activateCSharpSource(
   definition: ManagedSource,
 ): Promise<void> {
-  const client = clientForSources();
   const id = `csharp-${definition.id}`;
   const source = applyProviderCompatibility(
     transpileProvider(definition.source, definition.filename),
     definition.compatibility,
   );
-  await client.request({
-    kind: "load",
-    provider: {
-      id,
-      type: definition.type,
-      source,
-      hosts: definition.hosts,
-      preferences: definition.preferences,
-    },
-  });
+  const providerDefinition = {
+    id,
+    type: definition.type,
+    source,
+    hosts: definition.hosts,
+    preferences: definition.preferences,
+  };
+  const client =
+    definition.type === "manga-provider" ? clientForSources() : null;
+  if (client)
+    await client.request({ kind: "load", provider: providerDefinition });
+  else await animeRuntime().load(providerDefinition);
   const call = (method: string, args: unknown[], signal?: AbortSignal) =>
-    client.request({ kind: "call", providerId: id, method, args }, signal);
-  if (definition.type === "manga-provider") {
+    client
+      ? client.request({ kind: "call", providerId: id, method, args }, signal)
+      : animeRuntime().call(id, method, args, signal);
+  if (client) {
     getMangaService().register(
       id,
       definition.name,
@@ -126,7 +141,10 @@ export async function activateCSharpSource(
     mangaRegistrations.add(id);
     return;
   }
-  const episodes = new Map<string, SeanimeEpisode>();
+  const episodes = new CSharpAnimeEpisodes(
+    async (animeId, signal) =>
+      (await call("findEpisodes", [animeId], signal)) as ProviderEpisode[],
+  );
   const provider = createStreamSourceProvider({
     extensionId: id,
     name: definition.name,
@@ -157,18 +175,7 @@ export async function activateCSharpSource(
         );
       }
       if (method === "getEpisodes") {
-        const rows = (await call(
-          "findEpisodes",
-          [String(args[0])],
-          signal,
-        )) as SeanimeEpisode[];
-        return rows.map((row) => {
-          const key = randomUUID();
-          if (episodes.size >= 5000)
-            episodes.delete(episodes.keys().next().value!);
-          episodes.set(key, row);
-          return { ...row, id: key, animeId: String(args[0]) };
-        });
+        return episodes.list(String(args[0]), signal);
       }
       if (method === "getStreams") {
         const episode = episodes.get(String(args[0]));
@@ -182,9 +189,13 @@ export async function activateCSharpSource(
         return resolveEpisodeServers(
           settings.episodeServers,
           definition.preferredServer,
-          async (server) => {
+          async (server, mirrorSignal) => {
             try {
-              return await call("findEpisodeServer", [episode, server], signal);
+              return await call(
+                "findEpisodeServer",
+                [episode, server],
+                mirrorSignal,
+              );
             } catch (error) {
               const embed = streamplayEmbed(error);
               if (!embed) throw error;
@@ -192,11 +203,12 @@ export async function activateCSharpSource(
                 embed,
                 server,
                 episode.url ?? "",
-                signal,
+                mirrorSignal,
               );
             }
           },
-          (result) => probePlayableStream(result, safeFetch, signal),
+          (result, mirrorSignal) =>
+            probePlayableStream(result, safeFetch, mirrorSignal),
           signal,
           (args[1] as { excludeServers?: string[] } | undefined)
             ?.excludeServers ?? [],
@@ -233,11 +245,16 @@ export async function deactivateCSharpSource(sourceId: string): Promise<void> {
     getAdapterRegistry().unregister(registration.adapterId);
     registrations.delete(id);
   }
-  worker?.forget(id);
-  if (worker) await worker.request({ kind: "unload", providerId: id });
+  if (animePool?.has(id)) animePool.remove(id);
+  else {
+    worker?.forget(id);
+    if (worker) await worker.request({ kind: "unload", providerId: id });
+  }
 }
 
 export async function checkCSharpSource(sourceId: string): Promise<unknown> {
+  const id = `csharp-${sourceId}`;
+  if (animePool?.has(id)) return animePool.call(id, "getSettings", []);
   return clientForSources().request({
     kind: "call",
     providerId: `csharp-${sourceId}`,
@@ -299,6 +316,8 @@ export function stopCSharpProviders(): void {
     getAdapterRegistry().unregister(entry.adapterId);
   }
   registrations.clear();
+  animePool?.stop();
+  animePool = null;
   worker?.stop();
   worker = null;
   imagePool?.stop();

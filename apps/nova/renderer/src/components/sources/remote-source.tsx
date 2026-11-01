@@ -23,7 +23,7 @@ export function RemoteSourceImport({
       }}
     >
       <label className="text-sm" htmlFor="source-manifest-url">
-        Install from manifest URL
+        Import provider manifest URL
       </label>
       <div className="flex gap-2">
         <input
@@ -62,6 +62,7 @@ export function RemoteSourceReview({
   const [hosts, setHosts] = useState(plan.hosts.join("\n"));
   return (
     <section className="grid gap-3 rounded-xl border rule p-5">
+      <p className="meta">Compatibility import</p>
       <h2 className="text-lg font-semibold">
         {plan.updating ? "Update" : "Install"} {plan.name}
       </h2>

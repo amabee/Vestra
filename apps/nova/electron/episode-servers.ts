@@ -32,19 +32,15 @@ export function providerError(error: unknown): string {
  */
 const MIRROR_BUDGET_MS = 40_000;
 
-/**
- * After the first mirror works, the others get this long to finish. Every
- * mirror that works in that window is kept as a backup for recovery.
- */
-const BACKUP_GRACE_MS = 3_000;
-
 /** A preferred mirror is tried first, rather than becoming a single point of failure. */
 export async function resolveEpisodeServers(
   servers: string[],
   preferred: string | undefined,
-  resolve: (server: string) => Promise<unknown>,
-  probe: (result: StreamResult) => Promise<StreamResult> = async (result) =>
-    result,
+  resolve: (server: string, signal: AbortSignal) => Promise<unknown>,
+  probe: (
+    result: StreamResult,
+    signal: AbortSignal,
+  ) => Promise<StreamResult> = async (result) => result,
   signal?: AbortSignal,
   excludeServers: readonly string[] = [],
 ): Promise<StreamResult[]> {
@@ -53,6 +49,7 @@ export async function resolveEpisodeServers(
     servers,
     preferred && servers.includes(preferred) ? preferred : undefined,
   );
+  const extraction = new AbortController();
   const failures: string[] = [];
   const started = Date.now();
   const candidates = [...new Set([first, ...servers])]
@@ -61,9 +58,10 @@ export async function resolveEpisodeServers(
 
   const tryMirror = async (server: string): Promise<StreamResult> => {
     signal?.throwIfAborted();
+    extraction.signal.throwIfAborted();
     const mirrorStarted = Date.now();
     try {
-      const raw = (await resolve(server)) as Omit<
+      const raw = (await resolve(server, extraction.signal)) as Omit<
         StreamResult,
         "videoSources"
       > & {
@@ -71,6 +69,7 @@ export async function resolveEpisodeServers(
           Omit<StreamResult["videoSources"][number], "type"> & { type: string }
         >;
       };
+      extraction.signal.throwIfAborted();
       const result = streamResultSchema.parse({
         ...raw,
         videoSources: raw.videoSources?.map((video, i) => ({
@@ -84,13 +83,16 @@ export async function resolveEpisodeServers(
             })) ?? [],
         })),
       });
-      const checked = streamResultSchema.parse(await probe(result));
+      const checked = streamResultSchema.parse(
+        await probe(result, extraction.signal),
+      );
+      extraction.signal.throwIfAborted();
       console.info(
         `[nova] mirror ${server} ready in ${Date.now() - mirrorStarted}ms (total ${Date.now() - started}ms)`,
       );
       return { ...checked, server };
     } catch (error) {
-      if (signal?.aborted) throw error;
+      if (signal?.aborted || extraction.signal.aborted) throw error;
       console.warn(
         `[nova] mirror ${server} failed after ${Date.now() - mirrorStarted}ms`,
       );
@@ -98,18 +100,18 @@ export async function resolveEpisodeServers(
     }
   };
 
-  // Start every mirror at once. Keep every one that works, the first first.
+  // Return the first validated mirror immediately. Recovery resolves untried
+  // mirrors on demand, without keeping extraction work on the critical path.
   const successes: StreamResult[] = [];
   const working = await new Promise<StreamResult[]>((done) => {
     let pending = candidates.length;
     let finished = false;
-    let grace: ReturnType<typeof setTimeout> | undefined;
     const finish = () => {
       if (finished) return;
       finished = true;
       clearTimeout(budget);
-      if (grace) clearTimeout(grace);
       signal?.removeEventListener("abort", finish);
+      extraction.abort();
       done([...successes]);
     };
     const budget = setTimeout(() => {
@@ -127,9 +129,7 @@ export async function resolveEpisodeServers(
         (result) => {
           if (finished) return;
           successes.push(result);
-          // The first winner starts a short window for the other mirrors.
-          if (!grace) grace = setTimeout(finish, BACKUP_GRACE_MS);
-          settle();
+          finish();
         },
         (error: unknown) => {
           if (finished) return;

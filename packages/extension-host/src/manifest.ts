@@ -40,7 +40,11 @@ export const extensionPermissionSchema = z.enum([
  * Defaults to `metadata` so every extension installed before this existed
  * keeps working unchanged.
  */
-export const extensionRoleSchema = z.enum(["metadata", "stream-source"]);
+export const extensionRoleSchema = z.enum([
+  "metadata",
+  "stream-source",
+  "manga-source",
+]);
 
 export type ExtensionRole = z.infer<typeof extensionRoleSchema>;
 
@@ -51,7 +55,10 @@ export const extensionManifestSchema = z
       .min(1)
       .max(100)
       // Used in storage keys and cache paths; keep it inert.
-      .regex(/^[a-zA-Z0-9._-]+$/, "May contain only letters, digits, dot, dash, underscore"),
+      .regex(
+        /^[a-zA-Z0-9._-]+$/,
+        "May contain only letters, digits, dot, dash, underscore",
+      ),
     name: z.string().min(1).max(120),
     version: z.string().min(1).max(40),
     main: z.string().min(1).max(200),
@@ -86,15 +93,30 @@ export const extensionManifestSchema = z
     description: z.string().max(2000).optional(),
   })
   .superRefine((manifest, ctx) => {
-    if (manifest.permissions.includes("network") && manifest.hosts.length === 0) {
+    if (manifest.role === "manga-source" && manifest.kinds.length !== 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["kinds"],
+        message:
+          "A manga source uses its role to declare manga content; omit catalogue kinds.",
+      });
+    }
+    if (
+      manifest.permissions.includes("network") &&
+      manifest.hosts.length === 0
+    ) {
       ctx.addIssue({
         code: "custom",
         path: ["hosts"],
-        message: "Requests the network permission but declares no hosts to reach.",
+        message:
+          "Requests the network permission but declares no hosts to reach.",
       });
     }
 
-    if (!manifest.permissions.includes("network") && manifest.hosts.length > 0) {
+    if (
+      !manifest.permissions.includes("network") &&
+      manifest.hosts.length > 0
+    ) {
       ctx.addIssue({
         code: "custom",
         path: ["hosts"],

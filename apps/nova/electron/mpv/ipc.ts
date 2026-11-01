@@ -1,3 +1,4 @@
+import { MpvStatePublisher } from "./state-publisher";
 import { BrowserWindow, ipcMain } from "electron";
 import { getLocalFiles, getSettings } from "@vestra/storage";
 import { z } from "zod";
@@ -62,7 +63,7 @@ let activeStreamLocator: string | undefined;
 /** Renderers currently subscribed to state pushes. */
 const subscribers = new Set<Electron.WebContents>();
 
-session.onChange((state: MpvState) => {
+const statePublisher = new MpvStatePublisher((state: MpvState) => {
   if (state.error && activeStreamLocator)
     invalidateRemotePlayback(activeStreamLocator);
   for (const contents of subscribers) {
@@ -75,6 +76,7 @@ session.onChange((state: MpvState) => {
 
   overlay.webContents?.send("mpv:state", state);
 });
+session.onChange((state) => statePublisher.push(state));
 
 const rectSchema = z.object({
   x: z.number().finite(),
@@ -264,7 +266,10 @@ export function registerMpvIpc(): void {
 
   handle("mpv:set-subtitle-font", (_event, raw) => {
     const family = parse(
-      z.string().regex(/^[\p{L}\p{N} .'_-]{1,64}$/u).nullable(),
+      z
+        .string()
+        .regex(/^[\p{L}\p{N} .'_-]{1,64}$/u)
+        .nullable(),
       raw,
       "subtitle font",
     );
@@ -273,7 +278,10 @@ export function registerMpvIpc(): void {
 
   handle("mpv:set-subtitle-color", (_event, raw) => {
     const color = parse(
-      z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable(),
+      z
+        .string()
+        .regex(/^#[0-9a-fA-F]{6}$/)
+        .nullable(),
       raw,
       "subtitle colour",
     );
@@ -494,6 +502,7 @@ const dragSchema = z.object({
 
 /** Tear mpv down. Called on quit so no orphan process is left behind. */
 export function shutdownMpv(): void {
+  statePublisher.dispose();
   overlay.destroy();
   surface.destroy();
   session.dispose();

@@ -35,8 +35,10 @@ pnpm --filter @vestra/nova start
   episode list, and pick where to watch it from the **Playback source** dropdown.
 - **Local files.** Your own video files show up as **Local files** in the same
   dropdown and in the same episode list.
-- **Extensions.** Community sources run in a sandbox. A failing source does not
-  break the others.
+- **Extensions.** Vestra has its own extension SDK. Existing anime and manga
+  provider scripts can be imported through the optional **Compatibility** tab.
+  See the [extension direction](docs/extension-direction.md) and
+  [authoring guide](packages/extension-host/README.md).
 - **Player.** Playback runs in mpv. The gear menu holds subtitles, audio and
   **Quality** choices, and switching quality keeps your place when possible.
 - **Loading.** Search results and episode lists are kept for a short time, so

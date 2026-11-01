@@ -153,7 +153,8 @@ export interface SeanimeTranslation {
  * `https://localhost` and bare IPv4 out of the proposals — both are refused
  * downstream anyway, so offering them would only be noise in a consent prompt.
  */
-const HTTPS_LITERAL = /https:\/\/([a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\.[a-z]{2,63})/gi;
+const HTTPS_LITERAL =
+  /https:\/\/([a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\.[a-z]{2,63})/gi;
 
 /** The manifest schema caps `hosts`, and a longer list is unreadable anyway. */
 const MAX_PROPOSED_HOSTS = 20;
@@ -208,7 +209,6 @@ function isExtensionType(value: string): value is ExtensionType {
 const ASSUMED_KIND = "anime" as const;
 
 export interface TranslateOptions {
-
   payload?: string;
 }
 
@@ -232,7 +232,8 @@ export function translateSeanimeManifest(
   }
 
   const source = parsed.data;
-  const payload = source.payload.length > 0 ? source.payload : (options.payload ?? null);
+  const payload =
+    source.payload.length > 0 ? source.payload : (options.payload ?? null);
 
   /* --- identity ------------------------------------------------------------ */
 
@@ -241,7 +242,8 @@ export function translateSeanimeManifest(
     ["name", source.name],
     ["version", source.version],
   ] as const) {
-    if (value.trim().length === 0) blockers.push(`The manifest has no ${field}.`);
+    if (value.trim().length === 0)
+      blockers.push(`The manifest has no ${field}.`);
   }
 
   // Refused rather than sanitised: the id keys storage and grants, so quietly
@@ -258,6 +260,14 @@ export function translateSeanimeManifest(
 
   if (type === null) {
     blockers.push(`Unrecognised extension type "${source.type}".`);
+  } else if (
+    type === "manga-provider" ||
+    type === "onlinestream-provider" ||
+    type === "anime-torrent-provider"
+  ) {
+    blockers.push(
+      "This provider cannot be translated into a metadata extension. Use the optional provider compatibility importer for supported anime/manga scripts, or publish a native Vestra SDK extension.",
+    );
   } else if (!SUPPORTED_EXTENSION_TYPES.includes(type)) {
     blockers.push(EXTENSION_TYPE_SUPPORT[type].reason);
   }
@@ -292,7 +302,11 @@ export function translateSeanimeManifest(
     const unsafe = plugin.permissions.allow.unsafeFlags;
     if (unsafe.length > 0) {
       const described = unsafe
-        .map((entry) => (entry.reason.length > 0 ? `${entry.flag} (${entry.reason})` : entry.flag))
+        .map((entry) =>
+          entry.reason.length > 0
+            ? `${entry.flag} (${entry.reason})`
+            : entry.flag,
+        )
         .join(", ");
       blockers.push(
         `Requires unsafe flags: ${described}. These let a plugin run code inside the host interface, which in Vestra would hand it the whole bridge and make every permission prompt decoration.`,
@@ -314,7 +328,9 @@ export function translateSeanimeManifest(
         );
       }
       if (unknown.length > 0) {
-        blockers.push(`Asks for unrecognised capabilities: ${unknown.join(", ")}.`);
+        blockers.push(
+          `Asks for unrecognised capabilities: ${unknown.join(", ")}.`,
+        );
       }
     }
 
@@ -328,11 +344,12 @@ export function translateSeanimeManifest(
 
   /* --- network ------------------------------------------------------------- */
 
-  const declaredDomains = source.plugin?.permissions.allow.networkAccess.allowedDomains ?? [];
+  const declaredDomains =
+    source.plugin?.permissions.allow.networkAccess.allowedDomains ?? [];
 
   if (declaredDomains.includes("*")) {
     blockers.push(
-      "Asks to reach any host. Vestra pins extensions to named hosts, and \"anywhere\" is not something a user can meaningfully agree to.",
+      'Asks to reach any host. Vestra pins extensions to named hosts, and "anywhere" is not something a user can meaningfully agree to.',
     );
   }
 
@@ -402,8 +419,12 @@ export function translateSeanimeManifest(
     permissions: hosts.length > 0 ? ["network"] : [],
     hosts,
     kinds: [ASSUMED_KIND],
-    ...(source.author.length > 0 ? { author: source.author.slice(0, 120) } : {}),
-    ...(/^https?:\/\//i.test(source.website) ? { homepage: source.website } : {}),
+    ...(source.author.length > 0
+      ? { author: source.author.slice(0, 120) }
+      : {}),
+    ...(/^https?:\/\//i.test(source.website)
+      ? { homepage: source.website }
+      : {}),
     ...(source.description.length > 0
       ? { description: source.description.slice(0, 2000) }
       : {}),
@@ -415,7 +436,9 @@ export function translateSeanimeManifest(
     return {
       manifest: null,
       payload,
-      blockers: errors.map((error) => `Translated manifest is not valid — ${error}`),
+      blockers: errors.map(
+        (error) => `Translated manifest is not valid — ${error}`,
+      ),
       notes,
       type,
       hostsInferred,
