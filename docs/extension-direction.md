@@ -15,11 +15,11 @@ SDK extensions through the existing reviewed installer.
 - [Native streaming template](../packages/extension-host/examples/stream-source-template/)
 - [Metadata example](../packages/extension-host/examples/kitsu/)
 
-The existing SDK supports metadata and streaming-source extensions. The current
-manga reader uses managed provider scripts; native SDK manga routing is a
-follow-up, not something this interface change implements. New provider APIs
-should be versioned and tested against Vestra's search, details, playback and
-reading flows.
+The SDK supports metadata, streaming-source and native manga-source extensions.
+SDK 1.1 manga sources connect to the library, details and reader through the
+existing host services; see the [manga SDK guide](native-manga-sdk.md). New
+provider APIs should be versioned and tested against Vestra's search, details,
+playback and reading flows.
 
 ## Optional compatibility imports
 
@@ -36,7 +36,8 @@ renaming those wire fields could break installed providers.
 The C# worker currently uses Jint for provider JavaScript. The Vestra SDK uses its
 existing isolate runtime. Unifying engines is a separate decision to make from
 measured behavior and API requirements; this change does not replace either
-engine or claim full native manga support.
+engine. Native manga source routing shares the host's existing progress and
+guarded image services.
 
 ## Project records
 

@@ -1,0 +1,11 @@
+{
+  "id": "example-manga-source",
+  "name": "Manga SDK Example",
+  "version": "1.0.0",
+  "sdkVersion": "1.1.0",
+  "role": "manga-source",
+  "main": "index.js",
+  "permissions": ["network"],
+  "hosts": ["images.example.org"],
+  "description": "Authoring template with placeholder titles and image URLs. Not a live manga source."
+}

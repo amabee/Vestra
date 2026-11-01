@@ -17,6 +17,7 @@ export * from "./bridge";
 export * from "./install";
 export * from "./provider";
 export * from "./stream-types";
+export * from "./manga-types";
 export * from "./stream-registry";
 export * from "./adapt";
 export * from "./store";

@@ -1,6 +1,10 @@
+import { assertMangaSourceMethods } from "@vestra/extension-host";
 import { join } from "node:path";
 
-import { createBrokeredFetch, type GuardedTransport } from "@vestra/extension-host/net";
+import {
+  createBrokeredFetch,
+  type GuardedTransport,
+} from "@vestra/extension-host/net";
 import type { PermissionGrant } from "@vestra/extension-host/permissions";
 import { listInstalled, readSource } from "@vestra/extension-host/store";
 import type { InstalledExtension } from "@vestra/extension-host/install";
@@ -58,11 +62,15 @@ export const transport: GuardedTransport = {
 function ensureWorker(): UtilityProcess {
   if (worker) return worker;
 
-  const child = utilityProcess.fork(join(__dirname, "extension-worker.js"), [], {
-    // No Electron APIs, no window, no privileged surface.
-    serviceName: "vestra-extensions",
-    stdio: "pipe",
-  });
+  const child = utilityProcess.fork(
+    join(__dirname, "extension-worker.js"),
+    [],
+    {
+      // No Electron APIs, no window, no privileged surface.
+      serviceName: "vestra-extensions",
+      stdio: "pipe",
+    },
+  );
 
   child.on("message", (message: unknown) => {
     void handleWorkerMessage(message);
@@ -82,7 +90,8 @@ function ensureWorker(): UtilityProcess {
 }
 
 async function handleWorkerMessage(message: unknown): Promise<void> {
-  if (typeof message !== "object" || message === null || !("kind" in message)) return;
+  if (typeof message !== "object" || message === null || !("kind" in message))
+    return;
 
   const payload = message as { kind: string; [key: string]: unknown };
 
@@ -92,12 +101,18 @@ async function handleWorkerMessage(message: unknown): Promise<void> {
     pending.delete(String(payload.id));
 
     if (payload.ok === true) entry.resolve(payload.value);
-    else entry.reject(new Error(String(payload.error ?? "Extension call failed.")));
+    else
+      entry.reject(
+        new Error(String(payload.error ?? "Extension call failed.")),
+      );
     return;
   }
 
   if (payload.kind === "log") {
-    console.info(`[extension:${String(payload.extensionId)}]`, String(payload.message));
+    console.info(
+      `[extension:${String(payload.extensionId)}]`,
+      String(payload.message),
+    );
     return;
   }
 
@@ -111,7 +126,10 @@ async function handleWorkerMessage(message: unknown): Promise<void> {
         throw new Error("This extension was not granted network access.");
       }
 
-      const request = payload.request as { url: string; method?: "GET" | "POST" };
+      const request = payload.request as {
+        url: string;
+        method?: "GET" | "POST";
+      };
       const value = await entry.fetcher({ ...request, url: request.url });
       worker?.postMessage({ kind: "fetch-result", id, ok: true, value });
     } catch (error) {
@@ -139,6 +157,7 @@ export async function loadExtension(input: {
   extensionId: string;
   source: string;
   grant: PermissionGrant;
+  role?: string;
 }): Promise<string[]> {
   // The fetcher is built here, from the grant, and stays here. The worker only
   // ever receives the outcome of a request it asked for.
@@ -156,9 +175,13 @@ export async function loadExtension(input: {
     });
 
     const methods = (result as { methods?: unknown })?.methods;
-    return Array.isArray(methods) ? methods.filter((m) => typeof m === "string") : [];
+    const names = Array.isArray(methods)
+      ? methods.filter((m) => typeof m === "string")
+      : [];
+    assertMangaSourceMethods(input.role, names);
+    return names;
   } catch (error) {
-    loaded.delete(input.extensionId);
+    await unloadExtension(input.extensionId).catch(() => undefined);
     throw error;
   }
 }
@@ -197,9 +220,16 @@ export interface StartupReport {
  * rather than run. One bad extension never stops the others — this returns a
  * report instead of throwing.
  */
-export async function loadInstalledExtensions(dataDir: string): Promise<StartupReport> {
+export async function loadInstalledExtensions(
+  dataDir: string,
+): Promise<StartupReport> {
   const driver = new NodeDriver(dataDir);
-  const report: StartupReport = { loaded: [], skipped: [], methods: {}, records: [] };
+  const report: StartupReport = {
+    loaded: [],
+    skipped: [],
+    methods: {},
+    records: [],
+  };
 
   let records;
   try {
@@ -216,7 +246,8 @@ export async function loadInstalledExtensions(dataDir: string): Promise<StartupR
       if (source === null) {
         report.skipped.push({
           id: record.id,
-          reason: "Stored code does not match the fingerprint recorded at install.",
+          reason:
+            "Stored code does not match the fingerprint recorded at install.",
         });
         continue;
       }
@@ -225,6 +256,7 @@ export async function loadInstalledExtensions(dataDir: string): Promise<StartupR
         extensionId: record.id,
         source,
         grant: record.grant,
+        role: record.manifest.role,
       });
 
       report.loaded.push(record.id);

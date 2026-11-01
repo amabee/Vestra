@@ -25,7 +25,7 @@ import {
 } from "./manga-bookmarks";
 import { transpileProvider } from "./provider-transpile";
 import { applyProviderCompatibility } from "./provider-compat";
-import { createStreamSourceAdapter } from "./extension-providers";
+import { createStreamSourceAdapter } from "./stream-source-adapter";
 import { getMangaService } from "./manga-ipc";
 import {
   getAdapterRegistry,
@@ -99,6 +99,11 @@ export function getMangaBookmarks(): MangaBookmarkRepository {
     set: (entry, saved) =>
       csharpMangaBookmarks(clientForSources()).set(entry, saved),
   };
+}
+
+/** Native SDK sources share the existing host-owned progress store. */
+export function getMangaProgress(providerId: string) {
+  return csharpMangaProgress(clientForSources(), providerId);
 }
 
 export async function activateCSharpSource(

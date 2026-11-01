@@ -6,13 +6,36 @@ import {
   type InstalledExtension,
 } from "@vestra/extension-host";
 
-import { callExtension } from "./extensions";
+import { callExtension, listLoadedExtensions } from "./extensions";
+import { MangaExtensionRegistry } from "./manga-extension";
+import { getMangaService } from "./manga-ipc";
+import { fetchCSharpImage, getMangaProgress } from "./csharp-providers";
 import { createStreamSourceAdapter } from "./stream-source-adapter";
 import {
   getAdapterRegistry,
   getProviderRegistry,
   getStreamSourceRegistry,
 } from "./services";
+
+let mangaExtensions: MangaExtensionRegistry | null = null;
+function mangaRegistry() {
+  return (mangaExtensions ??= new MangaExtensionRegistry(
+    getMangaService(),
+    callExtension,
+    fetchCSharpImage,
+    getMangaProgress,
+    (id) => listLoadedExtensions().includes(id),
+  ));
+}
+export function attachMangaSourceProvider(
+  record: InstalledExtension,
+  methods: string[],
+) {
+  mangaRegistry().attach(record, methods);
+}
+export function detachMangaSourceProvider(id: string) {
+  mangaExtensions?.detach(id);
+}
 
 /**
  * Joining an installed extension to the rest of the app.
@@ -37,6 +60,8 @@ export function attachExtensionProvider(
   record: InstalledExtension,
   methods: string[],
 ): void {
+  // A replacement can change roles; never leave its prior catalogue entry live.
+  getProviderRegistry().unregister(`ext-${record.id}`);
   const kinds = record.manifest.kinds;
 
   // A stream source is not a catalogue. It may well export `search` and

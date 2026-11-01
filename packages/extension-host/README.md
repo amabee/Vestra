@@ -1,5 +1,11 @@
 # Writing a Vestra extension
 
+SDK 1.1 also supports native manga sources with `role: "manga-source"` and
+`search`, `getChapters`, `getPages` exports. See the
+[manga SDK guide](../../docs/native-manga-sdk.md) and
+[authoring template](examples/manga-source-template/). The metadata contract
+below remains compatible with SDK 1.0 extensions.
+
 An extension adds a source of metadata to Vestra. It runs inside a QuickJS
 isolate with no DOM, no filesystem, no timers and no network of its own — the
 only thing it can reach is the `host` object it is handed, and that carries

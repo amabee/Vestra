@@ -21,6 +21,7 @@ import { registerDataIpc } from "./ipc";
 import {
   attachExtensionProvider,
   attachStreamSourceProvider,
+  attachMangaSourceProvider,
 } from "./extension-providers";
 import { backfillMediaInfo, pruneThumbnails } from "./media-info";
 import { registerMpvIpc, shutdownMpv } from "./mpv/ipc";
@@ -411,6 +412,7 @@ if (!gotLock) {
         for (const record of report.records) {
           attachExtensionProvider(record, report.methods[record.id] ?? []);
           attachStreamSourceProvider(record, report.methods[record.id] ?? []);
+          attachMangaSourceProvider(record, report.methods[record.id] ?? []);
         }
       },
       (error: unknown) => {

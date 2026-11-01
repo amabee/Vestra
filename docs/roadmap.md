@@ -53,8 +53,8 @@ checks pass; sustained live HD playback and packaged release gates remain open.
 - [x] Make Vestra SDK extensions the default Extensions view.
 - [x] Keep existing provider scripts in an explicit, optional Compatibility tab.
 - [x] Preserve existing provider IDs, host grants, settings and reading progress.
-- [ ] Publish a supported native SDK contract and versioned authoring examples for anime and manga.
-- [ ] Complete native manga extension routing and verify it through the reader.
+- [x] Publish native SDK contracts and authoring examples for anime streaming and manga sources (SDK 1.1).
+- [x] Connect native manga extensions to matching, details, covers, reader and host progress; verify with the real isolate and controlled image transport.
 - [ ] Offer native replacements for commonly used imported sources.
 - [ ] Define extension update, testing and publishing requirements around Vestra's own contract.
 
