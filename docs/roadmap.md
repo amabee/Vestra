@@ -48,6 +48,17 @@ provider isolation and cancellable episode metadata caching; see
 [provider performance](anime-provider-performance.md). Builds and hidden native
 checks pass; sustained live HD playback and packaged release gates remain open.
 
+## Documentation and source browsing
+
+- [x] Astro documentation site with app setup, native authoring guides, reference, local search and responsive navigation.
+- [x] Read canonical Markdown directly from the repository and validate built documentation links.
+- [x] Anime Browse sources tab with URL-backed source/category/page selection and existing playback/save actions.
+- [x] SDK 1.2 optional native discovery feeds with declared categories, validated pages and an executable template.
+- [x] Label catalogue discovery for older search-only sources; do not claim source availability until matching.
+- [ ] Implement real native provider discovery integrations beyond the authoring template.
+- [ ] Publish the documentation to a chosen public host/domain.
+- [ ] Continue Films and TV module work after the documentation/source browser pass.
+
 ## Independent extension platform
 
 - [x] Make Vestra SDK extensions the default Extensions view.

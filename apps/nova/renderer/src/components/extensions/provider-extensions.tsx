@@ -40,6 +40,7 @@ export function ProviderExtensions({
       cache.invalidateQueries({ queryKey: ["managed-sources"] }),
       cache.invalidateQueries({ queryKey: ["manga"] }),
       cache.invalidateQueries({ queryKey: ["anime-sources"] }),
+      cache.invalidateQueries({ queryKey: ["anime-discovery"] }),
       cache.invalidateQueries({ queryKey: ["playback"] }),
       cache.invalidateQueries({ queryKey: ["anime-source-details"] }),
       cache.invalidateQueries({ queryKey: ["source-episodes"] }),

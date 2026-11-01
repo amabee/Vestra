@@ -135,6 +135,7 @@ export function attachStreamSourceProvider(
     name: record.name,
     kinds,
     methods,
+    browseCategories: record.manifest.discovery?.categories,
     call: (method, args) => callExtension(record.id, method, [...args]),
     onWarning: (message) =>
       console.warn(`[stream-source:${record.id}] ${message}`),

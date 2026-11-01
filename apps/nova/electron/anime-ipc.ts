@@ -7,9 +7,14 @@ import { getAdapterRegistry } from "./services";
 import { AnimePlaylists } from "./anime-playlists";
 import { getDriver } from "./services";
 import { AnimeService } from "./anime-service";
+import { AnimeDiscovery } from "./anime-discovery";
 import { getStreamSourceRegistry, getProviderRegistry } from "./services";
 export function registerAnimeIpc() {
   const service = new AnimeService(getStreamSourceRegistry());
+  const discovery = new AnimeDiscovery(getStreamSourceRegistry(), service);
+  ipcMain.handle("anime:browse", (_e, id, query) =>
+    discovery.browse(z.string().min(1).max(120).parse(id), query),
+  );
   const playlists = new AnimePlaylists(getDriver);
   ipcMain.handle("anime:playlists", () => playlists.list());
   ipcMain.handle("anime:playlist-command", (_e, command) =>

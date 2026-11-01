@@ -26,11 +26,16 @@ export class AnimeService {
     { source: StreamSourceProvider; anime: Anime }
   >();
   private searches = new WeakMap<StreamSourceProvider, TtlCache<Anime[]>>();
+  private known = new WeakMap<StreamSourceProvider, Map<string, Anime>>();
   constructor(private registry: StreamSourceRegistry) {}
   list() {
     return this.registry
       .supporting("anime")
-      .map((source) => ({ id: source.id, name: source.name }));
+      .map((source) => ({
+        id: source.id,
+        name: source.name,
+        categories: source.browseCategories ?? [],
+      }));
   }
   private requireCurrent(source: StreamSourceProvider) {
     if (
@@ -129,22 +134,38 @@ export class AnimeService {
     const { source, anime } = entry;
     return this.episodeQueue(source, anime);
   }
-  /** Saved provider titles keep their real provider ID, rather than an expiring handle. */
+  /** Native feed titles remain available to details without exposing stream URLs. */
+  remember(source: StreamSourceProvider, rows: Anime[]): MediaItem[] {
+    this.requireCurrent(source);
+    let known = this.known.get(source);
+    if (!known) {
+      known = new Map();
+      this.known.set(source, known);
+    }
+    return rows.map((anime) => {
+      known!.set(anime.id, anime);
+      while (known!.size > 512) known!.delete(known!.keys().next().value!);
+      return mediaItemSchema.parse({
+        source: source.id,
+        sourceId: anime.id,
+        kind: "anime",
+        title: anime.title,
+        images: { poster: anime.cover ?? null },
+        rating: {},
+        isSeries: true,
+      });
+    });
+  }
+  /** Saved provider titles retain real IDs rather than expiring renderer handles. */
   rememberedItem(ref: { source: string; sourceId: string }): MediaItem | null {
-    const known = [...this.titles.values()].find(
-      (row) => row.source.id === ref.source && row.anime.id === ref.sourceId,
-    );
-    return known
-      ? mediaItemSchema.parse({
-          source: ref.source,
-          sourceId: ref.sourceId,
-          kind: "anime",
-          title: known.anime.title,
-          images: { poster: known.anime.cover ?? null },
-          rating: {},
-          isSeries: true,
-        })
-      : null;
+    const source = this.registry.get(ref.source);
+    if (!source || !this.registry.isEnabled(source.id)) return null;
+    const anime =
+      this.known.get(source)?.get(ref.sourceId) ??
+      [...this.titles.values()].find(
+        (row) => row.source === source && row.anime.id === ref.sourceId,
+      )?.anime;
+    return anime ? this.remember(source, [anime])[0]! : null;
   }
   async open(item: MediaItem): Promise<AnimeSourceEpisodes> {
     const source = this.registry

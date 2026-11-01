@@ -145,6 +145,7 @@ export function ExtensionsRoute() {
       ["managed-sources"],
       ["manga"],
       ["anime-sources"],
+      ["anime-discovery"],
       ["playback"],
       ["source-episodes"],
       ["anime-source-details"],

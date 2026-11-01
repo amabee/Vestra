@@ -64,6 +64,7 @@ interface RawBridge {
     mutate: (command: unknown) => Promise<unknown>;
   };
   anime: {
+    browse: (id: string, query: unknown) => Promise<unknown>;
     open: (id: string, item: unknown) => Promise<unknown>;
     resolve: (id: string, ref: unknown) => Promise<unknown>;
     sources: () => Promise<unknown>;
@@ -433,6 +434,16 @@ export const bridge = {
       raw().playlists.mutate(command) as Promise<AnimePlaylist[]>,
   },
   anime: {
+    browse: (
+      id: string,
+      query: {
+        category: import("@vestra/extension-host").DiscoveryCategory;
+        page: number;
+      },
+    ) =>
+      raw().anime.browse(id, query) as Promise<
+        import("../../../shared/anime").AnimeDiscoveryPage
+      >,
     title: (handle: string) => raw().anime.title(handle) as Promise<MediaItem>,
     open: (id: string, item: MediaItem) =>
       raw().anime.open(id, item) as Promise<
@@ -443,7 +454,13 @@ export const bridge = {
         import("../../../shared/anime").AnimeSourceEpisodes | null
       >,
     sources: () =>
-      raw().anime.sources() as Promise<{ id: string; name: string }[]>,
+      raw().anime.sources() as Promise<
+        {
+          id: string;
+          name: string;
+          categories?: import("@vestra/extension-host").DiscoveryCategory[];
+        }[]
+      >,
     search: (id: string, query: string) =>
       raw().anime.search(id, query) as Promise<
         import("../../../shared/anime").AnimeSourceTitle[]

@@ -619,3 +619,50 @@
     transition: none !important;
   }
 }
+
+/* Source discovery retains the workspace's existing palette and control patterns. */
+.anime-discovery-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 1.8rem;
+}
+.anime-discovery-categories button {
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--color-base-300);
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+}
+.anime-discovery-categories button[aria-pressed="true"] {
+  background: var(--color-primary);
+  color: var(--color-primary-content);
+  border-color: var(--color-primary);
+}
+.anime-discovery-note {
+  color: color-mix(in oklch, var(--color-base-content) 65%, transparent);
+  font-size: 0.85rem;
+  max-width: 75ch;
+  margin-bottom: 1.5rem;
+}
+.anime-discovery-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+.anime-discovery-pagination button {
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--color-base-300);
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+}
+@media (max-width: 600px) {
+  .anime-hub-tabs {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .anime-discovery-pagination {
+    flex-wrap: wrap;
+  }
+}

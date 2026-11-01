@@ -28,6 +28,7 @@ import {
   type Episode,
   type StreamResult,
 } from "./stream-types";
+import { assertDiscoveryMethods, type DiscoveryCategory } from "./discovery";
 
 /**
  * An installed extension, presented to the rest of the app as a provider.
@@ -265,6 +266,12 @@ export interface StreamSourceProvider {
   readonly id: string;
   readonly name: string;
   readonly kinds: readonly MediaKind[];
+  readonly browseCategories?: readonly DiscoveryCategory[];
+  browse?(
+    category: DiscoveryCategory,
+    options: { page: number; limit: number },
+    context?: ProviderContext,
+  ): Promise<{ items: Anime[]; hasMore: boolean }>;
 
   /** Find candidate titles on this source. */
   search(
@@ -291,6 +298,7 @@ export interface StreamSourceProviderOptions {
   kinds: readonly MediaKind[];
   /** Methods the loaded extension actually exports. */
   methods: readonly string[];
+  browseCategories?: readonly DiscoveryCategory[];
   call: (
     method: string,
     args: readonly unknown[],
@@ -318,6 +326,8 @@ export function createStreamSourceProvider(
 ): StreamSourceProvider {
   const source = toExtensionSource(options.extensionId);
   const warn = options.onWarning ?? (() => undefined);
+  const categories = options.browseCategories ?? [];
+  assertDiscoveryMethods(categories.length > 0, options.methods);
 
   /**
    * Run a guest call under a deadline.
@@ -354,6 +364,50 @@ export function createStreamSourceProvider(
     id: source,
     name: options.name,
     kinds: options.kinds,
+
+    ...(categories.length
+      ? {
+          browseCategories: categories,
+          async browse(
+            category: DiscoveryCategory,
+            pageOptions: { page: number; limit: number },
+            context?: ProviderContext,
+          ) {
+            if (!categories.includes(category))
+              throw new Error(
+                "This source does not provide that discovery category.",
+              );
+            const raw = await invoke(
+              "browse",
+              [category, pageOptions],
+              context,
+            );
+            if (!raw || typeof raw !== "object" || Array.isArray(raw))
+              throw new Error("browse() must return items and hasMore.");
+            const result = raw as { items?: unknown; hasMore?: unknown };
+            if (
+              !Array.isArray(result.items) ||
+              result.items.length > 24 ||
+              typeof result.hasMore !== "boolean"
+            )
+              throw new Error("browse() returned an invalid page.");
+            const stamped = result.items.map((entry) =>
+              entry && typeof entry === "object"
+                ? { ...entry, provider: source }
+                : entry,
+            );
+            const parsed = parseAnimeResults(stamped);
+            if (parsed.errors.length || !parsed.value)
+              throw new Error("browse() returned invalid titles.");
+            if (
+              new Set(parsed.value.map((row) => row.id)).size !==
+              parsed.value.length
+            )
+              throw new Error("browse() returned duplicate title IDs.");
+            return { items: parsed.value, hasMore: result.hasMore };
+          },
+        }
+      : {}),
 
     async search(query, searchOptions, context): Promise<Anime[]> {
       // Positional, matching the metadata contract and the reference
