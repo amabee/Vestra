@@ -305,3 +305,189 @@
     gap: 0.85rem;
   }
 }
+
+.hub-calendar-toolbar {
+  display: grid;
+  gap: 1.5rem;
+  margin-block: 2rem 1rem;
+}
+.hub-week-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.hub-week-controls h2 {
+  font: 1.8rem/1.15 var(--font-serif);
+}
+.hub-week-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border: 1px solid var(--color-base-300);
+  border-radius: 0.5rem;
+  min-height: 2.25rem;
+  font-size: 0.8rem;
+}
+.hub-calendar-filters {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+.hub-calendar-filters > label {
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+}
+.hub-calendar-filters .hub-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2.5rem;
+}
+.hub-switch input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--color-primary);
+}
+.hub-calendar-caption {
+  color: color-mix(in oklch, var(--color-base-content) 65%, transparent);
+  font-size: 0.8rem;
+  margin-bottom: 1.5rem;
+  max-width: 90ch;
+}
+.hub-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border: 1px solid var(--color-base-300);
+  border-radius: 0.65rem;
+  overflow: hidden;
+}
+.hub-calendar-day {
+  min-width: 0;
+  border-right: 1px solid var(--color-base-300);
+  background: var(--color-base-200);
+  padding: 0.7rem;
+  min-height: 24rem;
+}
+.hub-calendar-day:last-child {
+  border-right: 0;
+}
+.hub-calendar-day > header {
+  padding: 0.4rem 0.2rem 1rem;
+  display: grid;
+  gap: 0.4rem;
+}
+.hub-calendar-day h2 {
+  font: 1.25rem/1 var(--font-serif);
+}
+.hub-calendar-day time {
+  font-size: 0.7rem;
+  color: color-mix(in oklch, var(--color-base-content) 65%, transparent);
+}
+.hub-calendar-today > header {
+  color: var(--color-primary);
+}
+.hub-calendar-event {
+  display: grid;
+  gap: 0.5rem;
+  padding-block: 0.6rem 1rem;
+  border-top: 1px solid var(--color-base-300);
+}
+.hub-calendar-cover {
+  aspect-ratio: 3/2;
+  border-radius: 0.4rem;
+  overflow: hidden;
+  display: block;
+  background: var(--color-base-300);
+}
+.hub-calendar-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 25%;
+}
+.hub-calendar-event > a:not(.hub-calendar-cover) {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.hub-calendar-event p,
+.hub-calendar-event small {
+  font-size: 0.7rem;
+  color: color-mix(in oklch, var(--color-base-content) 65%, transparent);
+}
+.hub-watched {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  font-size: 0.7rem;
+  color: var(--color-success);
+}
+.hub-calendar-none {
+  font-size: 0.7rem;
+  color: color-mix(in oklch, var(--color-base-content) 45%, transparent);
+  padding-block: 1rem;
+}
+.hub-calendar-empty {
+  margin-top: 1.5rem;
+}
+.hub-calendar-unmatched {
+  margin-top: 1.5rem;
+  font-size: 0.85rem;
+}
+.hub-calendar-unmatched summary {
+  cursor: pointer;
+}
+.hub-calendar-unmatched p,
+.hub-calendar-unmatched li {
+  margin-top: 0.6rem;
+  color: color-mix(in oklch, var(--color-base-content) 65%, transparent);
+}
+.hub-calendar-loading {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+}
+.hub-calendar-loading > div {
+  height: 24rem;
+  background: var(--color-base-200);
+}
+@media (max-width: 1000px) {
+  .hub-calendar {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .hub-calendar-day {
+    border-bottom: 1px solid var(--color-base-300);
+  }
+}
+@media (max-width: 600px) {
+  .hub-calendar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hub-calendar-day {
+    min-height: auto;
+    border-right: 0;
+  }
+  .hub-calendar-event {
+    grid-template-columns: 70px minmax(0, 1fr);
+    column-gap: 0.75rem;
+  }
+  .hub-calendar-cover {
+    grid-row: span 5;
+    aspect-ratio: 2/3;
+  }
+  .hub-week-controls h2 {
+    font-size: 1.5rem;
+  }
+  .hub-calendar-filters {
+    align-items: stretch;
+  }
+  .hub-calendar-filters > label {
+    flex: 1;
+    min-width: 120px;
+  }
+}

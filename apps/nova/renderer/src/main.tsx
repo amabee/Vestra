@@ -1,3 +1,4 @@
+import { ScheduleRoute } from "@/routes/schedule";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
@@ -45,6 +46,7 @@ const router = createHashRouter([
     element: <AppShell />,
     children: [
       { index: true, element: <HomeRoute /> },
+      { path: "schedule", element: <ScheduleRoute /> },
       {
         path: "anime",
         element: (
