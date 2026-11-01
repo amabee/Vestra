@@ -881,7 +881,7 @@ function AvailableRow({
   const health = healthOf(entry);
   const installable = support.supported && entry.manifestURI.length > 0;
   return (
-    <article className="flex aspect-square min-h-80 w-full min-w-0 flex-col rounded-box border rule bg-base-200/40 p-5 transition-colors hover:border-primary/30">
+    <article className="flex aspect-square min-h-80 w-full min-w-0 flex-col has-[details[open]]:aspect-auto rounded-box border rule bg-base-200/40 p-5 transition-colors hover:border-primary/30">
       <div className="flex items-start justify-between gap-3">
         <ExtensionArtwork name={entry.name} icon={entry.icon} />
         <span className="meta rounded-selector border rule px-2 py-1">

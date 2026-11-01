@@ -250,6 +250,7 @@ try {
         assert.equal(await run('document.getElementById("ext-panel-available").textContent.includes("MO")'),true);
         await run('document.querySelector("#ext-panel-available summary").click()');
         assert.equal(await run('document.querySelector("#ext-panel-available details").open'),true);
+        assert.equal(await run('(()=>{const card=document.querySelector("#ext-panel-available article");return card.scrollHeight<=card.clientHeight+1;})()'),true,'Expanded review overflows card');
         assert.equal(await run('window.fixture.applied===undefined'),true);
         if(process.env.VESTRA_EXTENSIONS_SCREENSHOT){
           await run('document.querySelector("#ext-panel-available summary").click()');
