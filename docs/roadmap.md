@@ -101,6 +101,8 @@ after that observation still need visual verification and an installer refresh.
 - [ ] Capture a Vestra baseline and compare changes on the same machine.
 - [ ] Measure cold/warm startup, idle/peak memory and time to first video frame.
 - [ ] Measure provider execution separately from network latency, including p50/p95.
+- [x] Capture three one-minute native HD source observations with the packaged worker; see [playback/release validation](playback-release-validation.md).
+- [ ] Investigate measured native first-ready delays and repeated short cache pauses (AnimeGG had five pauses in its one-minute sample).
 - [ ] Measure library scan and manga page-load times with repeatable fixtures.
 - [ ] Profile slow paths and implement justified scheduling, caching or IO improvements.
 - [ ] Repeat the measurements and document regressions as well as improvements.
