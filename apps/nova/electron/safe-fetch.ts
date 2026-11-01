@@ -172,6 +172,105 @@ async function fetchOrExplain(url: URL, init: RequestInit): Promise<Response> {
   }
 }
 
+/**
+ * Download a file as raw bytes (used for fonts).
+ *
+ * The same address rules as safeFetch apply: https only, no private
+ * addresses, no redirects, and a size and time limit. The bytes are never
+ * decoded as text, so a binary file arrives intact.
+ */
+export async function safeFetchBytes(input: {
+  url: string;
+  headers?: Record<string, string>;
+  maxBytes?: number;
+  timeoutMs?: number;
+}): Promise<Uint8Array> {
+  const {
+    url,
+    headers = {},
+    maxBytes = 10 * 1024 * 1024,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+  } = input;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new BlockedAddressError("That is not a valid URL.");
+  }
+  if (parsed.protocol !== "https:") {
+    throw new BlockedAddressError("Only https addresses can be fetched.");
+  }
+
+  const controller = new AbortController();
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(
+        new NetworkError(
+          `Download from ${parsed.hostname} timed out.`,
+          "ETIMEDOUT",
+          true,
+        ),
+      );
+    }, timeoutMs);
+  });
+  const download = async () => {
+    await assertPublicHost(parsed.hostname);
+    controller.signal.throwIfAborted();
+    const response = await fetchOrExplain(parsed, {
+      headers,
+      signal: controller.signal,
+      redirect: "error",
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
+    });
+    if (response.status !== 200) {
+      void response.body?.cancel().catch(() => undefined);
+      throw new NetworkError(
+        `Download from ${parsed.hostname} returned status ${response.status}.`,
+        "HTTP",
+        false,
+      );
+    }
+    const declared = Number.parseInt(
+      response.headers.get("content-length") ?? "",
+      10,
+    );
+    if (Number.isFinite(declared) && declared > maxBytes) {
+      void response.body?.cancel().catch(() => undefined);
+      throw new Error("The file is larger than allowed.");
+    }
+    if (!response.body) return new Uint8Array();
+    reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) throw new Error("The file is larger than allowed.");
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return bytes;
+  };
+  try {
+    return await Promise.race([download(), timeout]);
+  } finally {
+    clearTimeout(timer!);
+    controller.abort();
+    void reader?.cancel().catch(() => undefined);
+  }
+}
+
 export interface SafeFetchResult {
   status: number;
   headers: Record<string, string>;

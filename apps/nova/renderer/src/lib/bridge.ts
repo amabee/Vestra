@@ -193,6 +193,11 @@ interface RawBridge {
     pickUnpacked: () => Promise<unknown>;
     installUnpacked: (request: unknown) => Promise<unknown>;
   };
+  subtitleFonts: {
+    search: (query: string) => Promise<string[]>;
+    install: (family: string) => Promise<string>;
+    installed: () => Promise<string[]>;
+  };
   mpv: {
     status: () => Promise<unknown>;
     subscribe: () => Promise<unknown>;
@@ -577,6 +582,14 @@ export const bridge = {
       (await raw().settings.get()) as Settings,
     save: async (settings: Settings): Promise<Settings> =>
       (await raw().settings.save(settings)) as Settings,
+  },
+
+  subtitleFonts: {
+    search: async (query: string): Promise<string[]> =>
+      raw().subtitleFonts.search(query),
+    install: async (family: string): Promise<string> =>
+      raw().subtitleFonts.install(family),
+    installed: async (): Promise<string[]> => raw().subtitleFonts.installed(),
   },
 
   media: {

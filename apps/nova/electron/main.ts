@@ -25,6 +25,11 @@ import {
 import { backfillMediaInfo, pruneThumbnails } from "./media-info";
 import { registerMpvIpc, shutdownMpv } from "./mpv/ipc";
 import {
+  installGoogleFont,
+  listInstalledSubtitleFonts,
+  searchGoogleFonts,
+} from "./subtitle-fonts";
+import {
   registerMediaProtocolHandler,
   registerMediaProtocolScheme,
 } from "./media-protocol";
@@ -307,6 +312,19 @@ function registerIpc(): void {
   // Playback through mpv. Separate because these channels need the calling
   // window — mpv draws into a native surface owned by it.
   registerMpvIpc();
+
+  // Google Fonts for subtitles: search, install, and list what is installed.
+  ipcMain.handle("subtitle-fonts:search", (_e, query: unknown) =>
+    searchGoogleFonts(typeof query === "string" ? query : ""),
+  );
+  ipcMain.handle("subtitle-fonts:install", (_e, family: unknown) => {
+    if (typeof family !== "string")
+      throw new Error("Choose a font to install.");
+    return installGoogleFont(family);
+  });
+  ipcMain.handle("subtitle-fonts:installed", () =>
+    listInstalledSubtitleFonts(),
+  );
 }
 
 /* -----------------------------------------------------------------------------

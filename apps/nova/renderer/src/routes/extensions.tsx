@@ -45,6 +45,35 @@ function folderOf(manifestPath: string): string {
   return cut > 0 ? manifestPath.slice(0, cut) : manifestPath;
 }
 
+/** One heading on the Installed and Available tabs, with its entries. */
+type KindGroup<T> = { label: string; items: T[] };
+
+/**
+ * Splits entries into Anime streaming, Manga and Other, the same split the
+ * Providers tab uses. Empty groups are left out, so Other only shows when a
+ * plugin or torrent entry exists.
+ */
+function splitByKind<T extends { type: string }>(entries: T[]): KindGroup<T>[] {
+  const isAnime = (type: string) => type === "onlinestream-provider";
+  const isManga = (type: string) => type === "manga-provider";
+  return [
+    {
+      label: "Anime streaming",
+      items: entries.filter((entry) => isAnime(entry.type)),
+    },
+    {
+      label: "Manga",
+      items: entries.filter((entry) => isManga(entry.type)),
+    },
+    {
+      label: "Other",
+      items: entries.filter(
+        (entry) => !isAnime(entry.type) && !isManga(entry.type),
+      ),
+    },
+  ].filter((group) => group.items.length > 0);
+}
+
 /**
  * Extensions.
  *
@@ -67,6 +96,7 @@ export function ExtensionsRoute() {
     null,
   );
   const reviewRegion = useRef<HTMLDivElement>(null);
+  const [tab, setTab] = useState<ExtensionTab>("providers");
   useEffect(() => {
     if (providerReview) reviewRegion.current?.focus();
   }, [providerReview?.token]);
@@ -191,6 +221,8 @@ export function ExtensionsRoute() {
     ...(managed.data ?? []).map((entry) => entry.id),
   ]);
   const runningIds = new Set(running.data ?? []);
+  const installedGroups = splitByKind(installed.data ?? []);
+  const availableGroups = splitByKind(browse.data?.entries ?? []);
 
   return (
     <Page>
@@ -224,208 +256,266 @@ export function ExtensionsRoute() {
           )}
         </div>
       )}
-      <div className="mt-8">
+      <ExtensionTabs
+        tab={tab}
+        onChange={setTab}
+        counts={{
+          providers: managed.data?.length,
+          installed: installed.data?.length,
+          available: browse.data?.entries.length,
+          registries: registries.data?.length,
+        }}
+      />
+
+      <div
+        role="tabpanel"
+        id="ext-panel-providers"
+        aria-labelledby="ext-tab-providers"
+        hidden={tab !== "providers"}
+        className="mt-6"
+      >
         <ProviderExtensions />
       </div>
 
-      <Registries
-        urls={registries.data ?? []}
-        busy={setRegistries.isPending}
-        error={setRegistries.error as Error | null}
-        onChange={(urls) => setRegistries.mutate(urls)}
-      />
-
-      <section className="mt-10">
-        <SectionRule
-          label="Installed"
-          count={installed.data?.length}
-          trailing={
-            <button
-              type="button"
-              disabled={
-                pickUnpacked.isPending ||
-                installProvider.isPending ||
-                install.isPending ||
-                installUnpacked.isPending
-              }
-              onClick={() => pickUnpacked.mutate()}
-              title="Review an extension from a folder on this machine"
-              className="flex items-center gap-1.5 rounded-field border rule px-2.5 py-1 text-xs transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-40"
-            >
-              {pickUnpacked.isPending ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <FolderOpen className="size-3.5" />
-              )}
-              Load unpacked
-            </button>
-          }
-        />
-
-        {pickUnpacked.error ? (
-          <p className="mt-3 text-xs text-error">
-            {(pickUnpacked.error as Error).message}
-          </p>
-        ) : null}
-
-        {(installed.data ?? []).length === 0 ? (
-          <Notice
-            title="Nothing installed"
-            body="Add a registry below to see what is available."
-          />
-        ) : (
-          <div className="space-y-2">
-            {(installed.data ?? []).map((entry) => (
-              <article
-                key={entry.id}
-                className="flex items-start gap-4 rounded-box border rule bg-base-200/40 px-4 py-3"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span
-                      title={
-                        runningIds.has(entry.id) ? "Running" : "Not running"
-                      }
-                      className={`size-1.5 shrink-0 rounded-full ${
-                        runningIds.has(entry.id)
-                          ? "bg-success"
-                          : "bg-base-content/25"
-                      }`}
-                    />
-                    <p className="truncate text-sm">{entry.name}</p>
-                    <span className="meta">v{entry.version}</span>
-                    {entry.driftDetectedAt ? (
-                      <span className="meta flex items-center gap-1 text-warning">
-                        <AlertTriangle className="size-3" />
-                        code changed
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <p className="filename truncate">{entry.id}</p>
-
-                  <p className="meta mt-1">
-                    {entry.grant.granted.length === 0
-                      ? "No permissions"
-                      : entry.grant.granted.join(" · ")}
-                    {entry.grant.allowedHosts.length > 0
-                      ? ` · ${entry.grant.allowedHosts.join(", ")}`
-                      : ""}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  disabled={toggle.isPending}
-                  className="btn btn-sm"
-                  onClick={() =>
-                    toggle.mutate({
-                      id: entry.id,
-                      enabled: entry.enabled === false,
-                    })
-                  }
-                >
-                  {entry.enabled === false ? "Enable" : "Disable"}
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Uninstall ${entry.name}`}
-                  disabled={uninstall.isPending}
-                  onClick={() => uninstall.mutate(entry.id)}
-                  className="grid size-8 shrink-0 place-items-center rounded-field text-base-content/40 transition-colors hover:bg-error hover:text-error-content"
-                >
-                  <Trash2 className="size-4" />
-                </button>
-              </article>
-            ))}
-          </div>
-        )}
-
-        {toggle.error && (
-          <p role="alert" className="mt-3 text-sm text-error">
-            {toggle.error.message}
-          </p>
-        )}
-        {uninstall.error ? (
-          <p className="mt-3 text-xs text-error">
-            {(uninstall.error as Error).message}
-          </p>
-        ) : null}
-      </section>
-
-      <section className="mt-10">
-        <SectionRule
-          label="Available"
-          count={browse.data?.entries.length}
-          trailing={
-            browse.isFetching ? (
-              <Loader2 className="size-3.5 animate-spin text-base-content/40" />
-            ) : null
-          }
-        />
-
-        {(registries.data ?? []).length === 0 ? (
-          <Notice
-            title="No registry configured"
-            body="Vestra ships no marketplace of its own. Add the URL of a registry you trust."
-          />
-        ) : browse.error ? (
-          <Notice
-            title="Could not browse"
-            body={(browse.error as Error).message}
-          />
-        ) : (browse.data?.entries ?? []).length === 0 && !browse.isFetching ? (
-          <Notice
-            title="Nothing listed"
-            body="The registry returned no usable entries."
-          />
-        ) : (
-          <div className="space-y-2">
-            {(browse.data?.entries ?? []).map((entry) => (
-              <AvailableRow
-                key={`${entry.registryUrl}:${entry.id}`}
-                entry={entry}
-                installed={installedIds.has(entry.id)}
-                busy={
-                  prepare.isPending ||
+      <div
+        role="tabpanel"
+        id="ext-panel-installed"
+        aria-labelledby="ext-tab-installed"
+        hidden={tab !== "installed"}
+        className="mt-6"
+      >
+        <section>
+          <SectionRule
+            label="Installed"
+            count={installed.data?.length}
+            trailing={
+              <button
+                type="button"
+                disabled={
+                  pickUnpacked.isPending ||
                   installProvider.isPending ||
                   install.isPending ||
                   installUnpacked.isPending
                 }
-                onReview={() =>
-                  prepare.mutate({
-                    id: entry.id,
-                    name: entry.name,
-                    version: entry.version,
-                    type: entry.type,
-                    manifestURI: entry.manifestURI,
-                    payloadURI: entry.payloadURI,
-                    registryUrl: entry.registryUrl,
-                  })
-                }
-              />
-            ))}
-          </div>
-        )}
+                onClick={() => pickUnpacked.mutate()}
+                title="Review an extension from a folder on this machine"
+                className="flex items-center gap-1.5 rounded-field border rule px-2.5 py-1 text-xs transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-40"
+              >
+                {pickUnpacked.isPending ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <FolderOpen className="size-3.5" />
+                )}
+                Load unpacked
+              </button>
+            }
+          />
 
-        {browse.data?.errors.map((problem) => (
-          <p key={problem.registryUrl} className="mt-3 text-xs text-error">
-            {problem.registryUrl}: {problem.message}
-          </p>
-        ))}
+          {pickUnpacked.error ? (
+            <p className="mt-3 text-xs text-error">
+              {(pickUnpacked.error as Error).message}
+            </p>
+          ) : null}
 
-        {browse.data && browse.data.rejected > 0 ? (
-          <p className="meta mt-3">
-            {browse.data.rejected} listing(s) skipped — malformed
-          </p>
-        ) : null}
+          {(installed.data ?? []).length === 0 ? (
+            <Notice
+              title="Nothing installed"
+              body="Add a registry in the Registries tab to see what is available."
+            />
+          ) : (
+            <div className="space-y-6">
+              {installedGroups.map((group) => (
+                <div key={group.label}>
+                  <SectionRule label={group.label} count={group.items.length} />
+                  <div className="mt-2 space-y-2">
+                    {group.items.map((entry) => (
+                      <article
+                        key={entry.id}
+                        className="flex items-start gap-4 rounded-box border rule bg-base-200/40 px-4 py-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span
+                              title={
+                                runningIds.has(entry.id)
+                                  ? "Running"
+                                  : "Not running"
+                              }
+                              className={`size-1.5 shrink-0 rounded-full ${
+                                runningIds.has(entry.id)
+                                  ? "bg-success"
+                                  : "bg-base-content/25"
+                              }`}
+                            />
+                            <p className="truncate text-sm">{entry.name}</p>
+                            <span className="meta">v{entry.version}</span>
+                            {entry.driftDetectedAt ? (
+                              <span className="meta flex items-center gap-1 text-warning">
+                                <AlertTriangle className="size-3" />
+                                code changed
+                              </span>
+                            ) : null}
+                          </div>
 
-        {prepare.error ? (
-          <p className="mt-3 text-xs text-error">
-            {(prepare.error as Error).message}
-          </p>
-        ) : null}
-      </section>
+                          <p className="filename truncate">{entry.id}</p>
+
+                          <p className="meta mt-1">
+                            {entry.grant.granted.length === 0
+                              ? "No permissions"
+                              : entry.grant.granted.join(" · ")}
+                            {entry.grant.allowedHosts.length > 0
+                              ? ` · ${entry.grant.allowedHosts.join(", ")}`
+                              : ""}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={toggle.isPending}
+                          className="btn btn-sm"
+                          onClick={() =>
+                            toggle.mutate({
+                              id: entry.id,
+                              enabled: entry.enabled === false,
+                            })
+                          }
+                        >
+                          {entry.enabled === false ? "Enable" : "Disable"}
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Uninstall ${entry.name}`}
+                          disabled={uninstall.isPending}
+                          onClick={() => uninstall.mutate(entry.id)}
+                          className="grid size-8 shrink-0 place-items-center rounded-field text-base-content/40 transition-colors hover:bg-error hover:text-error-content"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {toggle.error && (
+            <p role="alert" className="mt-3 text-sm text-error">
+              {toggle.error.message}
+            </p>
+          )}
+          {uninstall.error ? (
+            <p className="mt-3 text-xs text-error">
+              {(uninstall.error as Error).message}
+            </p>
+          ) : null}
+        </section>
+      </div>
+
+      <div
+        role="tabpanel"
+        id="ext-panel-available"
+        aria-labelledby="ext-tab-available"
+        hidden={tab !== "available"}
+        className="mt-6"
+      >
+        <section>
+          <SectionRule
+            label="Available"
+            count={browse.data?.entries.length}
+            trailing={
+              browse.isFetching ? (
+                <Loader2 className="size-3.5 animate-spin text-base-content/40" />
+              ) : null
+            }
+          />
+
+          {(registries.data ?? []).length === 0 ? (
+            <Notice
+              title="No registry configured"
+              body="Vestra ships no marketplace of its own. Add the URL of a registry you trust."
+            />
+          ) : browse.error ? (
+            <Notice
+              title="Could not browse"
+              body={(browse.error as Error).message}
+            />
+          ) : (browse.data?.entries ?? []).length === 0 &&
+            !browse.isFetching ? (
+            <Notice
+              title="Nothing listed"
+              body="The registry returned no usable entries."
+            />
+          ) : (
+            <div className="space-y-6">
+              {availableGroups.map((group) => (
+                <div key={group.label}>
+                  <SectionRule label={group.label} count={group.items.length} />
+                  <div className="mt-2 space-y-2">
+                    {group.items.map((entry) => (
+                      <AvailableRow
+                        key={`${entry.registryUrl}:${entry.id}`}
+                        entry={entry}
+                        installed={installedIds.has(entry.id)}
+                        busy={
+                          prepare.isPending ||
+                          installProvider.isPending ||
+                          install.isPending ||
+                          installUnpacked.isPending
+                        }
+                        onReview={() =>
+                          prepare.mutate({
+                            id: entry.id,
+                            name: entry.name,
+                            version: entry.version,
+                            type: entry.type,
+                            manifestURI: entry.manifestURI,
+                            payloadURI: entry.payloadURI,
+                            registryUrl: entry.registryUrl,
+                          })
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {browse.data?.errors.map((problem) => (
+            <p key={problem.registryUrl} className="mt-3 text-xs text-error">
+              {problem.registryUrl}: {problem.message}
+            </p>
+          ))}
+
+          {browse.data && browse.data.rejected > 0 ? (
+            <p className="meta mt-3">
+              {browse.data.rejected} listing(s) skipped — malformed
+            </p>
+          ) : null}
+
+          {prepare.error ? (
+            <p className="mt-3 text-xs text-error">
+              {(prepare.error as Error).message}
+            </p>
+          ) : null}
+        </section>
+      </div>
+
+      <div
+        role="tabpanel"
+        id="ext-panel-registries"
+        aria-labelledby="ext-tab-registries"
+        hidden={tab !== "registries"}
+        className="mt-6"
+      >
+        <Registries
+          urls={registries.data ?? []}
+          busy={setRegistries.isPending}
+          error={setRegistries.error as Error | null}
+          onChange={(urls) => setRegistries.mutate(urls)}
+        />
+      </div>
 
       {reviewing ? (
         <ReviewDialog
@@ -452,6 +542,105 @@ export function ExtensionsRoute() {
   );
 }
 
+/** The four sections of the Extensions page, shown one at a time. */
+type ExtensionTab = "providers" | "installed" | "available" | "registries";
+
+const EXTENSION_TABS: { id: ExtensionTab; label: string; hint: string }[] = [
+  {
+    id: "providers",
+    label: "Providers",
+    hint: "Anime and manga provider scripts you imported.",
+  },
+  {
+    id: "installed",
+    label: "Installed",
+    hint: "Extensions on this PC, what they may do, and whether they run.",
+  },
+  {
+    id: "available",
+    label: "Available",
+    hint: "Extensions listed by the registries you added.",
+  },
+  {
+    id: "registries",
+    label: "Registries",
+    hint: "Web addresses of the registries you trust.",
+  },
+];
+
+/** Tab bar that switches between the four sections. */
+function ExtensionTabs({
+  tab,
+  counts,
+  onChange,
+}: {
+  tab: ExtensionTab;
+  counts: Record<ExtensionTab, number | undefined>;
+  onChange: (tab: ExtensionTab) => void;
+}) {
+  const current = EXTENSION_TABS.find((entry) => entry.id === tab);
+
+  return (
+    <div className="mt-8">
+      <div
+        role="tablist"
+        aria-label="Extension sections"
+        className="flex gap-6 overflow-x-auto border-b rule"
+      >
+        {EXTENSION_TABS.map((entry) => {
+          const active = entry.id === tab;
+          const count = counts[entry.id];
+
+          return (
+            <button
+              key={entry.id}
+              id={`ext-tab-${entry.id}`}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              aria-controls={`ext-panel-${entry.id}`}
+              tabIndex={active ? 0 : -1}
+              onKeyDown={(event) => {
+                const index = EXTENSION_TABS.findIndex(
+                  (item) => item.id === entry.id,
+                );
+                const next =
+                  event.key === "ArrowRight"
+                    ? (index + 1) % EXTENSION_TABS.length
+                    : event.key === "ArrowLeft"
+                      ? (index + EXTENSION_TABS.length - 1) %
+                        EXTENSION_TABS.length
+                      : event.key === "Home"
+                        ? 0
+                        : event.key === "End"
+                          ? EXTENSION_TABS.length - 1
+                          : -1;
+                if (next < 0) return;
+                event.preventDefault();
+                const target = EXTENSION_TABS[next]!;
+                onChange(target.id);
+                document.getElementById(`ext-tab-${target.id}`)?.focus();
+              }}
+              onClick={() => onChange(entry.id)}
+              className={`-mb-px flex shrink-0 items-center gap-2 border-b-2 pb-3 text-sm transition-colors ${
+                active
+                  ? "border-primary text-primary"
+                  : "border-transparent text-base-content/60 hover:text-base-content"
+              }`}
+            >
+              {entry.label}
+              {count !== undefined ? (
+                <span className="meta">{count}</span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+      <p className="meta mt-3">{current?.hint}</p>
+    </div>
+  );
+}
+
 /** Registry URLs the user has chosen to browse. */
 function Registries({
   urls,
@@ -467,7 +656,7 @@ function Registries({
   const [draft, setDraft] = useState("");
 
   return (
-    <section className="mt-10">
+    <section>
       <SectionRule label="Registries" count={urls.length} />
 
       <form

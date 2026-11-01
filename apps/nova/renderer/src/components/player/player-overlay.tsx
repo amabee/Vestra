@@ -751,6 +751,9 @@ export function PlayerOverlay() {
 
       {(opening || mpv.loading || mpv.buffering) && !error && (
         <VideoLoader
+          title={item?.title}
+          episodeLabel={episodeLabel}
+          buffering={!!mpv.buffering}
           bufferedSeconds={mpv.bufferedSeconds}
           downloadBytesPerSecond={mpv.downloadBytesPerSecond}
           label={mpv.buffering ? "Buffering video" : "Preparing your episode"}
@@ -772,8 +775,7 @@ export function PlayerOverlay() {
               </p>
             ) : null}
             <p className="mt-3 text-sm text-base-content/70">
-              Try again, or try another playback source from the
-              anime page.
+              Try again, or try another playback source from the anime page.
             </p>
             <button
               type="button"

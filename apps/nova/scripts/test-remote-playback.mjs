@@ -242,6 +242,12 @@ test(
         await command("get_property", "options/hls-bitrate"),
         AUTO_HLS_BITRATE,
       );
+      await command("set_property", "sub-fonts-dir", scratch);
+      await command("set_property", "sub-fonts-dir", scratch + "/.");
+      assert.equal(
+        await command("get_property", "sub-fonts-dir"),
+        scratch + "/.",
+      );
       await command("set_property", "sub-font", "Georgia");
       await command("set_property", "sub-color", "#FFE600");
       assert.equal(await command("get_property", "sub-font"), "Georgia");

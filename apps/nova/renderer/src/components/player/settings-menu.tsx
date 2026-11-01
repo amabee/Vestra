@@ -47,9 +47,6 @@ const SUBTITLE_COLORS: [string, string][] = [
   ["Pink", "#FF6EC7"],
 ];
 
-/** Letters, digits, spaces and a few punctuation marks found in font names. */
-const FONT_NAME = /^[\p{L}\p{N} .'_-]{1,64}$/u;
-
 /**
  * Shortcuts, grouped the way they are reached for.
  *
@@ -538,11 +535,29 @@ function titleFor(page: Page): string {
   }
 }
 
+/** Fonts that come with Windows, offered in the subtitle font list. */
+const SUBTITLE_FONTS = [
+  "Arial",
+  "Arial Black",
+  "Calibri",
+  "Cambria",
+  "Comic Sans MS",
+  "Consolas",
+  "Courier New",
+  "Georgia",
+  "Impact",
+  "Segoe UI",
+  "Tahoma",
+  "Times New Roman",
+  "Trebuchet MS",
+  "Verdana",
+];
+
 /**
- * Pick the subtitle font by name.
+ * Pick the subtitle font from a list, or search Google Fonts and install one.
  *
- * Any font installed on this PC works. A name the PC does not have falls back
- * to the default font without an error, so the picture never goes blank.
+ * A font saved earlier that is not in the list still shows at the top, so it
+ * is not lost.
  */
 function FontPage({
   font,
@@ -551,63 +566,171 @@ function FontPage({
   font: string | null;
   onChange: (family: string | null) => void;
 }) {
-  const [draft, setDraft] = useState(font ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [installed, setInstalled] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<string[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [installing, setInstalling] = useState<string | null>(null);
 
-  const apply = (value: string) => {
-    const family = value.trim() || null;
-    if (family && !FONT_NAME.test(family)) {
-      setError("Use letters, numbers and spaces only.");
+  useEffect(() => {
+    void bridge.subtitleFonts
+      .installed()
+      .then(setInstalled)
+      .catch(() => setInstalled([]));
+  }, []);
+
+  useEffect(() => {
+    const needle = query.trim();
+    setResults([]);
+    setSearchError(null);
+    if (needle.length < 2) {
+      setSearching(false);
       return;
     }
+    let cancelled = false;
+    setSearching(true);
+    const timer = setTimeout(() => {
+      bridge.subtitleFonts
+        .search(needle)
+        .then((found) => {
+          if (!cancelled) setResults(found);
+        })
+        .catch(() => {
+          if (!cancelled)
+            setSearchError(
+              "Could not search Google Fonts. Check your connection and try again.",
+            );
+        })
+        .finally(() => {
+          if (!cancelled) setSearching(false);
+        });
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query]);
+
+  const options = Array.from(
+    new Set([...(font ? [font] : []), ...installed, ...SUBTITLE_FONTS]),
+  );
+
+  const apply = (family: string | null) => {
     setError(null);
-    void bridge.mpv
+    setPending(true);
+    return bridge.mpv
       .setSubtitleFont(family)
+      .then(() => onChange(family))
+      .catch(() => setError("Could not apply subtitle font. Try again."))
+      .finally(() => setPending(false));
+  };
+
+  const install = (family: string) => {
+    setError(null);
+    setInstalling(family);
+    void bridge.subtitleFonts
+      .install(family)
       .then(() => {
-        setDraft(family ?? "");
-        onChange(family);
+        setInstalled((list) =>
+          list.includes(family) ? list : [...list, family],
+        );
+        return apply(family);
       })
-      .catch(() => setError("Could not apply subtitle font. Try again."));
+      .catch((cause: unknown) =>
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Could not install that font. Try again.",
+        ),
+      )
+      .finally(() => setInstalling(null));
   };
 
   return (
     <div className="space-y-3 p-3">
       <p className="text-xs leading-relaxed text-white/50">
-        Type the name of a font installed on this PC, such as Arial or Georgia.
+        Pick a font for the subtitles, or search Google Fonts to install one.
       </p>
-      <input
-        type="text"
-        value={draft}
-        maxLength={64}
-        placeholder="Default font"
-        aria-label="Subtitle font name"
-        onChange={(event) => setDraft(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") apply(draft);
-        }}
-        className="w-full rounded-field border border-white/20 bg-black/40 px-2.5 py-1.5 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/60"
-      />
+      <select
+        value={font ?? ""}
+        disabled={pending || installing !== null}
+        aria-label="Subtitle font"
+        onChange={(event) => apply(event.target.value || null)}
+        className="w-full rounded-field border border-white/20 bg-black/40 px-2.5 py-1.5 text-sm text-white outline-none focus:border-white/60"
+      >
+        <option value="">Default font</option>
+        {options.map((name) => (
+          <option key={name} value={name} style={{ fontFamily: name }}>
+            {name}
+          </option>
+        ))}
+      </select>
+
+      <div className="space-y-2">
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search Google Fonts"
+          aria-label="Search Google Fonts"
+          className="w-full rounded-field border border-white/20 bg-black/40 px-2.5 py-1.5 text-sm text-white outline-none placeholder:text-white/35 focus:border-white/60"
+        />
+        {searching ? (
+          <p role="status" className="text-xs text-white/50">
+            Searching…
+          </p>
+        ) : null}
+        {searchError ? (
+          <p role="alert" className="text-xs text-red-300">
+            {searchError}
+          </p>
+        ) : null}
+        {!searching &&
+        !searchError &&
+        query.trim().length >= 2 &&
+        results.length === 0 ? (
+          <p role="status" className="text-xs text-white/50">
+            No matching fonts.
+          </p>
+        ) : null}
+        {results.length > 0 ? (
+          <ul className="max-h-40 space-y-0.5 overflow-y-auto">
+            {results.map((family) => (
+              <li key={family}>
+                <button
+                  type="button"
+                  disabled={installing !== null || pending}
+                  onClick={() =>
+                    installed.includes(family)
+                      ? void apply(family)
+                      : install(family)
+                  }
+                  className="flex w-full items-center justify-between gap-2 rounded-field px-2 py-1.5 text-left text-sm text-white/80 transition-colors hover:bg-white/10 disabled:opacity-40"
+                  style={{ fontFamily: family }}
+                >
+                  <span className="truncate">{family}</span>
+                  <span className="shrink-0 text-xs text-white/50">
+                    {installing === family
+                      ? "Installing…"
+                      : installed.includes(family)
+                        ? "Installed"
+                        : "Install"}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+
       {error ? (
         <p role="alert" className="text-xs text-red-300">
           {error}
         </p>
       ) : null}
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => apply(draft)}
-          className="flex-1 rounded-field border border-white/20 py-1.5 text-sm text-white/80 transition-colors hover:bg-white/10"
-        >
-          Apply
-        </button>
-        <button
-          type="button"
-          onClick={() => apply("")}
-          className="flex-1 rounded-field border border-white/20 py-1.5 text-sm text-white/80 transition-colors hover:bg-white/10"
-        >
-          Default
-        </button>
-      </div>
     </div>
   );
 }
