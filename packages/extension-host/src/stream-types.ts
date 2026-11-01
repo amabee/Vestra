@@ -48,10 +48,17 @@ const httpsUrlSchema = z
  */
 const headersSchema = z
   .record(
-    z.string().min(1).max(100).regex(/^[A-Za-z0-9-]+$/, "Invalid header name"),
+    z
+      .string()
+      .min(1)
+      .max(100)
+      .regex(/^[A-Za-z0-9-]+$/, "Invalid header name"),
     z.string().max(1024),
   )
-  .refine((value) => Object.keys(value).length <= 16, "Too many headers (max 16)");
+  .refine(
+    (value) => Object.keys(value).length <= 16,
+    "Too many headers (max 16)",
+  );
 
 /* =============================================================================
  * Canonical types
@@ -62,12 +69,15 @@ const headersSchema = z
  *
  * This is NOT a catalogue entry. It carries only enough to identify the title
  * on that particular source and show the user which match was picked — the
- * real metadata (synopsis, genres, ratings, artwork) comes from AniList or
- * TMDb, which is why there is no `overview` or `year` here.
+ * richer metadata (synopsis, genres and ratings) comes from catalogue providers.
+ * An optional year distinguishes remakes without requiring a catalogue lookup.
  */
 export const animeSchema = z.object({
   id: z.string().min(1).max(500),
   title: z.string().min(1).max(500),
+  /** SDK 1.3: required on results from mixed movie/TV sources. */
+  kind: z.enum(["anime", "movie", "tv", "kdrama"]).optional(),
+  year: z.number().int().min(1800).max(2200).optional(),
   cover: httpsUrlSchema.optional(),
   /**
    * Which extension produced this.
@@ -94,6 +104,8 @@ export const episodeSchema = z.object({
    * `SxxExx` parsed from a local filename.
    */
   number: z.number().min(0).max(10_000),
+  /** Specials use season 0. Absent on older anime extensions. */
+  season: z.number().int().min(0).max(1000).optional(),
   title: z.string().max(500).optional(),
   url: httpsUrlSchema.optional(),
 });
@@ -159,7 +171,11 @@ export type StreamResult = z.infer<typeof streamResultSchema>;
  * The convention is load-bearing — every extension written against the
  * published examples assumes it.
  */
-export const STREAM_SOURCE_METHODS = ["search", "getEpisodes", "getStreams"] as const;
+export const STREAM_SOURCE_METHODS = [
+  "search",
+  "getEpisodes",
+  "getStreams",
+] as const;
 export type StreamSourceMethod = (typeof STREAM_SOURCE_METHODS)[number];
 
 /**
@@ -205,7 +221,10 @@ function parseList<T>(
   for (const [index, entry] of raw.slice(0, cap).entries()) {
     const parsed = schema.safeParse(entry);
     if (parsed.success) value.push(parsed.data);
-    else errors.push(`${label}[${index}]: ${parsed.error.issues[0]?.message ?? "invalid"}`);
+    else
+      errors.push(
+        `${label}[${index}]: ${parsed.error.issues[0]?.message ?? "invalid"}`,
+      );
   }
 
   return { value, errors };
@@ -217,14 +236,20 @@ function parseList<T>(
  * `provider` is stamped by the caller before validation, so an extension
  * cannot attribute its results to another source.
  */
-export function parseAnimeResults(raw: unknown): StreamValidationOutcome<Anime[]> {
+export function parseAnimeResults(
+  raw: unknown,
+): StreamValidationOutcome<Anime[]> {
   return parseList(raw, animeSchema, MAX_STREAM_SEARCH_RESULTS, "search");
 }
 
-export function parseEpisodes(raw: unknown): StreamValidationOutcome<Episode[]> {
+export function parseEpisodes(
+  raw: unknown,
+): StreamValidationOutcome<Episode[]> {
   return parseList(raw, episodeSchema, MAX_EPISODES, "getEpisodes");
 }
 
-export function parseStreamResults(raw: unknown): StreamValidationOutcome<StreamResult[]> {
+export function parseStreamResults(
+  raw: unknown,
+): StreamValidationOutcome<StreamResult[]> {
   return parseList(raw, streamResultSchema, MAX_STREAM_RESULTS, "getStreams");
 }

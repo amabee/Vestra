@@ -5,6 +5,7 @@ export const pages = [
   { id: 'website/reading', path: 'using/reading', title: 'Read manga', group: 'Using Vestra', description: 'Choose a source, open chapters and resume reading.' },
   { id: 'extension-quickstart', path: 'extensions/quickstart', title: 'Your first extension', group: 'Build an extension', description: 'A complete two-file native anime extension.' },
   { id: 'website/anime', path: 'extensions/anime', title: 'Anime source contract', group: 'Build an extension', description: 'Search titles, list episodes and return playable streams.' },
+  { id: 'website/movies-tv', path: 'extensions/movies-tv', title: 'Movies and TV sources', group: 'Build an extension', description: 'Browse films, preserve seasons and connect a native streaming source.' },
   { id: 'native-manga-sdk', path: 'extensions/manga', title: 'Manga source contract', group: 'Build an extension', description: 'Search manga, list chapters and deliver page metadata.' },
   { id: 'website/discovery', path: 'extensions/discovery', title: 'Discovery feeds', group: 'Build an extension', description: 'Offer suggested, ongoing, latest and upcoming titles.' },
   { id: 'website/manifest', path: 'reference/manifest', title: 'Manifest reference', group: 'Reference', description: 'Identity, entry files, roles, permissions and artwork.' },

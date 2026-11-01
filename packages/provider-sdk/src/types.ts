@@ -211,7 +211,7 @@ export interface ExtensionManifest {
   description?: string;
   /** Optional HTTPS extension logo. */
   icon?: string;
-  /** Optional native anime discovery categories (SDK 1.2). */
+  /** Optional native discovery categories (SDK 1.2; Movies/TV since 1.3). */
   discovery?: {
     categories: ("suggested" | "ongoing" | "latest" | "upcoming" | "popular")[];
   };

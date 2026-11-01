@@ -43,6 +43,7 @@ import {
 import { registerSourceIpc } from "./source-ipc";
 import { registerMangaIpc } from "./manga-ipc";
 import { registerAnimeIpc } from "./anime-ipc";
+import { registerScreenIpc } from "./screen-ipc";
 
 /**
  * Vestra Nova — Electron main process.
@@ -357,6 +358,7 @@ if (!gotLock) {
     registerMediaProtocolHandler();
     registerMangaIpc(fetchCSharpImage, getMangaBookmarks());
     registerAnimeIpc();
+    registerScreenIpc();
     registerSourceIpc();
 
     mainWindow = createWindow();

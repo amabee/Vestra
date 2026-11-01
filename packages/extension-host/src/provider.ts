@@ -269,14 +269,14 @@ export interface StreamSourceProvider {
   readonly browseCategories?: readonly DiscoveryCategory[];
   browse?(
     category: DiscoveryCategory,
-    options: { page: number; limit: number },
+    options: { page: number; limit: number; kind?: MediaKind },
     context?: ProviderContext,
   ): Promise<{ items: Anime[]; hasMore: boolean }>;
 
   /** Find candidate titles on this source. */
   search(
     query: string,
-    options?: { limit?: number },
+    options?: { limit?: number; kind?: MediaKind },
     context?: ProviderContext,
   ): Promise<Anime[]>;
 
@@ -370,7 +370,7 @@ export function createStreamSourceProvider(
           browseCategories: categories,
           async browse(
             category: DiscoveryCategory,
-            pageOptions: { page: number; limit: number },
+            pageOptions: { page: number; limit: number; kind?: MediaKind },
             context?: ProviderContext,
           ) {
             if (!categories.includes(category))
@@ -414,7 +414,13 @@ export function createStreamSourceProvider(
       // extensions: search(query, { limit }).
       const raw = await invoke(
         "search",
-        [query, { limit: searchOptions?.limit ?? 20 }],
+        [
+          query,
+          {
+            limit: searchOptions?.limit ?? 20,
+            ...(searchOptions?.kind ? { kind: searchOptions.kind } : {}),
+          },
+        ],
         context,
       );
 

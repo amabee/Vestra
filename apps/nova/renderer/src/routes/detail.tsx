@@ -30,6 +30,7 @@ import {
   useLibrary,
   useLibraryUpdates,
   useProgress,
+  useWatchlist,
 } from "@/lib/queries";
 
 /** Below this an entry is an accidental open, not somewhere to return to. */
@@ -135,13 +136,26 @@ function MediaDetailsRoute() {
   const progress = useProgress();
   const bookmarks = useBookmarks();
   const library = useLibrary();
+  const watchlist = useWatchlist();
   const [filter, setFilter] = useState<EpisodeFilter>("all");
+  const [selectedSeason, setSelectedSeason] = useState("all");
 
   // Runtimes and stills are read in the background, so this page has to be
   // told when they land rather than only reading them once on mount.
   useLibraryUpdates();
 
   const baseKey = ref ? mediaKey(ref) : "";
+  const savedToList = watchlist.data?.some(
+    (row) => mediaKey(row.ref) === baseKey,
+  );
+  const saveTitle = useMutation({
+    mutationFn: () => {
+      if (!details.data) throw Error("Title information is unavailable.");
+      return bridge.watchlist.add(details.data, "planned");
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: keys.watchlist }),
+  });
 
   /**
    * Everything the list needs about each playable file, in one pass.
@@ -175,7 +189,8 @@ function MediaDetailsRoute() {
     );
 
     return local.map((entry, index) => {
-      const key = entry.fileId ? `${baseKey}#${entry.fileId}` : baseKey;
+      const progressId = entry.fileId ?? entry.progressId;
+      const key = progressId ? `${baseKey}#${progressId}` : baseKey;
       const named =
         entry.episode == null
           ? undefined
@@ -193,7 +208,7 @@ function MediaDetailsRoute() {
           named ??
           (entry.episode == null
             ? (entry.label ?? entry.fileName ?? "Untitled")
-            : `Episode ${entry.episode}`),
+            : (entry.label ?? `Episode ${entry.episode}`)),
         number: String(entry.episode ?? index + 1).padStart(2, "0"),
         runtimeSeconds: file?.durationSeconds ?? null,
         still:
@@ -275,7 +290,7 @@ function MediaDetailsRoute() {
 
       await bridge.progress.save({
         ref: ref as MediaRef,
-        episodeId: input.entry.source.fileId,
+        episodeId: input.entry.source.fileId ?? input.entry.source.progressId,
         episodeNumber: input.entry.source.episode ?? null,
         positionSeconds: input.watched ? seconds : 0,
         durationSeconds: seconds,
@@ -284,13 +299,25 @@ function MediaDetailsRoute() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.progress }),
   });
 
-  const visible = episodes.filter((entry) =>
-    filter === "unwatched"
-      ? !entry.watch?.completed
-      : filter === "bookmarked"
-        ? entry.bookmarked
-        : true,
-  );
+  const seasons = [
+    ...new Set(episodes.map((entry) => entry.source.season ?? 1)),
+  ].sort((a, b) => a - b);
+  const seasonFilter = seasons.some((value) => String(value) === selectedSeason)
+    ? selectedSeason
+    : "all";
+  const visible = episodes
+    .filter(
+      (entry) =>
+        seasonFilter === "all" ||
+        String(entry.source.season ?? 1) === seasonFilter,
+    )
+    .filter((entry) =>
+      filter === "unwatched"
+        ? !entry.watch?.completed
+        : filter === "bookmarked"
+          ? entry.bookmarked
+          : true,
+    );
 
   /**
    * Episodes grouped under their season.
@@ -371,8 +398,8 @@ function MediaDetailsRoute() {
         </button>
 
         {/* Bottom-aligned, so poster and title share a baseline at any size. */}
-        <div className="absolute inset-x-0 bottom-0 flex items-end gap-6 px-8 pb-8">
-          <div className="aspect-[2/3] w-36 shrink-0 overflow-hidden rounded-box border rule bg-base-200">
+        <div className="absolute inset-x-0 bottom-0 flex items-end gap-4 px-5 pb-8 sm:gap-6 sm:px-8">
+          <div className="aspect-[2/3] w-24 shrink-0 overflow-hidden rounded-box border rule bg-base-200 sm:w-36">
             {poster ? (
               <img
                 src={poster}
@@ -387,7 +414,7 @@ function MediaDetailsRoute() {
             {details.isPending ? (
               <div className="h-14 w-2/3 animate-pulse rounded-selector bg-base-200" />
             ) : (
-              <h1 className="font-serif text-display-lg text-balance">
+              <h1 className="break-words font-serif text-display-sm text-balance sm:text-display-lg">
                 {data?.title ?? "Untitled"}
               </h1>
             )}
@@ -412,6 +439,28 @@ function MediaDetailsRoute() {
       </div>
 
       <div className="px-8 pb-12 pt-8">
+        {(kind === "movie" || kind === "tv") && (
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              className="btn btn-sm"
+              disabled={
+                !data ||
+                watchlist.isPending ||
+                !!savedToList ||
+                saveTitle.isPending
+              }
+              onClick={() => saveTitle.mutate()}
+            >
+              <Bookmark size={15} aria-hidden="true" />
+              {savedToList ? "Saved to your list" : "Plan to watch"}
+            </button>
+            {saveTitle.error && (
+              <p role="alert" className="text-sm text-error">
+                {saveTitle.error.message}
+              </p>
+            )}
+          </div>
+        )}
         {data?.overview ? (
           <p
             data-selectable
@@ -436,7 +485,9 @@ function MediaDetailsRoute() {
 
         <section className="mt-10">
           <SectionRule
-            label={episodes.length > 0 ? "Episodes" : "Play from"}
+            label={
+              episodes.length > 0 && kind !== "movie" ? "Episodes" : "Play from"
+            }
             count={sources.data?.length}
             trailing={
               episodes.length > 1 ? (
@@ -544,6 +595,26 @@ function MediaDetailsRoute() {
                       )}
                     </div>
                   ) : null}
+                  {seasons.length > 1 && (
+                    <label className="flex items-center gap-2 text-xs">
+                      Season
+                      <select
+                        aria-label="Episode season"
+                        className="select select-sm"
+                        value={seasonFilter}
+                        onChange={(event) =>
+                          setSelectedSeason(event.target.value)
+                        }
+                      >
+                        <option value="all">All seasons</option>
+                        {seasons.map((season) => (
+                          <option key={season} value={season}>
+                            {season === 0 ? "Specials" : `Season ${season}`}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                 </div>
               ) : null}
 
@@ -574,7 +645,9 @@ function MediaDetailsRoute() {
                           playEpisode(entry, startAt, qualityLocator)
                         }
                         onBookmark={() =>
-                          toggleBookmark.mutate(entry.source.fileId)
+                          toggleBookmark.mutate(
+                            entry.source.fileId ?? entry.source.progressId,
+                          )
                         }
                         onWatched={(watched) =>
                           setWatched.mutate({ entry, watched })
@@ -696,13 +769,13 @@ function EpisodeCard({
 
   return (
     <article
-      className={`group flex items-center gap-4 rounded-box border px-4 py-3 transition-colors ${
+      className={`group flex flex-wrap items-center gap-4 rounded-box border px-4 py-3 transition-colors sm:flex-nowrap ${
         watched ? "rule bg-base-200/20" : "rule bg-base-200/40"
       } hover:border-primary/40 hover:bg-base-200/70`}
     >
       {/* The still replaces the index once one exists, so the row keeps its
           shape whether or not the file has been read yet. */}
-      <div className="relative w-24 shrink-0 overflow-hidden rounded-selector bg-base-300">
+      <div className="relative w-16 shrink-0 overflow-hidden rounded-selector bg-base-300 sm:w-24">
         <div className="aspect-video">
           {entry.still ? (
             <img
@@ -770,7 +843,7 @@ function EpisodeCard({
         ) : null}
       </div>
 
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="ml-auto flex shrink-0 items-center gap-1">
         <CardAction
           label={
             entry.bookmarked

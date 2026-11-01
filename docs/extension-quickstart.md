@@ -13,6 +13,8 @@ Copy-Item -LiteralPath packages/extension-host/examples/stream-source-template -
 ```
 
 For manga, copy `packages/extension-host/examples/manga-source-template` instead.
+For Movies/TV, copy `packages/extension-host/examples/screen-source-template` and
+follow the [Movies and TV guide](website/movies-tv.md).
 Use a new destination folder for each extension.
 
 These templates use invented titles and placeholder URLs. They demonstrate the
@@ -58,7 +60,7 @@ export function activate() {
     id: "my-series-episode-1",
     animeId: title.id,
     number: 1,
-    title: "Episode One"
+    title: "Episode One",
   };
 
   return {
@@ -73,15 +75,19 @@ export function activate() {
     },
     async getStreams(episodeId) {
       if (episodeId !== episode.id) return [];
-      return [{
-        server: "My server",
-        videoSources: [{
-          url: "https://media.your-domain.com/episode-1.mp4",
-          quality: "1080p",
-          type: "mp4"
-        }]
-      }];
-    }
+      return [
+        {
+          server: "My server",
+          videoSources: [
+            {
+              url: "https://media.your-domain.com/episode-1.mp4",
+              quality: "1080p",
+              type: "mp4",
+            },
+          ],
+        },
+      ];
+    },
   };
 }
 ```
@@ -110,11 +116,12 @@ the extension ID stable; changing it creates a different source identity.
 
 ## Choose the right contract
 
-| Extension | Manifest role | Required source methods |
-| --- | --- | --- |
-| Anime streaming | `stream-source`, `kinds: ["anime"]` | `search`, `getEpisodes`, `getStreams` |
-| Manga reading | `manga-source`, omit `kinds` | `search`, `getChapters`, `getPages` |
-| Catalogue metadata | `metadata`, declare catalogue `kinds` | `search`; details/trending are additional capabilities |
+| Extension           | Manifest role                                          | Required source methods                                  |
+| ------------------- | ------------------------------------------------------ | -------------------------------------------------------- |
+| Anime streaming     | `stream-source`, `kinds: ["anime"]`                    | `search`, `getEpisodes`, `getStreams`                    |
+| Movies/TV streaming | `stream-source`, `kinds: ["movie", "tv"]`, SDK `1.3.0` | `search`, `getEpisodes`, `getStreams`; optional `browse` |
+| Manga reading       | `manga-source`, omit `kinds`                           | `search`, `getChapters`, `getPages`                      |
+| Catalogue metadata  | `metadata`, declare catalogue `kinds`                  | `search`; details/trending are additional capabilities   |
 
 These contracts have different result shapes. Use the corresponding template;
 do not substitute manga page objects for video sources. Vestra owns playlists,

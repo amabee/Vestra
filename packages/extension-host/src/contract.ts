@@ -21,7 +21,7 @@ import { streamingAccessSchema } from "@vestra/types";
  * Bumped when this contract changes shape. An extension declaring a newer
  * major than the host is refused rather than half-supported.
  */
-export const EXTENSION_SDK_VERSION = "1.2.0";
+export const EXTENSION_SDK_VERSION = "1.3.0";
 
 /* =============================================================================
  * What an extension may return

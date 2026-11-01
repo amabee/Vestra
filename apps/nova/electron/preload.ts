@@ -17,6 +17,10 @@ const invoke = (channel: string, ...args: unknown[]): Promise<unknown> =>
   ipcRenderer.invoke(channel, ...args);
 
 const api = {
+  screen: {
+    sources: (kind: string) => invoke("screen:sources", kind),
+    browse: (query: unknown) => invoke("screen:browse", query),
+  },
   playlists: {
     list: () => invoke("anime:playlists"),
     mutate: (command: unknown) => invoke("anime:playlist-command", command),

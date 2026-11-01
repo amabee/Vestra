@@ -59,6 +59,10 @@ export interface BrowseResult {
  */
 
 interface RawBridge {
+  screen: {
+    sources: (kind: string) => Promise<unknown>;
+    browse: (query: unknown) => Promise<unknown>;
+  };
   playlists: {
     list: () => Promise<unknown>;
     mutate: (command: unknown) => Promise<unknown>;
@@ -431,13 +435,30 @@ export interface SurfaceRect {
 }
 
 export const bridge = {
+  screen: {
+    sources: (kind: import("../../../shared/screen").ScreenKind) =>
+      raw().screen.sources(kind) as Promise<
+        import("../../../shared/screen").ScreenSource[]
+      >,
+    browse: (query: {
+      kind: import("../../../shared/screen").ScreenKind;
+      source: string;
+      query?: string;
+      category?: import("@vestra/extension-host").DiscoveryCategory;
+      page?: number;
+    }) =>
+      raw().screen.browse(query) as Promise<
+        import("../../../shared/screen").ScreenPage
+      >,
+  },
   playlists: {
     list: () => raw().playlists.list() as Promise<AnimePlaylist[]>,
     mutate: (command: PlaylistCommand) =>
       raw().playlists.mutate(command) as Promise<AnimePlaylist[]>,
   },
   anime: {
-    snapshots: (ids: number[]) => raw().anime.snapshots(ids) as Promise<MediaItem[]>,
+    snapshots: (ids: number[]) =>
+      raw().anime.snapshots(ids) as Promise<MediaItem[]>,
     explore: (query: import("../../../shared/anime-hub").AnimeExploreQuery) =>
       raw().anime.explore(query) as Promise<
         import("../../../shared/anime-hub").AnimeExplorePage

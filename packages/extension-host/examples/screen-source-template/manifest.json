@@ -1,0 +1,14 @@
+{
+  "id": "example-screen-source",
+  "name": "Movies & TV Source Template",
+  "version": "1.0.0",
+  "main": "index.js",
+  "sdkVersion": "1.3.0",
+  "role": "stream-source",
+  "kinds": ["movie", "tv"],
+  "permissions": [],
+  "hosts": [],
+  "author": "Vestra",
+  "description": "Authoring template with invented titles and placeholder streams. No live website integration.",
+  "discovery": { "categories": ["popular", "latest"] }
+}
