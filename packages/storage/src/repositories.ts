@@ -77,7 +77,10 @@ const EMPTY_LIBRARY = { version: 1 as const, files: [] };
 const EMPTY_SEARCHES = { version: 1 as const, entries: [] };
 
 /** Progress is tracked per episode for series, per item for everything else. */
-export function progressKey(ref: MediaRef, episodeId: string | null = null): string {
+export function progressKey(
+  ref: MediaRef,
+  episodeId: string | null = null,
+): string {
   return episodeId ? `${mediaKey(ref)}#${episodeId}` : mediaKey(ref);
 }
 
@@ -86,7 +89,12 @@ export function progressKey(ref: MediaRef, episodeId: string | null = null): str
  * ========================================================================== */
 
 export async function getSettings(driver: StorageDriver): Promise<Settings> {
-  return readDocument(driver, STORAGE_KEYS.settings, settingsSchema, DEFAULT_SETTINGS);
+  return readDocument(
+    driver,
+    STORAGE_KEYS.settings,
+    settingsSchema,
+    DEFAULT_SETTINGS,
+  );
 }
 
 export async function saveSettings(
@@ -109,7 +117,9 @@ export async function updateSettings(
  * Watchlist
  * ========================================================================== */
 
-export async function getWatchlist(driver: StorageDriver): Promise<WatchlistEntry[]> {
+export async function getWatchlist(
+  driver: StorageDriver,
+): Promise<WatchlistEntry[]> {
   const doc = await readDocument(
     driver,
     STORAGE_KEYS.watchlist,
@@ -134,7 +144,11 @@ export async function addToWatchlist(
 ): Promise<WatchlistEntry[]> {
   const entries = await getWatchlist(driver);
   const now = Date.now();
-  const ref: MediaRef = { source: item.source, kind: item.kind, sourceId: item.sourceId };
+  const ref: MediaRef = {
+    source: item.source,
+    kind: item.kind,
+    sourceId: item.sourceId,
+  };
 
   const existing = entries.find((entry) => isSameMedia(entry.ref, ref));
 
@@ -185,10 +199,17 @@ export async function toggleWatchlist(
   driver: StorageDriver,
   item: MediaItem,
 ): Promise<{ inWatchlist: boolean; entries: WatchlistEntry[] }> {
-  const ref: MediaRef = { source: item.source, kind: item.kind, sourceId: item.sourceId };
+  const ref: MediaRef = {
+    source: item.source,
+    kind: item.kind,
+    sourceId: item.sourceId,
+  };
 
   if (await isInWatchlist(driver, ref)) {
-    return { inWatchlist: false, entries: await removeFromWatchlist(driver, ref) };
+    return {
+      inWatchlist: false,
+      entries: await removeFromWatchlist(driver, ref),
+    };
   }
 
   return { inWatchlist: true, entries: await addToWatchlist(driver, item) };
@@ -222,6 +243,7 @@ export async function getProgress(
 export interface SaveProgressInput {
   ref: MediaRef;
   episodeId?: string | null;
+  episodeNumber?: number | null;
   positionSeconds: number;
   durationSeconds: number;
   /** Fraction of runtime after which the item counts as watched. */
@@ -245,7 +267,11 @@ export async function saveProgress(
       ? Math.min(1, Math.max(0, positionSeconds / durationSeconds))
       : 0;
 
+  const entries = await getAllProgress(driver);
+  const knownEpisode =
+    input.episodeNumber ?? entries[progressKey(ref, episodeId)]?.episodeNumber;
   const entry: WatchProgress = {
+    ...(knownEpisode != null ? { episodeNumber: knownEpisode } : {}),
     ref,
     episodeId,
     positionSeconds: Math.max(0, positionSeconds),
@@ -255,7 +281,6 @@ export async function saveProgress(
     updatedAt: Date.now(),
   };
 
-  const entries = await getAllProgress(driver);
   entries[progressKey(ref, episodeId)] = entry;
 
   await writeDocument(driver, STORAGE_KEYS.progress, progressDocSchema, {
@@ -392,7 +417,9 @@ export async function remapEpisodeKeys(
 
 const MAX_HISTORY_ENTRIES = 500;
 
-export async function getHistory(driver: StorageDriver): Promise<HistoryEntry[]> {
+export async function getHistory(
+  driver: StorageDriver,
+): Promise<HistoryEntry[]> {
   const doc = await readDocument(
     driver,
     STORAGE_KEYS.history,
@@ -407,15 +434,28 @@ export async function addHistoryEntry(
   input: {
     item: MediaItem;
     episodeId?: string | null;
+    episodeNumber?: number | null;
     positionSeconds?: number;
     completed?: boolean;
   },
 ): Promise<HistoryEntry[]> {
-  const { item, episodeId = null, positionSeconds = 0, completed = false } = input;
-  const ref: MediaRef = { source: item.source, kind: item.kind, sourceId: item.sourceId };
+  const {
+    item,
+    episodeId = null,
+    positionSeconds = 0,
+    completed = false,
+  } = input;
+  const ref: MediaRef = {
+    source: item.source,
+    kind: item.kind,
+    sourceId: item.sourceId,
+  };
   const now = Date.now();
 
   const entry: HistoryEntry = {
+    ...(input.episodeNumber != null
+      ? { episodeNumber: input.episodeNumber }
+      : {}),
     id: `${progressKey(ref, episodeId)}@${now}`,
     ref,
     snapshot: item,
@@ -429,7 +469,8 @@ export async function addHistoryEntry(
 
   // Collapse repeat views of the same episode into a single, most-recent row.
   const deduped = entries.filter(
-    (existing) => !(isSameMedia(existing.ref, ref) && existing.episodeId === episodeId),
+    (existing) =>
+      !(isSameMedia(existing.ref, ref) && existing.episodeId === episodeId),
   );
 
   const next = [entry, ...deduped].slice(0, MAX_HISTORY_ENTRIES);
@@ -453,7 +494,9 @@ export async function clearHistory(driver: StorageDriver): Promise<void> {
  * Local library
  * ========================================================================== */
 
-export async function getLocalFiles(driver: StorageDriver): Promise<LocalMediaFile[]> {
+export async function getLocalFiles(
+  driver: StorageDriver,
+): Promise<LocalMediaFile[]> {
   const doc = await readDocument(
     driver,
     STORAGE_KEYS.localLibrary,
@@ -480,7 +523,9 @@ export async function saveLocalFiles(
  * Recent searches
  * ========================================================================== */
 
-export async function getRecentSearches(driver: StorageDriver): Promise<RecentSearch[]> {
+export async function getRecentSearches(
+  driver: StorageDriver,
+): Promise<RecentSearch[]> {
   const doc = await readDocument(
     driver,
     STORAGE_KEYS.recentSearches,
@@ -507,17 +552,29 @@ export async function addRecentSearch(
     MAX_RECENT_SEARCHES,
   );
 
-  await writeDocument(driver, STORAGE_KEYS.recentSearches, recentSearchesDocSchema, {
-    version: 1,
-    entries: next,
-  });
+  await writeDocument(
+    driver,
+    STORAGE_KEYS.recentSearches,
+    recentSearchesDocSchema,
+    {
+      version: 1,
+      entries: next,
+    },
+  );
 
   return next;
 }
 
-export async function clearRecentSearches(driver: StorageDriver): Promise<void> {
-  await writeDocument(driver, STORAGE_KEYS.recentSearches, recentSearchesDocSchema, {
-    version: 1,
-    entries: [],
-  });
+export async function clearRecentSearches(
+  driver: StorageDriver,
+): Promise<void> {
+  await writeDocument(
+    driver,
+    STORAGE_KEYS.recentSearches,
+    recentSearchesDocSchema,
+    {
+      version: 1,
+      entries: [],
+    },
+  );
 }

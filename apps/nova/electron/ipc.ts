@@ -148,6 +148,7 @@ function parse<T>(schema: z.ZodType<T>, value: unknown, what: string): T {
 
 const progressInputSchema = z.object({
   ref: mediaRefSchema,
+  episodeNumber: z.number().nonnegative().max(10000).nullable().optional(),
   episodeId: z.string().max(200).nullable().default(null),
   positionSeconds: z.number().min(0),
   durationSeconds: z.number().min(0),
@@ -192,6 +193,7 @@ const watchlistAddSchema = z.object({
 
 const historyAddSchema = z.object({
   item: mediaItemSchema,
+  episodeNumber: z.number().nonnegative().max(10000).nullable().optional(),
   episodeId: z.string().max(200).nullable().optional(),
   positionSeconds: z.number().min(0).optional(),
   completed: z.boolean().optional(),
