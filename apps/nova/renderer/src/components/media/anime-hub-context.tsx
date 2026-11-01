@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, useSearchParams } from "react-router";
 import { bridge } from "@/lib/bridge";
@@ -14,6 +14,10 @@ import "./anime-hub.css";
 
 export function useAnimeHub() {
   const [params, setParams] = useSearchParams();
+  const latestParams = useRef(params);
+  useEffect(() => {
+    latestParams.current = params;
+  }, [params]);
   const sources = useQuery({
     queryKey: ["anime-sources"],
     queryFn: bridge.anime.sources,
@@ -23,13 +27,14 @@ export function useAnimeHub() {
   const hasLocal = !!files.data?.length;
   const provider =
     params.get("source") ?? preferredAnimeSource(sources.data, hasLocal);
-  const patch = (values: Record<string, string>) =>
-    setParams((current) => {
-      const next = new URLSearchParams(current);
-      for (const [key, value] of Object.entries(values))
-        value ? next.set(key, value) : next.delete(key);
-      return next;
-    });
+  const patch = (values: Record<string, string>) => {
+    // Router functional setters do not queue like React state setters.
+    const next = new URLSearchParams(latestParams.current);
+    for (const [key, value] of Object.entries(values))
+      value ? next.set(key, value) : next.delete(key);
+    latestParams.current = next;
+    setParams(next);
+  };
   useEffect(() => {
     if (!params.get("source") && provider)
       setParams(

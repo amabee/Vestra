@@ -131,6 +131,9 @@ importers:
 
   apps/nova:
     dependencies:
+      '@vestra/api':
+        specifier: workspace:*
+        version: link:../../packages/api
       '@vestra/config':
         specifier: workspace:*
         version: link:../../packages/config

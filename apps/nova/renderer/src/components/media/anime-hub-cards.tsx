@@ -17,14 +17,21 @@ import { animeListLabels } from "./anime-hub-model";
 export function animeDetailLink(item: MediaItem, provider: string) {
   return `/media/${encodeURIComponent(item.source)}/anime/${encodeURIComponent(item.sourceId)}${provider ? `?source=${encodeURIComponent(provider)}` : ""}`;
 }
-export function AnimePoster({ item }: { item: MediaItem }) {
+export function AnimePoster({
+  item,
+  eager = false,
+}: {
+  item: MediaItem;
+  eager?: boolean;
+}) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [item.images.poster]);
   return item.images.poster && !failed ? (
     <img
       src={item.images.poster}
       alt=""
-      loading="lazy"
+      loading={eager ? "eager" : "lazy"}
+      fetchPriority={eager ? "high" : "auto"}
       decoding="async"
       referrerPolicy="no-referrer"
       onError={() => setFailed(true)}
@@ -82,7 +89,7 @@ export function AnimeHubCard({
         aria-label={`Details for ${item.title}`}
       >
         <AnimePoster item={item} />
-        {item.status === "airing" && (
+        {(title.releasing ?? item.status === "airing") && (
           <span
             className="hub-airing"
             title="Releasing now"
@@ -105,7 +112,9 @@ export function AnimeHubCard({
       </Link>
       <div className="hub-card-facts">
         <span>{item.year ?? "Year unannounced"}</span>
-        {title.totalEpisodes != null || title.airedEpisodes != null ? (
+        {title.format ||
+        title.totalEpisodes != null ||
+        title.airedEpisodes != null ? (
           <EpisodeCount title={title} />
         ) : null}
       </div>
@@ -139,7 +148,7 @@ export function AnimeHubCard({
           <button
             aria-label={`${saved ? "Saved" : "Save"} ${item.title} to Plan to watch`}
             aria-pressed={saved}
-            disabled={working}
+            disabled={working || saved}
             onClick={onSave}
           >
             {saved ? <Check size={16} /> : <Bookmark size={16} />}
@@ -200,7 +209,7 @@ export function AnimeCarousel({
     <section className="hub-shelf" aria-labelledby={`${id}-heading`}>
       <div className="hub-section-heading">
         <h2 id={`${id}-heading`}>{title}</h2>
-        {!loading && !empty && (
+        {!loading && !empty && !(edges.start && edges.end) && (
           <div className="hub-carousel-controls">
             <button
               aria-label={`Previous ${title}`}

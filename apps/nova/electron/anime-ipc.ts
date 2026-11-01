@@ -9,8 +9,12 @@ import { getDriver } from "./services";
 import { AnimeService } from "./anime-service";
 import { AnimeDiscovery } from "./anime-discovery";
 import { AnimeSchedule } from "./anime-schedule";
+import { AnimeExplore } from "./anime-explore";
 import { getStreamSourceRegistry, getProviderRegistry } from "./services";
 export function registerAnimeIpc() {
+  const explore = new AnimeExplore();
+  ipcMain.handle("anime:snapshots", (_e, ids) => explore.snapshots(ids));
+  ipcMain.handle("anime:explore", (_e, query) => explore.load(query));
   const service = new AnimeService(getStreamSourceRegistry());
   const discovery = new AnimeDiscovery(getStreamSourceRegistry(), service);
   ipcMain.handle("anime:browse", (_e, id, query) =>

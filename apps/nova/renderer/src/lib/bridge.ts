@@ -64,6 +64,8 @@ interface RawBridge {
     mutate: (command: unknown) => Promise<unknown>;
   };
   anime: {
+    snapshots: (ids: number[]) => Promise<unknown>;
+    explore: (query: unknown) => Promise<unknown>;
     schedule: (query: unknown) => Promise<unknown>;
     browse: (id: string, query: unknown) => Promise<unknown>;
     open: (id: string, item: unknown) => Promise<unknown>;
@@ -435,6 +437,11 @@ export const bridge = {
       raw().playlists.mutate(command) as Promise<AnimePlaylist[]>,
   },
   anime: {
+    snapshots: (ids: number[]) => raw().anime.snapshots(ids) as Promise<MediaItem[]>,
+    explore: (query: import("../../../shared/anime-hub").AnimeExploreQuery) =>
+      raw().anime.explore(query) as Promise<
+        import("../../../shared/anime-hub").AnimeExplorePage
+      >,
     schedule: (query: { from: number; until: number; status: string }) =>
       raw().anime.schedule(query) as Promise<
         import("../../../shared/anime-hub").AnimeSchedulePage

@@ -50,6 +50,14 @@ checks pass; sustained live HD playback and packaged release gates remain open.
 
 ## Documentation and source browsing
 
+- [x] Anime Home with saved-status shelves, Continue Watching and named playlists.
+- [x] Saved-anime weekly Schedule with Week begins, list status and watched controls.
+- [x] Discover featured titles, filtered carousels, seasonal top anime, coming soon and movies.
+- [x] Session-owned playback persistence and backward-compatible episode-number tracking.
+
+See [anime hub implementation and verification](anime-home-schedule-discover.md)
+for catalogue coverage, progress migration limits and the completed checks.
+
 - [x] Astro documentation site with app setup, native authoring guides, reference, local search and responsive navigation.
 - [x] Read canonical Markdown directly from the repository and validate built documentation links.
 - [x] Anime Browse sources tab with URL-backed source/category/page selection and existing playback/save actions.

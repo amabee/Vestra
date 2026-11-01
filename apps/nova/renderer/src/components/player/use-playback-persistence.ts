@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { MediaItem } from "@vestra/types";
+import { mediaKey, type MediaItem } from "@vestra/types";
 import { bridge } from "@/lib/bridge";
 import { keys } from "@/lib/queries";
 
@@ -25,7 +25,14 @@ export function usePlaybackPersistence(input: {
     ready,
   } = input;
   const snapshot = useMemo(
-    () => ({ item, episodeId, episodeNumber, position: 0, duration: 0 }),
+    () => ({
+      item,
+      episodeId,
+      episodeNumber,
+      position: 0,
+      duration: 0,
+      checkedList: false,
+    }),
     [item, episodeId, sessionId],
   );
   if (ready && duration > 0 && Number.isFinite(duration)) {
@@ -58,6 +65,17 @@ export function usePlaybackPersistence(input: {
             positionSeconds: at,
             completed: saved.completed,
           });
+          if (!snapshot.checkedList && saved.percent >= 0.01) {
+            const list = await bridge.watchlist.list();
+            if (
+              list.find((row) => mediaKey(row.ref) === mediaKey(current))
+                ?.status === "planned"
+            ) {
+              await bridge.watchlist.add(current, "watching");
+              void cache.invalidateQueries({ queryKey: keys.watchlist });
+            }
+            snapshot.checkedList = true;
+          }
         } finally {
           void cache.invalidateQueries({ queryKey: keys.progress });
           void cache.invalidateQueries({ queryKey: keys.history });

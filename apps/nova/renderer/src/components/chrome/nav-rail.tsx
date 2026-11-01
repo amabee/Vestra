@@ -3,6 +3,7 @@ import {
   Blocks,
   Clapperboard,
   Compass,
+  House,
   CalendarDays,
   HardDrive,
   History,
@@ -26,7 +27,8 @@ const SECTIONS = [
   {
     label: "Browse",
     items: [
-      { to: "/", label: "Home", icon: Compass },
+      { to: "/", label: "Home", icon: House },
+      { to: "/discover", label: "Discover", icon: Compass },
       { to: "/schedule", label: "Schedule", icon: CalendarDays },
       { to: "/anime", label: "Anime", icon: Sparkles },
       { to: "/manga", label: "Manga", icon: BookOpen },

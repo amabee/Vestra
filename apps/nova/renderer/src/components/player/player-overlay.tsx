@@ -68,6 +68,11 @@ export function PlayerOverlay() {
   const progressId = fileId ?? source?.progressId ?? null;
   const [opening, setOpening] = useState(false);
   const [openedSession, setOpenedSession] = useState<number | null>(null);
+  const [builtinClock, setBuiltinClock] = useState({
+    session: -1,
+    position: 0,
+    duration: 0,
+  });
   const renditionOverrides = usePlayer((state) => state.renditionOverrides);
   const streamSourceLocator = source?.locator.startsWith("vestra-stream://")
     ? source.locator
@@ -671,11 +676,11 @@ export function PlayerOverlay() {
     episodeId: progressId,
     episodeNumber: source?.episode ?? null,
     sessionId,
-    position: usingMpv ? mpv.position : (videoRef.current?.currentTime ?? 0),
-    duration: usingMpv ? mpv.duration : (videoRef.current?.duration ?? 0),
+    position: usingMpv ? mpv.position : builtinClock.position,
+    duration: usingMpv ? mpv.duration : builtinClock.duration,
     ready: usingMpv
       ? playbackCurrent && !mpv.idle
-      : (videoRef.current?.readyState ?? 0) >= 1,
+      : builtinClock.session === sessionId,
   });
 
   // Roll on when an episode finishes, if there is somewhere to go.
@@ -704,10 +709,28 @@ export function PlayerOverlay() {
         <div ref={surfaceRef} className="size-full" />
       ) : (
         <video
+          key={sessionId}
           ref={videoRef}
           src={source.locator}
           autoPlay
           className="size-full"
+          onLoadedMetadata={(event) => {
+            const video = event.currentTarget;
+            const start = usePlayer.getState().startAt;
+            if (start != null) video.currentTime = start;
+            setBuiltinClock({
+              session: sessionId,
+              position: video.currentTime,
+              duration: video.duration,
+            });
+          }}
+          onTimeUpdate={(event) =>
+            setBuiltinClock({
+              session: sessionId,
+              position: event.currentTarget.currentTime,
+              duration: event.currentTarget.duration,
+            })
+          }
           onError={() => {
             if (decision.reasons.length > 0 && !decision.needsMpv) {
               setOverride("mpv");

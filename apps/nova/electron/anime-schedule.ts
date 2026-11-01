@@ -120,7 +120,7 @@ export class AnimeSchedule {
         variables: Record<string, unknown> = {};
       const definitions = batch.map((row, i) => {
         variables[`q${i}`] = row.item.title;
-        variables[`y${i}`] = row.item.year;
+        variables[`y${i}`] = row.item.year ?? undefined;
         return `$q${i}:String,$y${i}:Int`;
       });
       const fields = batch.map(
