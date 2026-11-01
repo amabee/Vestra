@@ -276,6 +276,7 @@ function MediaDetailsRoute() {
       await bridge.progress.save({
         ref: ref as MediaRef,
         episodeId: input.entry.source.fileId,
+        episodeNumber: input.entry.source.episode ?? null,
         positionSeconds: input.watched ? seconds : 0,
         durationSeconds: seconds,
       });

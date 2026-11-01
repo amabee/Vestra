@@ -155,6 +155,7 @@ export function AnimeDetails() {
           bridge.progress.save({
             ref: ref!,
             episodeId: episodeId(entry),
+            episodeNumber: entry.episode ?? null,
             positionSeconds: saved(entry)?.durationSeconds || 1,
             durationSeconds: saved(entry)?.durationSeconds || 1,
           }),
@@ -173,6 +174,7 @@ export function AnimeDetails() {
       bridge.progress.save({
         ref: ref!,
         episodeId: episodeId(entry),
+        episodeNumber: entry.episode ?? null,
         positionSeconds: watched ? saved(entry)?.durationSeconds || 1 : 0,
         durationSeconds: saved(entry)?.durationSeconds || 1,
       }),

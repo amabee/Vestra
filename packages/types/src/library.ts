@@ -35,6 +35,8 @@ export const watchProgressSchema = z.object({
   ref: mediaRefSchema,
   /** Episode id for series; null for movies and single videos. */
   episodeId: z.string().nullable().default(null),
+  /** Actual episode label when known; absent in older records. */
+  episodeNumber: z.number().nonnegative().max(10000).nullable().optional(),
   positionSeconds: z.number().nonnegative().default(0),
   durationSeconds: z.number().nonnegative().default(0),
   /** Derived 0–1 completion, persisted so lists sort without recomputing. */
@@ -53,6 +55,7 @@ export const historyEntrySchema = z.object({
   ref: mediaRefSchema,
   snapshot: mediaItemSchema,
   episodeId: z.string().nullable().default(null),
+  episodeNumber: z.number().nonnegative().max(10000).nullable().optional(),
   watchedAt: z.number().int(),
   positionSeconds: z.number().nonnegative().default(0),
   completed: z.boolean().default(false),

@@ -680,6 +680,7 @@ export const bridge = {
     save: async (input: {
       ref: MediaRef;
       episodeId?: string | null;
+      episodeNumber?: number | null;
       positionSeconds: number;
       durationSeconds: number;
     }): Promise<WatchProgress> =>
@@ -714,6 +715,7 @@ export const bridge = {
     add: async (input: {
       item: MediaItem;
       episodeId?: string | null;
+      episodeNumber?: number | null;
       positionSeconds?: number;
       completed?: boolean;
     }): Promise<HistoryEntry[]> =>

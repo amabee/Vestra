@@ -1,3 +1,4 @@
+import { usePlaybackPersistence } from "./use-playback-persistence";
 import { mediaKey, type MediaItem } from "@vestra/types";
 import { preferChapters, skipRangesFromChapters } from "@vestra/core/chapters";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -665,47 +666,17 @@ export function PlayerOverlay() {
    * effect below re-ran every render — and its cleanup called the save, which
    * set state, which rendered again. React caught it as error #185.
    */
-  const stateRef = useRef<{
-    item: MediaItem | null;
-    position: number;
-    duration: number;
-    episodeId: string | null;
-  }>({ item: null, position: 0, duration: 0, episodeId: null });
-
-  stateRef.current = {
+  const persist = usePlaybackPersistence({
     item,
+    episodeId: progressId,
+    episodeNumber: source?.episode ?? null,
+    sessionId,
     position: usingMpv ? mpv.position : (videoRef.current?.currentTime ?? 0),
     duration: usingMpv ? mpv.duration : (videoRef.current?.duration ?? 0),
-    episodeId: progressId,
-  };
-
-  const persist = useCallback(() => {
-    const {
-      item: current,
-      position: at,
-      duration: total,
-      episodeId,
-    } = stateRef.current;
-    if (!current || total <= 0 || at <= 0) return;
-
-    void bridge.progress
-      .save({
-        ref: current,
-        episodeId,
-        positionSeconds: at,
-        durationSeconds: total,
-      })
-      .catch(() => undefined);
-  }, []);
-
-  useEffect(() => {
-    if (!item) return;
-    const timer = setInterval(persist, 15_000);
-    return () => {
-      clearInterval(timer);
-      persist();
-    };
-  }, [item, persist]);
+    ready: usingMpv
+      ? playbackCurrent && !mpv.idle
+      : (videoRef.current?.readyState ?? 0) >= 1,
+  });
 
   // Roll on when an episode finishes, if there is somewhere to go.
   useEffect(() => {
