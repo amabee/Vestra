@@ -1,0 +1,32 @@
+/* Hallmark tokens: Vestra brand overrides the Rim starting palette and faces. */
+:root {
+  color-scheme: dark;
+  --color-paper: oklch(14.5% 0.006 60);
+  --color-paper-2: oklch(18.5% 0.007 60);
+  --color-paper-3: oklch(24% 0.008 60);
+  --color-ink: oklch(92% 0.008 85);
+  --color-muted: oklch(75% 0.008 85);
+  --color-rule: oklch(33% 0.008 60);
+  --color-field: oklch(62% 0.008 60);
+  --color-accent: oklch(70% 0.17 33);
+  --color-accent-ink: oklch(14.5% 0.006 60);
+  --color-focus: oklch(80% 0.14 85);
+  --color-link: oklch(80% 0.12 33);
+  --color-clear: transparent;
+  --font-body: 'Inter Variable', system-ui, sans-serif;
+  --font-display: 'Instrument Serif', Georgia, serif;
+  --font-code: 'JetBrains Mono Variable', ui-monospace, monospace;
+  --container: 1400px;
+  --gutter: clamp(20px, 4vw, 64px);
+  --astro-code-color-text: var(--color-ink);
+  --astro-code-color-background: var(--color-paper-2);
+  --astro-code-token-constant: var(--color-link);
+  --astro-code-token-string: var(--color-link);
+  --astro-code-token-comment: var(--color-muted);
+  --astro-code-token-keyword: var(--color-link);
+  --astro-code-token-parameter: var(--color-ink);
+  --astro-code-token-function: var(--color-ink);
+  --astro-code-token-string-expression: var(--color-link);
+  --astro-code-token-punctuation: var(--color-muted);
+  --astro-code-token-link: var(--color-link);
+}

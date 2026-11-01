@@ -1,0 +1,22 @@
+---
+import { getCollection, render } from 'astro:content';
+import Shell from '../layouts/Shell.astro';
+import { pages } from '../lib/pages.mjs';
+export async function getStaticPaths() {
+  const entries = await getCollection('docs');
+  return pages.map(page => {
+    const entry = entries.find(e => e.id === page.id);
+    if (!entry) throw new Error('Missing documentation: ' + page.id);
+    return { params: { slug: page.path }, props: { page, entry } };
+  });
+}
+const { page, entry } = Astro.props;
+const { Content, headings } = await render(entry);
+const index = pages.findIndex(p => p.path === page.path);
+const previous = pages[index - 1], next = pages[index + 1];
+---
+<Shell title={page.title} description={page.description} current={page.path} headings={headings}>
+  <article class="prose"><Content/></article>
+  <nav class="page-turn" aria-label="Adjacent pages">{previous ? <a href={'/' + previous.path + '/'}><span>Previous</span>{previous.title}</a> : <span/>}{next && <a href={'/' + next.path + '/'}><span>Next</span>{next.title}</a>}</nav>
+  <p class="source-link"><a href={'https://github.com/amabee/Vestra/blob/main/docs/' + page.id + '.md'}>Edit this page on GitHub</a></p>
+</Shell>

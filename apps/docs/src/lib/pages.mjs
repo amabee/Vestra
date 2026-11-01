@@ -1,0 +1,15 @@
+export const pages = [
+  { id: 'website/start', path: 'start', title: 'Start using Vestra', group: 'Using Vestra', description: 'Run the desktop app and connect your first source.' },
+  { id: 'website/extensions', path: 'using/extensions', title: 'Install an extension', group: 'Using Vestra', description: 'Install from a folder, manifest link or registry.' },
+  { id: 'website/browsing', path: 'using/browsing', title: 'Browse your sources', group: 'Using Vestra', description: 'Discover anime and understand source availability.' },
+  { id: 'website/reading', path: 'using/reading', title: 'Read manga', group: 'Using Vestra', description: 'Choose a source, open chapters and resume reading.' },
+  { id: 'extension-quickstart', path: 'extensions/quickstart', title: 'Your first extension', group: 'Build an extension', description: 'A complete two-file native anime extension.' },
+  { id: 'website/anime', path: 'extensions/anime', title: 'Anime source contract', group: 'Build an extension', description: 'Search titles, list episodes and return playable streams.' },
+  { id: 'native-manga-sdk', path: 'extensions/manga', title: 'Manga source contract', group: 'Build an extension', description: 'Search manga, list chapters and deliver page metadata.' },
+  { id: 'website/discovery', path: 'extensions/discovery', title: 'Discovery feeds', group: 'Build an extension', description: 'Offer suggested, ongoing, latest and upcoming titles.' },
+  { id: 'website/manifest', path: 'reference/manifest', title: 'Manifest reference', group: 'Reference', description: 'Identity, entry files, roles, permissions and artwork.' },
+  { id: 'website/host', path: 'reference/host', title: 'Host API', group: 'Reference', description: 'Make permitted requests and log source diagnostics.' },
+  { id: 'website/publishing', path: 'extensions/publishing', title: 'Publish an extension', group: 'Reference', description: 'Share a manifest link or maintain a registry.' },
+  { id: 'website/troubleshooting', path: 'troubleshooting', title: 'Troubleshooting', group: 'Reference', description: 'Resolve installation, source, playback and reading problems.' },
+];
+export const groups = [...new Set(pages.map(p => p.group))];

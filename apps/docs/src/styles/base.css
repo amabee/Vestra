@@ -1,0 +1,23 @@
+/* Hallmark base: restrained documentation surface. */
+* { box-sizing: border-box; }
+html, body { margin: 0; overflow-x: clip; }
+html { scroll-padding-top: 2rem; }
+body { background: var(--color-paper); color: var(--color-ink); font: 400 16px/1.65 var(--font-body); }
+::selection { background: var(--color-accent); color: var(--color-accent-ink); }
+:root { scrollbar-color: var(--color-field) var(--color-paper); caret-color: var(--color-accent); }
+a { color: inherit; text-underline-offset: 4px; }
+a:hover { color: var(--color-link); }
+:where(a, button, input, summary, select):focus-visible { outline: 2px solid var(--color-focus); outline-offset: 4px; }
+button, input { font: inherit; }
+button, summary { cursor: pointer; }
+button:active, .button:active { opacity: .8; }
+button:disabled { opacity: .55; cursor: not-allowed; }
+button[aria-busy='true'] { cursor: progress; }
+h1, h2, h3 { font-weight: 400; line-height: 1.12; overflow-wrap: break-word; min-width: 0; }
+h1, h2 { font-family: var(--font-display); }
+h1 { font-size: clamp(42px, 5.2vw, 76px); margin: 0 0 24px; }
+h2 { font-size: 36px; }
+h3 { font-size: 20px; }
+p { margin: 0 0 20px; }
+[hidden] { display: none !important; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }
