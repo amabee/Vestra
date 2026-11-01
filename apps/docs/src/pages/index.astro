@@ -1,0 +1,21 @@
+---
+import Shell from '../layouts/Shell.astro';
+import { pages } from '../lib/pages.mjs';
+---
+<Shell title="Make Vestra yours" description="Set up Vestra, find your sources and build native anime and manga extensions.">
+  <section class="docs-hero">
+    <h1>Make Vestra yours.</h1>
+    <p>Set up your library. Build the sources it runs on.</p>
+    <div class="actions"><a class="button primary" href="/start/">Set up Vestra</a><a class="button" href="/extensions/quickstart/">Build an extension</a></div>
+  </section>
+  <section class="start-index" aria-label="Documentation paths">
+    <a href="/start/"><h2>Your library, connected.</h2><p>Install sources, discover anime and settle into a chapter.</p></a>
+    <a href="/extensions/quickstart/"><h2>Two files. Your source.</h2><p>Start with a manifest and connect your first search result.</p></a>
+    <a href="/reference/manifest/"><h2>The contract, in detail.</h2><p>Roles, permissions, host requests and release manifests.</p></a>
+  </section>
+  <section class="manifest-section">
+    <div><h2>An extension starts here.</h2><p>A native manifest tells Vestra what your source provides and which permissions it needs.</p><a href="/reference/manifest/">Read the manifest reference</a></div>
+    <div class="manifest-example"><p>manifest.json</p><pre><code>{JSON.stringify({id:'my-anime-source',name:'My Anime Source',version:'1.0.0',sdkVersion:'1.2.0',main:'index.js',role:'stream-source',kinds:['anime'],permissions:[],hosts:[]},null,2)}</code></pre></div>
+  </section>
+  <section class="reference-index"><h2>Find the right page.</h2><ul>{pages.filter(p => ['extensions/anime', 'extensions/manga', 'extensions/discovery', 'reference/host', 'extensions/publishing', 'troubleshooting'].includes(p.path)).map(page => <li><a href={'/' + page.path + '/'}><h3>{page.title}</h3><p>{page.description}</p></a></li>)}</ul></section>
+</Shell>

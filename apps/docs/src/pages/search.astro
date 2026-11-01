@@ -1,0 +1,32 @@
+---
+import Shell from '../layouts/Shell.astro';
+import { pages } from '../lib/pages.mjs';
+import { getCollection } from 'astro:content';
+const entries = await getCollection('docs');
+const index = pages.map(page => ({...page, body: entries.find(e => e.id === page.id)?.body ?? ''}));
+---
+<Shell title="Search" description="Search Vestra guides and extension reference." current="search">
+<h1>Search the documentation.</h1>
+<form class="search-form" action="/search/"><label for="doc-search">Find a guide, method or setting</label><input id="doc-search" type="search" name="q" placeholder="Try getStreams or manga" autocomplete="off"/><button class="button primary" type="submit">Search</button></form>
+<p id="search-status" role="status">Browse all documentation below.</p>
+<ul class="search-results">{pages.map(page => <li data-doc={page.path}><a href={'/' + page.path + '/'}><h2>{page.title}</h2><p>{page.description}</p></a></li>)}</ul>
+<script type="application/json" id="search-index" set:html={JSON.stringify(index).replaceAll('<', '\u003c')}/>
+<script>
+  const input = document.querySelector<HTMLInputElement>('#doc-search')!;
+  const data = JSON.parse(document.querySelector('#search-index')!.textContent!);
+  const status = document.querySelector('#search-status')!;
+  const filter = () => {
+    const value = input.value.trim().toLowerCase(); const terms = value.split(/\s+/).filter(Boolean); let count = 0;
+    for (const page of data) {
+      const found = terms.every(term => (page.title + ' ' + page.description + ' ' + page.body).toLowerCase().includes(term));
+      const row = document.querySelector<HTMLElement>(`[data-doc="${page.path}"]`)!; row.hidden = !found; if (found) count++;
+    }
+    status.textContent = count ? `${count} ${count === 1 ? 'page' : 'pages'} found.` : 'No matching pages. Try a method name or a shorter phrase.';
+    const url = new URL(location.href); value ? url.searchParams.set('q', input.value) : url.searchParams.delete('q'); history.replaceState(null, '', url);
+  };
+  input.value = new URLSearchParams(location.search).get('q') ?? '';
+  input.addEventListener('input', filter);
+  document.querySelector('form')!.addEventListener('submit', event => { event.preventDefault(); filter(); });
+  filter(); input.focus();
+</script>
+</Shell>

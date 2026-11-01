@@ -1,0 +1,1 @@
+{"extends":["//"],"tasks":{"build":{"inputs":["$TURBO_DEFAULT$","$TURBO_ROOT$/docs/**","$TURBO_ROOT$/packages/extension-host/README.md"]}}}

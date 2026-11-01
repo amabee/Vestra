@@ -1,0 +1,48 @@
+---
+import '@fontsource-variable/inter';
+import '@fontsource/instrument-serif/400.css';
+import '@fontsource-variable/jetbrains-mono';
+import '../styles/site.css';
+import { pages, groups } from '../lib/pages.mjs';
+interface Props { title: string; description: string; current?: string; headings?: { depth: number; slug: string; text: string }[]; }
+const { title, description, current = '', headings = [] } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="description" content={description}/><title>{title} | Vestra Docs</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"/><style is:global>html, body { overflow-x: clip; }</style></head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="masthead container">
+  <a class="wordmark" href="/" aria-label="Vestra documentation home">Vestra<span>Documentation</span></a>
+  <nav aria-label="Primary"><a href="/start/">App guide</a><a href="/extensions/quickstart/">Extension SDK</a><a class="search-link" href="/search/">Search docs <kbd>/</kbd></a><a href="https://github.com/amabee/Vestra">GitHub</a></nav>
+</header>
+<div class:list={['container', 'site-layout', { 'home-layout': current === '' }]}>
+  {current !== '' && <aside class="sidebar"><details open><summary>Documentation menu</summary><nav aria-label="Documentation">{groups.map(group => <section><h2>{group}</h2><ul>{pages.filter(p => p.group === group).map(page => <li><a href={'/' + page.path + '/'} aria-current={current === page.path ? 'page' : undefined}>{page.title}</a></li>)}</ul></section>)}</nav></details></aside>}
+  <main id="main"><slot/></main>
+  {current !== '' && <aside class="toc"><nav aria-label="On this page"><h2>On this page</h2><ul>{headings.filter(h => h.depth === 2).map(h => <li><a href={'#' + h.slug}>{h.text}</a></li>)}</ul></nav></aside>}
+</div>
+<footer class="container site-footer"><a class="wordmark" href="/">Vestra</a><p>App guides and native extension reference.</p><a href="/troubleshooting/">Find a fix</a><a href="https://github.com/amabee/Vestra">View source</a></footer>
+<script>
+  const mobile = matchMedia('(max-width: 850px)');
+  const menu = document.querySelector<HTMLDetailsElement>('.sidebar details');
+  const fitMenu = () => { if (menu) menu.open = !mobile.matches; };
+  fitMenu(); mobile.addEventListener('change', fitMenu);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === '/' && !event.metaKey && !event.ctrlKey && !event.altKey && !(event.target instanceof HTMLElement && (event.target.matches('input, textarea, select') || event.target.isContentEditable))) {
+      event.preventDefault();
+      if (location.pathname === '/search/') document.querySelector<HTMLInputElement>('#doc-search')?.focus();
+      else location.assign('/search/');
+    }
+  });
+  document.querySelectorAll('pre').forEach((pre) => {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'copy-code'; button.textContent = 'Copy'; button.setAttribute('aria-label', 'Copy code');
+    button.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(pre.querySelector('code')?.textContent ?? ''); button.textContent = 'Copied'; }
+      catch { button.textContent = 'Select code to copy'; }
+      setTimeout(() => button.textContent = 'Copy', 1800);
+    });
+    pre.append(button);
+  });
+</script>
+</body></html>

@@ -48,7 +48,9 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
     "typecheck": "turbo run typecheck",
-    "clean": "turbo run clean && rimraf node_modules"
+    "clean": "turbo run clean && rimraf node_modules",
+    "dev:docs": "pnpm --filter @vestra/docs dev",
+    "build:docs": "pnpm --filter @vestra/docs build"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",
