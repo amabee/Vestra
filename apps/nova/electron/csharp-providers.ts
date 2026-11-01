@@ -182,9 +182,13 @@ export async function activateCSharpSource(
         return resolveEpisodeServers(
           settings.episodeServers,
           definition.preferredServer,
-          async (server) => {
+          async (server, mirrorSignal) => {
             try {
-              return await call("findEpisodeServer", [episode, server], signal);
+              return await call(
+                "findEpisodeServer",
+                [episode, server],
+                mirrorSignal,
+              );
             } catch (error) {
               const embed = streamplayEmbed(error);
               if (!embed) throw error;
@@ -192,11 +196,12 @@ export async function activateCSharpSource(
                 embed,
                 server,
                 episode.url ?? "",
-                signal,
+                mirrorSignal,
               );
             }
           },
-          (result) => probePlayableStream(result, safeFetch, signal),
+          (result, mirrorSignal) =>
+            probePlayableStream(result, safeFetch, mirrorSignal),
           signal,
           (args[1] as { excludeServers?: string[] } | undefined)
             ?.excludeServers ?? [],

@@ -136,13 +136,20 @@ if (process.argv.includes("--live"))
           preferences: definition.preferences,
         },
       });
-      const call = (method, args = []) =>
-        worker.request({
-          kind: "call",
-          providerId: definition.id,
-          method,
-          args,
-        });
+      const timings = {};
+      const call = async (method, args = [], signal) => {
+        const started = performance.now();
+        try {
+          return await worker.request(
+            { kind: "call", providerId: definition.id, method, args },
+            signal,
+          );
+        } finally {
+          (timings[method] ??= []).push(
+            Math.round(performance.now() - started),
+          );
+        }
+      };
       const titles = await call("search", [
         {
           query: "Battle",
@@ -166,15 +173,19 @@ if (process.argv.includes("--live"))
       const rows = await resolveEpisodeServers(
         settings.episodeServers,
         definition.preferredServer,
-        (server) => call("findEpisodeServer", [episodes[0], server]),
-        async (row) => {
+        (server, signal) =>
+          call("findEpisodeServer", [episodes[0], server], signal),
+        async (row, signal) => {
           for (const video of row.videoSources) {
-            const response = await safeFetch({
-              url: video.url,
-              headers: { ...row.headers, ...video.headers },
-              maxBytes: 1048576,
-              timeoutMs: 7000,
-            });
+            const response = await safeFetch(
+              {
+                url: video.url,
+                headers: { ...row.headers, ...video.headers },
+                maxBytes: 1048576,
+                timeoutMs: 7000,
+              },
+              signal,
+            );
             assert.equal(response.status, 200);
             assert.match(response.body.trimStart(), /^#EXTM3U/);
           }
@@ -189,6 +200,7 @@ if (process.argv.includes("--live"))
           episodes: episodes.length,
           server: rows[0].server,
           manifest: "verified",
+          timingsMs: timings,
         }),
       );
       if (process.argv.includes("--native")) {
@@ -291,22 +303,28 @@ test("cancelling pending mirrors rejects without waiting for their network deadl
   await assert.rejects(pending, { name: "AbortError" });
 });
 
-test("parallel extraction retains timely backups and ignores late mirrors", async (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
+test("first validated mirror starts playback immediately and cancels late work", async () => {
   let release;
+  let lateSignal;
+  const probed = [];
   const pending = resolveEpisodeServers(
     ["One", "Two"],
     undefined,
-    async (server) =>
-      server === "One"
-        ? result(server)
-        : new Promise((resolve) => {
-            release = resolve;
-          }),
+    async (server, signal) => {
+      if (server === "One") return result(server);
+      lateSignal = signal;
+      return new Promise((resolve) => {
+        release = resolve;
+      });
+    },
+    async (row) => {
+      probed.push(row.server);
+      return row;
+    },
   );
-  await new Promise((resolve) => setImmediate(resolve));
-  t.mock.timers.tick(3001);
+  // No timer needs to elapse to receive the playable stream.
   const rows = await pending;
+  assert.equal(lateSignal.aborted, true);
   assert.deepEqual(
     rows.map((row) => row.server),
     ["One"],
@@ -314,7 +332,32 @@ test("parallel extraction retains timely backups and ignores late mirrors", asyn
   release(result("Two"));
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(
+    probed,
+    ["One"],
+    "late extraction must not start a manifest request",
+  );
+  assert.deepEqual(
     rows.map((row) => row.server),
     ["One"],
   );
+});
+
+test("mirror budget cancels outstanding manifest probes", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let probeSignal;
+  const pending = resolveEpisodeServers(
+    ["One"],
+    undefined,
+    async () => result("One"),
+    async (_row, signal) => {
+      probeSignal = signal;
+      return new Promise(() => {});
+    },
+  );
+  const rejected = assert.rejects(pending, /time limit/);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(probeSignal.aborted, false);
+  t.mock.timers.tick(40001);
+  await rejected;
+  assert.equal(probeSignal.aborted, true);
 });
