@@ -1,6 +1,7 @@
 export const pages = [
   { id: 'website/start', path: 'start', title: 'Start using Vestra', group: 'Using Vestra', description: 'Run the desktop app and connect your first source.' },
   { id: 'website/extensions', path: 'using/extensions', title: 'Install an extension', group: 'Using Vestra', description: 'Install from a folder, manifest link or registry.' },
+  { id: 'website/moviebox', path: 'using/moviebox', title: 'MovieBox source', group: 'Using Vestra', description: 'Connect the native Movies/TV source and understand guest access.' },
   { id: 'website/browsing', path: 'using/browsing', title: 'Browse your sources', group: 'Using Vestra', description: 'Discover anime and understand source availability.' },
   { id: 'website/reading', path: 'using/reading', title: 'Read manga', group: 'Using Vestra', description: 'Choose a source, open chapters and resume reading.' },
   { id: 'extension-quickstart', path: 'extensions/quickstart', title: 'Your first extension', group: 'Build an extension', description: 'A complete two-file native anime extension.' },

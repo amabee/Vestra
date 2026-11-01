@@ -66,7 +66,10 @@ for catalogue coverage, progress migration limits and the completed checks.
 - [ ] Implement real native provider discovery integrations beyond the authoring template.
 - [ ] Publish the documentation to a chosen public host/domain.
 - [x] Movies/TV installed-source search and discovery, season-aware queues and native SDK 1.3 authoring template.
-- [ ] Choose and implement the first live Movies/TV website extension; verify its search-to-play flow.
+- [x] Native MovieBox public guest source: Popular/Latest, search, seasons, accessible MP4/HLS and subtitles; live bounded video checks.
+- [x] SDK 1.4 opt-in source sessions with existing host grants and separate permission review.
+- [ ] Verify sustained Movies/TV playback and evaluate HD-capable sources; MovieBox guest samples returned SD only.
+- [ ] Evaluate KissKH and Pinoymoviepedia as separate native sources; neither is implemented yet.
 
 ## Independent extension platform
 

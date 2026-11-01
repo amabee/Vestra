@@ -22,11 +22,19 @@ export interface PermissionDescriptor {
   risk: string;
 }
 
-export const PERMISSION_DESCRIPTORS: Record<ExtensionPermission, PermissionDescriptor> = {
+export const PERMISSION_DESCRIPTORS: Record<
+  ExtensionPermission,
+  PermissionDescriptor
+> = {
   network: {
     permission: "network",
     title: "Connect to the internet",
     risk: "Can send anything it can read to the hosts it declares. Requests are proxied by Vestra and limited to those hosts, but their contents are the extension's to choose.",
+  },
+  "network:session": {
+    permission: "network:session",
+    title: "Use source sessions",
+    risk: "Can send its own API authorization and source headers to the hosts you allow. This does not expose your browser cookies or signed-in accounts.",
   },
   "library:read": {
     permission: "library:read",

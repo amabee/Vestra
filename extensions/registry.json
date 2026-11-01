@@ -1,0 +1,19 @@
+[
+  {
+    "id": "vestra-moviebox",
+    "name": "MovieBox",
+    "version": "0.1.0",
+    "author": "Vestra",
+    "description": "Native Movies/TV source with Popular, Latest, seasons and subtitles. Guest quality and availability depend on MovieBox; locked renditions are excluded.",
+    "type": "custom-source",
+    "language": "javascript",
+    "lang": "multi",
+    "icon": "https://h5.inmoviebox.com/favicon.ico",
+    "manifestURI": "https://raw.githubusercontent.com/amabee/Vestra/d84273671c613d0d55a1042caabc071f387b80b8/extensions/moviebox/manifest.json",
+    "payloadURI": "https://raw.githubusercontent.com/amabee/Vestra/d84273671c613d0d55a1042caabc071f387b80b8/extensions/moviebox/index.js",
+    "website": "https://github.com/amabee/Vestra/tree/d84273671c613d0d55a1042caabc071f387b80b8/extensions/moviebox",
+    "tags": ["vestra", "native", "movies", "tv"],
+    "workingTag": true,
+    "lastWorkingVersion": "0.1.0"
+  }
+]

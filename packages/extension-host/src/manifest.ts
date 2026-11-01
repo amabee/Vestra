@@ -25,6 +25,7 @@ const hostSchema = z
 
 export const extensionPermissionSchema = z.enum([
   "network",
+  "network:session",
   "library:read",
   "progress:read",
 ]);
@@ -109,6 +110,15 @@ export const extensionManifestSchema = z
       .optional(),
   })
   .superRefine((manifest, ctx) => {
+    if (
+      manifest.permissions.includes("network:session") &&
+      !manifest.permissions.includes("network")
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["permissions"],
+        message: "Source sessions also require network permission.",
+      });
     if (
       manifest.discovery &&
       (manifest.role !== "stream-source" ||

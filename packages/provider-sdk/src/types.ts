@@ -220,6 +220,8 @@ export interface ExtensionManifest {
 export type ExtensionPermission =
   /** Outbound HTTP. Hosts are allow-listed by the loader. */
   | "network"
+  /** Extension-owned guest/API session headers; never browser account cookies. */
+  | "network:session"
   /** Read the user's local library index. */
   | "library:read"
   /** Read stored playback progress. */

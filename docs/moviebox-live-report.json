@@ -1,0 +1,54 @@
+{
+  "checkedAt": "2026-11-01T15:34:46.757Z",
+  "extension": "vestra-moviebox",
+  "version": "0.1.0",
+  "checks": [
+    {
+      "kind": "movie",
+      "category": "popular",
+      "collectionItems": 24,
+      "hasMore": true
+    },
+    {
+      "kind": "movie",
+      "category": "latest",
+      "collectionItems": 24,
+      "hasMore": true
+    },
+    {
+      "kind": "tv",
+      "category": "popular",
+      "collectionItems": 24,
+      "hasMore": true
+    },
+    {
+      "kind": "tv",
+      "category": "latest",
+      "collectionItems": 24,
+      "hasMore": true
+    },
+    {
+      "kind": "tv",
+      "title": "Sherlock",
+      "searchResults": 22,
+      "episodes": 12,
+      "qualities": ["360p", "480p"],
+      "subtitleTracks": 9,
+      "resolutionMs": 1448,
+      "sampleBytes": 4096,
+      "sampleMs": 392
+    },
+    {
+      "kind": "movie",
+      "title": "Night of the Living Dead",
+      "searchResults": 20,
+      "episodes": 1,
+      "qualities": ["480p"],
+      "subtitleTracks": 13,
+      "resolutionMs": 1171,
+      "sampleBytes": 4096,
+      "sampleMs": 58
+    }
+  ],
+  "scope": "Public guest session, catalogue/episodes/streams and bounded video bytes; no app installation or sustained playback."
+}

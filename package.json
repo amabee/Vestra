@@ -55,7 +55,9 @@
     "test:anime:hub": "node apps/nova/scripts/test-anime-hub.mjs",
     "test:anime:hub:ui": "node apps/nova/scripts/test-anime-hub-ui.mjs",
     "test:screen": "node apps/nova/scripts/test-screen-sources.mjs",
-    "test:screen:ui": "node apps/nova/scripts/test-screen-ui.mjs"
+    "test:screen:ui": "node apps/nova/scripts/test-screen-ui.mjs",
+    "test:moviebox": "pnpm --filter @vestra/extension-host exec vitest run src/examples/moviebox.test.ts src/net.test.ts",
+    "test:moviebox:live": "node apps/nova/scripts/test-moviebox-live.mjs --live"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",

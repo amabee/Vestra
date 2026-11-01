@@ -1,0 +1,23 @@
+{
+  "id": "vestra-moviebox",
+  "name": "MovieBox",
+  "version": "0.1.0",
+  "main": "index.js",
+  "sdkVersion": "1.4.0",
+  "role": "stream-source",
+  "kinds": ["movie", "tv"],
+  "permissions": ["network", "network:session"],
+  "hosts": [
+    "h5-api.aoneroom.com",
+    "h5.inmoviebox.com",
+    "mzfi.me",
+    "pbcdnw.aoneroom.com",
+    "bcdnxw.hakunaymatata.com",
+    "cacdn.hakunaymatata.com"
+  ],
+  "author": "Vestra",
+  "description": "Movies and TV from MovieBox. Available quality and access depend on the source; premium-locked renditions are excluded.",
+  "homepage": "https://h5.inmoviebox.com/",
+  "icon": "https://h5.inmoviebox.com/favicon.ico",
+  "discovery": { "categories": ["popular", "latest"] }
+}

@@ -115,6 +115,58 @@ describe("isChallengeResponse", () => {
 });
 
 describe("brokeredFetch challenge handling", () => {
+  it("keeps session headers opt-in and never forwards Cookie or Host", async () => {
+    const calls: Record<string, string>[] = [];
+    const transport: GuardedTransport = {
+      request: async (input) => {
+        calls.push(input.headers);
+        return { status: 200, headers: {}, body: "ok" };
+      },
+    };
+    const request = {
+      url: "https://example.com/a",
+      headers: {
+        Authorization: "Bearer extension-guest",
+        Referer: "https://example.com/title",
+        Cookie: "browser-secret",
+        Host: "elsewhere.example",
+      },
+    };
+    await createBrokeredFetch(grant, transport)!(request);
+    expect(calls[0]).toEqual({});
+    await createBrokeredFetch(
+      { ...grant, granted: ["network", "network:session"] },
+      transport,
+    )!(request);
+    expect(calls[1]).toEqual({
+      authorization: "Bearer extension-guest",
+      referer: "https://example.com/title",
+    });
+  });
+  it("rejects session header injection, disabled restrictions and hosts outside the grant", async () => {
+    const fetcher = createBrokeredFetch(
+      { ...grant, granted: ["network", "network:session"] },
+      transportReturning({ status: 200, headers: {}, body: "ok" }),
+    )!;
+    await expect(
+      fetcher({
+        url: "https://example.com/",
+        headers: { Authorization: "Bearer token\r\nInjected: value" },
+      }),
+    ).rejects.toThrow(/header/);
+    await expect(
+      fetcher({
+        url: "https://example.com/",
+        headers: { "X-Vip-Restrict": "0" },
+      }),
+    ).rejects.toThrow(/restriction/);
+    await expect(
+      fetcher({
+        url: "https://other.example/",
+        headers: { Authorization: "Bearer extension-guest" },
+      }),
+    ).rejects.toThrow(/hosts/);
+  });
   it("throws rather than returning a challenge body", async () => {
     const fetcher = createBrokeredFetch(
       grant,
@@ -125,9 +177,9 @@ describe("brokeredFetch challenge handling", () => {
       }),
     );
 
-    await expect(fetcher?.({ url: "https://example.com/a" })).rejects.toBeInstanceOf(
-      SourceChallengedError,
-    );
+    await expect(
+      fetcher?.({ url: "https://example.com/a" }),
+    ).rejects.toBeInstanceOf(SourceChallengedError);
   });
 
   it("names the host so the user knows which site refused", async () => {
@@ -151,7 +203,9 @@ describe("brokeredFetch challenge handling", () => {
       transportReturning({ status: 200, headers: {}, body: "ok" }),
     );
 
-    await expect(fetcher?.({ url: "https://example.com/a" })).resolves.toMatchObject({
+    await expect(
+      fetcher?.({ url: "https://example.com/a" }),
+    ).resolves.toMatchObject({
       status: 200,
       body: "ok",
     });
@@ -165,9 +219,9 @@ describe("brokeredFetch challenge handling", () => {
 
     // Different class, because one is a permission the user can change and the
     // other is a site that does not want automated access.
-    await expect(fetcher?.({ url: "https://blocked.example/a" })).rejects.toBeInstanceOf(
-      NetworkDeniedError,
-    );
+    await expect(
+      fetcher?.({ url: "https://blocked.example/a" }),
+    ).rejects.toBeInstanceOf(NetworkDeniedError);
   });
 
   it("accepts noCloudflareBypass and behaves identically", async () => {
