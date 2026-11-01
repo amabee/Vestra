@@ -22,6 +22,8 @@ import {
   ExternalLink,
   Film,
   Play,
+  ListPlus,
+  Search,
   RotateCcw,
   Star,
 } from "lucide-react";
@@ -40,9 +42,12 @@ const LINK_SOURCE = "links";
 
 /** Scrolls to a section of this page. Plain scrolling, so the router is not touched. */
 function jumpTo(id: string) {
-  document
-    .getElementById(id)
-    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  document.getElementById(id)?.scrollIntoView({
+    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "auto"
+      : "smooth",
+    block: "start",
+  });
 }
 
 export function AnimeDetails() {
@@ -261,6 +266,25 @@ export function AnimeDetails() {
     ) ?? cover;
   const busy = !localMode && episodes.isFetching;
   const watchedCount = queue.filter((entry) => saved(entry)?.completed).length;
+  const watchPercent = queue.length
+    ? Math.round((watchedCount / queue.length) * 100)
+    : 0;
+  const episodeMetadata = new Map(
+    (data?.seasons ?? []).flatMap((season) =>
+      season.episodes.map(
+        (episode) =>
+          [
+            `${episode.seasonNumber}:${episode.episodeNumber}`,
+            episode,
+          ] as const,
+      ),
+    ),
+  );
+  const [section, setSection] = useState("anime-episodes");
+  const goTo = (id: string) => {
+    setSection(id);
+    jumpTo(id);
+  };
 
   if (!ref)
     return (
@@ -309,31 +333,52 @@ export function AnimeDetails() {
         </div>
 
         <div className="anime-hero-body">
-          <div className="anime-poster">
-            {cover ? (
-              <img
-                key={cover}
-                src={cover}
-                width={400}
-                height={600}
-                alt=""
-                referrerPolicy="no-referrer"
-                decoding="async"
-                onError={() => setFailedCovers((values) => [...values, cover])}
-              />
-            ) : (
-              <div className="anime-cover-empty">
-                <Film size={36} />
+          <div className="anime-poster-column">
+            <div className="anime-poster">
+              {cover ? (
+                <img
+                  key={cover}
+                  src={cover}
+                  width={400}
+                  height={600}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                  decoding="async"
+                  onError={() =>
+                    setFailedCovers((values) => [...values, cover])
+                  }
+                />
+              ) : (
+                <div className="anime-cover-empty">
+                  <Film size={36} />
+                  <span>
+                    {details.isPending
+                      ? "Loading artwork…"
+                      : "Artwork unavailable"}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="anime-series-progress">
+              <div>
                 <span>
-                  {details.isPending
-                    ? "Loading artwork…"
-                    : "Artwork unavailable"}
+                  {watchedCount} / {queue.length || "—"} watched
                 </span>
+                <span>{watchPercent}%</span>
               </div>
-            )}
+              <progress
+                value={watchedCount}
+                max={queue.length || 1}
+                aria-label="Series watch progress"
+              />
+            </div>
           </div>
 
           <div className="anime-introduction">
+            {data?.originalTitle && data.originalTitle !== data.title && (
+              <p className="anime-alternative">{data.originalTitle}</p>
+            )}
             {details.isPending ? (
               <div
                 className="anime-skeleton anime-title-skeleton"
@@ -342,9 +387,6 @@ export function AnimeDetails() {
               />
             ) : (
               <h1>{data?.title ?? "Anime information unavailable"}</h1>
-            )}
-            {data?.originalTitle && data.originalTitle !== data.title && (
-              <p className="anime-alternative">{data.originalTitle}</p>
             )}
             {details.error && (
               <div className="anime-message" role="alert">
@@ -383,7 +425,7 @@ export function AnimeDetails() {
             )}
 
             {data?.overview && (
-              <div className="anime-synopsis">
+              <div className="anime-synopsis" id="anime-overview">
                 <p className={expanded ? undefined : "anime-clamp"}>
                   {data.overview}
                 </p>
@@ -444,6 +486,7 @@ export function AnimeDetails() {
                 disabled={!data}
                 onClick={() => setSaveDialog(true)}
               >
+                <ListPlus size={17} />
                 Add to playlist
               </button>
             </div>
@@ -456,20 +499,92 @@ export function AnimeDetails() {
         </div>
       </header>
 
+      <section className="anime-information" aria-label="Anime information">
+        {data && (
+          <div>
+            <dl className="anime-facts">
+              <div>
+                <dt>Format</dt>
+                <dd>{data.isSeries ? "Series" : "Movie"}</dd>
+              </div>
+              {data.year && (
+                <div>
+                  <dt>Year</dt>
+                  <dd>{data.year}</dd>
+                </div>
+              )}
+              <div>
+                <dt>Status</dt>
+                <dd>{data.status.replaceAll("-", " ")}</dd>
+              </div>
+              <div>
+                <dt>Episodes</dt>
+                <dd>{queue.length ? queue.length : "Unknown"}</dd>
+              </div>
+              {data.durationSeconds ? (
+                <div>
+                  <dt>Runtime</dt>
+                  <dd>{formatDuration(data.durationSeconds)}</dd>
+                </div>
+              ) : null}
+              {!!data.studios.length && (
+                <div>
+                  <dt>Studio</dt>
+                  <dd>{data.studios.join(", ")}</dd>
+                </div>
+              )}
+              {!!data.countries.length && (
+                <div>
+                  <dt>Country</dt>
+                  <dd>{data.countries.join(", ")}</dd>
+                </div>
+              )}
+              {!!data.languages.length && (
+                <div>
+                  <dt>Languages</dt>
+                  <dd>{data.languages.join(", ")}</dd>
+                </div>
+              )}
+              {data.rating.score != null && (
+                <div>
+                  <dt>Score</dt>
+                  <dd>
+                    {data.rating.score}%
+                    <span className="anime-score-bar" aria-hidden="true">
+                      <i style={{ width: `${data.rating.score}%` }} />
+                    </span>
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </div>
+        )}
+      </section>
+
       <nav className="anime-tabs" aria-label="Page sections">
         <button
           type="button"
-          className="anime-tab"
-          onClick={() => jumpTo("anime-episodes")}
+          className={`anime-tab ${section === "anime-episodes" ? "is-active" : ""}`}
+          aria-current={section === "anime-episodes" ? "location" : undefined}
+          onClick={() => goTo("anime-episodes")}
         >
           Episodes
           {queue.length > 0 && <span>{queue.length}</span>}
         </button>
+        {data?.overview && (
+          <button
+            type="button"
+            className={`anime-tab ${section === "anime-overview" ? "is-active" : ""}`}
+            onClick={() => goTo("anime-overview")}
+          >
+            Overview
+          </button>
+        )}
         {!!data?.related.length && (
           <button
             type="button"
-            className="anime-tab"
-            onClick={() => jumpTo("anime-related")}
+            className={`anime-tab ${section === "anime-related" ? "is-active" : ""}`}
+            onClick={() => goTo("anime-related")}
           >
             Related anime
             <span>{data.related.length}</span>
@@ -626,7 +741,9 @@ export function AnimeDetails() {
                   </select>
                 )}
                 <label>
-                  Find episode
+                  <span className="anime-input-label">
+                    <Search size={13} /> Find episode
+                  </span>
                   <input
                     type="search"
                     value={query}
@@ -690,6 +807,7 @@ export function AnimeDetails() {
                       const next = new URLSearchParams(params);
                       next.delete("episode");
                       next.delete("filter");
+                      next.delete("season");
                       setParams(next, { replace: true });
                       setLimit(50);
                     }}
@@ -710,9 +828,20 @@ export function AnimeDetails() {
                       episodeId(selectedEntry) === episodeId(entry);
                     const isBookmarked = !!bookmarks.data?.[keyFor(entry)];
                     const number = entry.episode ?? index + 1;
-                    const runtime = saves?.durationSeconds
-                      ? formatDuration(saves.durationSeconds)
-                      : "";
+                    const metadata =
+                      entry.episode != null
+                        ? episodeMetadata.get(
+                            `${entry.season ?? 1}:${entry.episode}`,
+                          )
+                        : undefined;
+                    const still =
+                      metadata?.still && !failedCovers.includes(metadata.still)
+                        ? metadata.still
+                        : null;
+                    const rowArtwork = still ?? backdrop;
+                    const duration =
+                      metadata?.durationSeconds ?? saves?.durationSeconds;
+                    const runtime = duration ? formatDuration(duration) : "";
                     return (
                       <li
                         key={entry.locator}
@@ -722,17 +851,64 @@ export function AnimeDetails() {
                         <span className="anime-episode-number">
                           {String(number).padStart(2, "0")}
                         </span>
-                        <div className="anime-episode-thumb" aria-hidden="true">
-                          <Play size={13} className="fill-current" />
+                        <button
+                          type="button"
+                          className="anime-episode-thumb"
+                          aria-label={`Watch episode ${number}`}
+                          onClick={() => play(index)}
+                        >
+                          {rowArtwork && (
+                            <img
+                              className={still ? undefined : "anime-series-art"}
+                              src={rowArtwork}
+                              alt=""
+                              loading="lazy"
+                              decoding="async"
+                              referrerPolicy="no-referrer"
+                              onError={() =>
+                                setFailedCovers((values) => [
+                                  ...values,
+                                  rowArtwork,
+                                ])
+                              }
+                            />
+                          )}
+                          <span className="anime-thumb-episode">
+                            EP {String(number).padStart(2, "0")}
+                          </span>
+                          <Play
+                            size={20}
+                            className="anime-thumb-play fill-current"
+                          />
                           {partial && (
                             <span
                               className="anime-episode-progress"
                               style={{ width: `${percent}%` }}
                             />
                           )}
-                        </div>
+                        </button>
                         <div className="anime-episode-name">
-                          <h3>{entry.label ?? `Episode ${number}`}</h3>
+                          <span
+                            className={`anime-episode-state ${current ? "is-playing" : ""}`}
+                          >
+                            {current
+                              ? "Currently playing"
+                              : watched
+                                ? "Completed"
+                                : partial
+                                  ? "Continue watching"
+                                  : `Episode ${String(number).padStart(2, "0")}`}
+                            {metadata?.airDate && (
+                              <time dateTime={metadata.airDate}>
+                                {metadata.airDate.slice(0, 10)}
+                              </time>
+                            )}
+                          </span>
+                          <h3>
+                            {metadata?.title ??
+                              entry.label ??
+                              `Episode ${number}`}
+                          </h3>
                           <span>
                             {current
                               ? "Now playing"
@@ -742,6 +918,11 @@ export function AnimeDetails() {
                                   ? `In progress, ${percent}%`
                                   : "Not watched"}
                           </span>
+                          {metadata?.overview && (
+                            <p className="anime-episode-description">
+                              {metadata.overview}
+                            </p>
+                          )}
                         </div>
                         <span className="anime-episode-runtime">{runtime}</span>
                         <div className="anime-row-actions">
@@ -820,65 +1001,6 @@ export function AnimeDetails() {
             </>
           )}
         </section>
-
-        <aside className="anime-side" aria-label="Details">
-          {data && (
-            <section className="anime-panel">
-              <h2>Details</h2>
-              <dl className="anime-facts">
-                {data.year && (
-                  <div>
-                    <dt>Year</dt>
-                    <dd>{data.year}</dd>
-                  </div>
-                )}
-                <div>
-                  <dt>Status</dt>
-                  <dd>{data.status.replaceAll("-", " ")}</dd>
-                </div>
-                <div>
-                  <dt>Episodes</dt>
-                  <dd>{queue.length ? queue.length : "Unknown"}</dd>
-                </div>
-                {data.durationSeconds ? (
-                  <div>
-                    <dt>Runtime</dt>
-                    <dd>{formatDuration(data.durationSeconds)}</dd>
-                  </div>
-                ) : null}
-                {!!data.studios.length && (
-                  <div>
-                    <dt>Studio</dt>
-                    <dd>{data.studios.join(", ")}</dd>
-                  </div>
-                )}
-                {!!data.countries.length && (
-                  <div>
-                    <dt>Country</dt>
-                    <dd>{data.countries.join(", ")}</dd>
-                  </div>
-                )}
-                {!!data.languages.length && (
-                  <div>
-                    <dt>Languages</dt>
-                    <dd>{data.languages.join(", ")}</dd>
-                  </div>
-                )}
-                {data.rating.score != null && (
-                  <div>
-                    <dt>Score</dt>
-                    <dd>
-                      {data.rating.score}%
-                      <span className="anime-score-bar" aria-hidden="true">
-                        <i style={{ width: `${data.rating.score}%` }} />
-                      </span>
-                    </dd>
-                  </div>
-                )}
-              </dl>
-            </section>
-          )}
-        </aside>
       </div>
 
       {!!data?.related.length && (
@@ -895,24 +1017,29 @@ export function AnimeDetails() {
           <ul className="anime-related-grid">
             {data.related.map((item) => (
               <li key={mediaKey(item)} className="anime-related-card">
-                <div className="anime-related-art">
-                  {item.images.poster ? (
-                    <img
-                      src={item.images.poster}
-                      alt=""
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                      decoding="async"
-                    />
-                  ) : (
-                    <Film size={22} />
-                  )}
-                </div>
-                <h3>{item.title}</h3>
-                <span>
-                  {item.year ? `${item.year} · ` : ""}
-                  {item.isSeries ? "Series" : "Movie"}
-                </span>
+                <Link
+                  className="anime-related-link"
+                  to={`/media/${item.source}/${item.kind}/${encodeURIComponent(item.sourceId)}?${new URLSearchParams({ source: selected })}`}
+                >
+                  <div className="anime-related-art">
+                    {item.images.poster ? (
+                      <img
+                        src={item.images.poster}
+                        alt=""
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        decoding="async"
+                      />
+                    ) : (
+                      <Film size={22} />
+                    )}
+                  </div>
+                  <h3>{item.title}</h3>
+                  <span>
+                    {item.year ? `${item.year} · ` : ""}
+                    {item.isSeries ? "Series" : "Movie"}
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>
