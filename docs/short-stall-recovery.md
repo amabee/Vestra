@@ -70,3 +70,17 @@ native HLS/header/subtitle checks remain applicable.
 The live comparison above measures the two experimental native profiles without
 app recovery. It is not a live verification of the new recurring-stall policy;
 that policy is verified with controlled session events and recovery fixtures.
+
+## Windows release receipt
+
+- App source: `e0cbd56` (Nova 0.1.1).
+- Installer: `apps/nova/release/Vestra Nova Setup 0.1.1.exe` (167,185,932 bytes).
+- SHA-256: `CD858119A21E8D042AD93E3C55F60FD6C8CF44CB2961DCB715CE08557A70A092`.
+- Typecheck and production build passed; all 21 buffering/recovery fixtures,
+  anime service/quality, loader controls and hidden native HLS checks passed.
+- The packaged version, main process, preload and renderer entry match the final
+  build. Packaged worker tests passed with SDK tools hidden, including TypeScript,
+  persistence and cancellation recovery.
+
+The previous 0.1.0 installer is retained. The new installer was built and checked,
+not automatically installed over the user's running app.
