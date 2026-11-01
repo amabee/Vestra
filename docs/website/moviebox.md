@@ -14,6 +14,13 @@ site and your region.
 4. Review its internet hosts and **Use source sessions** permission, then install.
 5. Open Movies or Series and select MovieBox in **Browse from**.
 
+You can also paste the
+[pinned MovieBox manifest](https://raw.githubusercontent.com/amabee/Vestra/d84273671c613d0d55a1042caabc071f387b80b8/extensions/moviebox/manifest.json)
+into Add an extension, or add the optional
+[Vestra source registry](https://raw.githubusercontent.com/amabee/Vestra/moviebox-native-extension/extensions/registry.json)
+under Registries. These paths use the same permission review; nothing is
+installed automatically.
+
 Use Popular/Latest or search a title. Its details let you select a season, resume,
 bookmark episodes, mark them watched or save the title to Plan to Watch.
 
