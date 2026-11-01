@@ -64,6 +64,7 @@ interface RawBridge {
     mutate: (command: unknown) => Promise<unknown>;
   };
   anime: {
+    schedule: (query: unknown) => Promise<unknown>;
     browse: (id: string, query: unknown) => Promise<unknown>;
     open: (id: string, item: unknown) => Promise<unknown>;
     resolve: (id: string, ref: unknown) => Promise<unknown>;
@@ -434,6 +435,10 @@ export const bridge = {
       raw().playlists.mutate(command) as Promise<AnimePlaylist[]>,
   },
   anime: {
+    schedule: (query: { from: number; until: number; status: string }) =>
+      raw().anime.schedule(query) as Promise<
+        import("../../../shared/anime-hub").AnimeSchedulePage
+      >,
     browse: (
       id: string,
       query: {

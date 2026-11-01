@@ -8,8 +8,8 @@ import { after, test } from "node:test";
 const root=resolve(dirname(fileURLToPath(import.meta.url)),"../../..");
 const scratch=await mkdtemp(join(root,"apps/nova/node_modules/.anime-hub-"));
 after(()=>rm(scratch,{recursive:true,force:true}));
-await build({stdin:{contents:`export {animeHomeModel} from './apps/nova/shared/anime-lists';export {calendarWeek,localDateKey,parseCalendarDate} from './apps/nova/renderer/src/components/media/anime-hub-model';export {MemoryDriver,saveProgress,getAllProgress,addHistoryEntry,getHistory} from './packages/storage/src/index';export {mediaItemSchema,watchProgressSchema} from './packages/types/src/index';`,resolveDir:root},bundle:true,platform:"node",format:"cjs",outfile:join(scratch,"test.cjs")});
-const {animeHomeModel,calendarWeek,localDateKey,parseCalendarDate,MemoryDriver,saveProgress,getAllProgress,addHistoryEntry,getHistory,mediaItemSchema,watchProgressSchema}=createRequire(import.meta.url)(join(scratch,"test.cjs"));
+await build({stdin:{contents:`export {AnimeSchedule} from './apps/nova/electron/anime-schedule';export {animeHomeModel} from './apps/nova/shared/anime-lists';export {calendarWeek,localDateKey,parseCalendarDate} from './apps/nova/renderer/src/components/media/anime-hub-model';export {MemoryDriver,saveProgress,getAllProgress,addHistoryEntry,getHistory} from './packages/storage/src/index';export {mediaItemSchema,watchProgressSchema} from './packages/types/src/index';`,resolveDir:root},bundle:true,platform:"node",format:"cjs",outfile:join(scratch,"test.cjs")});
+const {AnimeSchedule,animeHomeModel,calendarWeek,localDateKey,parseCalendarDate,MemoryDriver,saveProgress,getAllProgress,addHistoryEntry,getHistory,mediaItemSchema,watchProgressSchema}=createRequire(import.meta.url)(join(scratch,"test.cjs"));
 const item=(id)=>mediaItemSchema.parse({source:"anilist",sourceId:id,kind:"anime",title:"Anime "+id,images:{},rating:{},isSeries:true});
 const saved=(snapshot,status)=>({ref:snapshot,snapshot,status,addedAt:0,updatedAt:0});
 const watch=(ref,percent,updatedAt)=>({ref,percent,updatedAt,completed:percent>=.9,durationSeconds:100,positionSeconds:percent*100});
@@ -43,4 +43,35 @@ test("calendar boundaries honor the chosen first day, year changes and invalid d
  assert.equal(calendarWeek(new Date(2026,10,1,12),0).start.getDay(),0);
  const fallback=new Date(2026,10,1,12);assert.equal(localDateKey(parseCalendarDate("2026-02-31",fallback)),"2026-11-01");
  assert.equal(week.days.length,7);
+});
+
+const emptySaved=()=>({watchlist:[],history:[],playlists:[],progress:{}});
+test("schedule never queries the global airing catalogue for an empty saved list",async()=>{
+ const service=new AnimeSchedule(async()=>emptySaved(),async()=>{throw Error("Unexpected network request")});
+ assert.equal((await service.load({from:100,until:200})).events.length,0);
+});
+test("schedule filters saved IDs, preserves boundaries, and recomputes watched flags over cached broadcasts",async()=>{
+ const a=item("1");const data={...emptySaved(),watchlist:[saved(a,"watching")],progress:{tagged:{...watch(a,1,1),episodeNumber:2},legacy:{...watch(a,1,2),episodeId:"opaque-hash"}}};let calls=0;
+ const service=new AnimeSchedule(async()=>data,async(_query,variables)=>{calls++;assert.deepEqual(variables.ids,[1]);return {Page:{pageInfo:{hasNextPage:false},airingSchedules:[{id:1,mediaId:1,episode:2,airingAt:100},{id:2,mediaId:1,episode:3,airingAt:150},{id:3,mediaId:1,episode:4,airingAt:200}]}};});
+ const first=await service.load({from:100,until:200});assert.equal(first.events.length,2);assert.equal(first.events[0].watched,true);assert.equal(first.events[1].watched,false);
+ data.progress.tagged.completed=false;assert.equal((await service.load({from:100,until:200})).events[0].watched,false);assert.equal(calls,1);
+ assert.equal((await service.load({from:100,until:200,status:"planned"})).tracked,0);assert.equal(calls,1);
+ await assert.rejects(service.load({from:200,until:100}));await assert.rejects(service.load({from:100,until:100+9*86400}));
+});
+test("external saved titles need a unique exact metadata match, not fuzzy guesses",async()=>{
+ const exact={...item("owned"),source:"ext-demo",title:"Exact Anime"};const ambiguous={...item("ambiguous"),source:"ext-demo",title:"Other Anime"};let lookups=0;
+ const data={...emptySaved(),watchlist:[saved(exact,"planned"),saved(ambiguous,"watching")]};
+ const service=new AnimeSchedule(async()=>data,async(query,variables)=>{
+  if(query.includes("MatchSavedAnime")){lookups++;return {m0:{media:[{id:5,title:{english:"Other Anime"}},{id:6,title:{english:"Other Anime"}}]},m1:{media:[{id:4,title:{romaji:"Exact Anime"}}]}};}
+  assert.deepEqual(variables.ids,[4]);return {Page:{pageInfo:{hasNextPage:false},airingSchedules:[{id:11,mediaId:4,episode:1,airingAt:150}]}};
+ });
+ const result=await service.load({from:100,until:200});assert.equal(result.events[0].item.source,"ext-demo");assert.equal(result.events[0].item.sourceId,"owned");assert.deepEqual(result.unmatched,["Other Anime"]);
+ await service.load({from:100,until:200});assert.equal(lookups,1);
+});
+test("calendar uses local date arithmetic across daylight-saving changes",()=>{
+ const old=process.env.TZ;try{process.env.TZ="America/New_York";
+ const week=calendarWeek(new Date(2026,2,8,12),1);
+ assert.equal(localDateKey(week.start),"2026-03-02");assert.equal(localDateKey(week.end),"2026-03-09");
+ if(week.start.getTimezoneOffset()!==week.end.getTimezoneOffset())assert.equal((week.end-week.start)/3600000,167);
+ }finally{if(old==null)delete process.env.TZ;else process.env.TZ=old;}
 });

@@ -1,4 +1,4 @@
-import { getWatchlist, getHistory } from "@vestra/storage";
+import { getWatchlist, getHistory, getAllProgress } from "@vestra/storage";
 import { mediaRefSchema, mediaItemSchema } from "@vestra/types";
 import { ipcMain } from "electron";
 import { z } from "zod";
@@ -8,6 +8,7 @@ import { AnimePlaylists } from "./anime-playlists";
 import { getDriver } from "./services";
 import { AnimeService } from "./anime-service";
 import { AnimeDiscovery } from "./anime-discovery";
+import { AnimeSchedule } from "./anime-schedule";
 import { getStreamSourceRegistry, getProviderRegistry } from "./services";
 export function registerAnimeIpc() {
   const service = new AnimeService(getStreamSourceRegistry());
@@ -16,6 +17,16 @@ export function registerAnimeIpc() {
     discovery.browse(z.string().min(1).max(120).parse(id), query),
   );
   const playlists = new AnimePlaylists(getDriver);
+  const schedule = new AnimeSchedule(async () => {
+    const [watchlist, history, progress, lists] = await Promise.all([
+      getWatchlist(getDriver()),
+      getHistory(getDriver()),
+      getAllProgress(getDriver()),
+      playlists.list(),
+    ]);
+    return { watchlist, history, progress, playlists: lists };
+  });
+  ipcMain.handle("anime:schedule", (_e, query) => schedule.load(query));
   ipcMain.handle("anime:playlists", () => playlists.list());
   ipcMain.handle("anime:playlist-command", (_e, command) =>
     playlists.mutate(command),

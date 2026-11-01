@@ -19,6 +19,7 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { id: "home", label: "Home", href: "/", icon: "House", section: "primary" },
   { id: "discover", label: "Discover", href: "/discover", icon: "Compass", section: "primary" },
+  { id: "schedule", label: "Schedule", href: "/schedule", icon: "CalendarDays", section: "primary" },
   { id: "anime", label: "Anime", href: "/anime", icon: "Sparkles", section: "primary" },
   { id: "movies", label: "Movies", href: "/movies", icon: "Clapperboard", section: "primary" },
   { id: "tv", label: "TV Shows", href: "/tv", icon: "Tv", section: "primary" },
