@@ -45,7 +45,7 @@ function CommandField() {
   const location = useLocation();
   const [params] = useSearchParams();
   const animeContext =
-    location.pathname === "/anime" ||
+    ["/", "/anime", "/discover", "/schedule"].includes(location.pathname) ||
     /\/media\/[^/]+\/anime\//.test(location.pathname);
 
   if (location.pathname === "/anime") return null;

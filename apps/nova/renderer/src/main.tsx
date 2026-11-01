@@ -1,3 +1,4 @@
+import { DiscoverRoute } from "@/routes/discover";
 import { ScheduleRoute } from "@/routes/schedule";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
@@ -47,6 +48,7 @@ const router = createHashRouter([
     children: [
       { index: true, element: <HomeRoute /> },
       { path: "schedule", element: <ScheduleRoute /> },
+      { path: "discover", element: <DiscoverRoute /> },
       {
         path: "anime",
         element: (

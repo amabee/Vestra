@@ -22,6 +22,8 @@ const api = {
     mutate: (command: unknown) => invoke("anime:playlist-command", command),
   },
   anime: {
+    snapshots: (ids: number[]) => invoke("anime:snapshots", ids),
+    explore: (query: unknown) => invoke("anime:explore", query),
     schedule: (query: unknown) => invoke("anime:schedule", query),
     browse: (id: string, query: unknown) => invoke("anime:browse", id, query),
     open: (id: string, item: unknown) => invoke("anime:open", id, item),

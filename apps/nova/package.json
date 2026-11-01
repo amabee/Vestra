@@ -29,7 +29,8 @@
     "@vestra/providers": "workspace:*",
     "@vestra/storage": "workspace:*",
     "@vestra/types": "workspace:*",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@vestra/api": "workspace:*"
   },
   "devDependencies": {
     "7zip-min": "^3.0.1",

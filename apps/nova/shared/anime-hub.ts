@@ -6,6 +6,7 @@ export interface AnimeCatalogueTitle {
   airedEpisodes: number | null;
   season: string | null;
   format: string | null;
+  releasing?: boolean;
 }
 export interface AnimeExploreQuery {
   genre?: string;
@@ -13,6 +14,7 @@ export interface AnimeExploreQuery {
   status?: string;
   format?: string;
   season?: string;
+  search?: string;
 }
 export interface AnimeExplorePage {
   genres: string[];

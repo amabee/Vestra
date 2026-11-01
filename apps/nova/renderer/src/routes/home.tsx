@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { mediaKey, type MediaItem, type WatchlistStatus } from "@vestra/types";
@@ -25,12 +26,6 @@ export function HomeRoute() {
     queryKey: playlistKey,
     queryFn: bridge.playlists.list,
   });
-  const model = animeHomeModel(
-    watchlist.data ?? [],
-    history.data ?? [],
-    lists.data ?? [],
-    progress.data ?? {},
-  );
   const loading =
     watchlist.isPending ||
     history.isPending ||
@@ -38,6 +33,49 @@ export function HomeRoute() {
     lists.isPending;
   const failure =
     watchlist.error || history.error || progress.error || lists.error;
+  const known = new Set([
+    ...(watchlist.data ?? []).map((row) => mediaKey(row.ref)),
+    ...(history.data ?? []).map((row) => mediaKey(row.ref)),
+    ...(lists.data ?? []).flatMap((list) =>
+      list.items.map((row) => mediaKey(row.item)),
+    ),
+  ]);
+  const untracked = Object.values(progress.data ?? {})
+    .filter(
+      (row) =>
+        row.ref.kind === "anime" &&
+        row.percent >= 0.01 &&
+        !known.has(mediaKey(row.ref)),
+    )
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  const missingIds = [
+    ...new Set(
+      untracked
+        .filter(
+          (row) =>
+            row.ref.source === "anilist" && /^[1-9]\d*$/.test(row.ref.sourceId),
+        )
+        .map((row) => Number(row.ref.sourceId)),
+    ),
+  ].slice(0, 24);
+  const recovery = useQuery({
+    queryKey: ["anime-history-titles", missingIds],
+    queryFn: () => bridge.anime.snapshots(missingIds),
+    enabled: !loading && !failure && missingIds.length > 0,
+    staleTime: 300000,
+    retry: false,
+  });
+  const model = useMemo(
+    () =>
+      animeHomeModel(
+        watchlist.data ?? [],
+        history.data ?? [],
+        lists.data ?? [],
+        progress.data ?? {},
+        recovery.data ?? [],
+      ),
+    [watchlist.data, history.data, lists.data, progress.data, recovery.data],
+  );
   const cards = (
     rows: {
       item: MediaItem;
@@ -105,7 +143,9 @@ export function HomeRoute() {
       <AnimeCarousel
         id="continue"
         title="Continue watching"
-        loading={loading}
+        loading={
+          loading || (!failure && missingIds.length > 0 && recovery.isPending)
+        }
         empty={
           !loading && !model.continueWatching.length ? (
             <div className="hub-empty">
@@ -163,6 +203,23 @@ export function HomeRoute() {
             ))}
           </div>
         </section>
+      )}
+      {recovery.error && (
+        <p role="status" className="hub-notice">
+          Some older title information could not be restored.{" "}
+          <button onClick={() => void recovery.refetch()}>
+            Retry title lookup
+          </button>
+        </p>
+      )}
+      {untracked.some((row) => row.ref.source !== "anilist") && (
+        <details className="hub-calendar-unmatched">
+          <summary>Older source history needs title information</summary>
+          <p>
+            Reopen those titles from their streaming source once to restore
+            their cards. Saved progress is retained.
+          </p>
+        </details>
       )}
       {controls.playlist}
     </div>
