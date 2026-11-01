@@ -12,7 +12,7 @@ const scratch = await mkdtemp(join(tmpdir(), "vestra-servers-"));
 after(() => rm(scratch, { recursive: true, force: true }));
 await build({
   stdin: {
-    contents: `export {resolveEpisodeServers} from './apps/nova/electron/episode-servers'; export {CSharpProviderWorker} from './apps/nova/electron/csharp-worker'; export {transpileProvider} from './apps/nova/electron/provider-transpile'; export {safeFetch} from './apps/nova/electron/safe-fetch';`,
+    contents: `export {resolveEpisodeServers} from './apps/nova/electron/episode-servers'; export {CSharpProviderSession} from './apps/nova/electron/csharp-worker'; export {CSharpAnimePool} from './apps/nova/electron/csharp-anime-pool'; export {CSharpAnimeEpisodes} from './apps/nova/electron/csharp-anime-episodes'; export {transpileProvider} from './apps/nova/electron/provider-transpile'; export {safeFetch} from './apps/nova/electron/safe-fetch';`,
     resolveDir: root,
   },
   bundle: true,
@@ -22,7 +22,9 @@ await build({
 });
 const {
   resolveEpisodeServers,
-  CSharpProviderWorker,
+  CSharpProviderSession,
+  CSharpAnimePool,
+  CSharpAnimeEpisodes,
   transpileProvider,
   safeFetch,
 } = createRequire(import.meta.url)(join(scratch, "test.cjs"));
@@ -121,29 +123,26 @@ if (process.argv.includes("--live"))
       (row) => row.enabled && row.type === "onlinestream-provider",
     );
     assert.ok(definition, "No installed anime provider to verify");
-    const worker = new CSharpProviderWorker(
-      join(root, "apps/server/bin/Release/net10.0/Vestra.Server.dll"),
-      join(scratch, "worker-store"),
+    const worker = new CSharpAnimePool(
+      () =>
+        new CSharpProviderSession(
+          join(root, "apps/server/bin/Release/net10.0/Vestra.Server.dll"),
+          join(scratch, "worker-store"),
+        ),
     );
     try {
-      await worker.request({
-        kind: "load",
-        provider: {
-          id: definition.id,
-          type: definition.type,
-          source: transpileProvider(definition.source, definition.filename),
-          hosts: definition.hosts,
-          preferences: definition.preferences,
-        },
+      await worker.load({
+        id: definition.id,
+        type: definition.type,
+        source: transpileProvider(definition.source, definition.filename),
+        hosts: definition.hosts,
+        preferences: definition.preferences,
       });
       const timings = {};
       const call = async (method, args = [], signal) => {
         const started = performance.now();
         try {
-          return await worker.request(
-            { kind: "call", providerId: definition.id, method, args },
-            signal,
-          );
+          return await worker.call(definition.id, method, args, signal);
         } finally {
           (timings[method] ??= []).push(
             Math.round(performance.now() - started),
@@ -167,14 +166,30 @@ if (process.argv.includes("--live"))
         },
       ]);
       assert.ok(titles.length);
-      const episodes = await call("findEpisodes", [titles[0].id]);
+      const episodeStore = new CSharpAnimeEpisodes((animeId, signal) =>
+        call("findEpisodes", [animeId], signal),
+      );
+      const episodes = await episodeStore.list(titles[0].id);
       assert.ok(episodes.length);
+      const cachedStart = performance.now();
+      const cached = await episodeStore.list(titles[0].id);
+      timings.cachedEpisodes = [Math.round(performance.now() - cachedStart)];
+      assert.equal(
+        timings.findEpisodes.length,
+        1,
+        "repeat listing must use cache",
+      );
+      assert.equal(cached[0].id, episodes[0].id);
       const settings = await call("getSettings");
       const rows = await resolveEpisodeServers(
         settings.episodeServers,
         definition.preferredServer,
         (server, signal) =>
-          call("findEpisodeServer", [episodes[0], server], signal),
+          call(
+            "findEpisodeServer",
+            [episodeStore.get(episodes[0].id), server],
+            signal,
+          ),
         async (row, signal) => {
           for (const video of row.videoSources) {
             const response = await safeFetch(
