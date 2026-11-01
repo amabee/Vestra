@@ -1,12 +1,15 @@
 # Writing a Vestra extension
 
+Start with the [native extension quickstart](../../docs/extension-quickstart.md)
+for the folder layout, anime and manga templates, and local installation.
+
 SDK 1.1 also supports native manga sources with `role: "manga-source"` and
 `search`, `getChapters`, `getPages` exports. See the
 [manga SDK guide](../../docs/native-manga-sdk.md) and
 [authoring template](examples/manga-source-template/). The metadata contract
 below remains compatible with SDK 1.0 extensions.
 
-An extension adds a source of metadata to Vestra. It runs inside a QuickJS
+An extension can add metadata, anime streaming or manga reading sources to Vestra. It runs inside a QuickJS
 isolate with no DOM, no filesystem, no timers and no network of its own — the
 only thing it can reach is the `host` object it is handed, and that carries
 exactly the permissions the user agreed to.
@@ -15,12 +18,14 @@ That is a deliberate trade. An extension cannot restyle the interface or inject
 a script, because anything that could do those things could also read your
 library and send it somewhere. What it can do is answer questions about media.
 
-Two worked examples live in `examples/`:
+Worked examples live in `examples/`:
 
 | | what it shows |
 |---|---|
 | `open-library/` | the bare contract, no `kinds`, loads but is not a search source |
-| `kitsu/` | a real provider — declares `kinds`, registers, results appear in search |
+| `kitsu/` | metadata provider — declares `kinds`, registers, results appear in search |
+| `stream-source-template/` | native anime search, episodes and streams; placeholder data |
+| `manga-source-template/` | native manga search, chapters and pages; placeholder data |
 
 ## The manifest
 
@@ -46,11 +51,13 @@ Two worked examples live in `examples/`:
 | `sdkVersion` | the contract you built against. A newer major than the host is refused rather than half-supported. |
 | `permissions` | `network`, `library:read`, `progress:read`. Ask for nothing you do not use — every one of them is shown to the user with its worst case spelled out. |
 | `hosts` | bare hostnames. Required with `network`, refused without it. "Anywhere" is not something a user can consent to. |
-| `kinds` | `anime`, `movie`, `tv`, `kdrama`, `youtube-video`, `local-video`. |
+| `kinds` | Catalogue kinds: `anime`, `movie`, `tv`, `kdrama`, `youtube-video`, `local-video`. Anime stream sources use `["anime"]`; manga sources omit this field. |
+| `role` | `metadata` (default), `stream-source`, or `manga-source`. Each role has its own method/result contract. |
+| `icon` | Optional HTTPS logo URL, displayed on the extension card. |
 
-**`kinds` is what makes an extension a provider.** Declare none and it loads
-fine but is never offered as a search source — there would be nowhere to file
-its results. Declare some and export `search`, and Vestra registers it.
+For **metadata** extensions, declare `kinds` and export `search` to register in
+catalogue search. Stream sources and manga sources use separate role-specific
+routing and contracts; manga sources do not declare catalogue kinds.
 
 ## The code
 
@@ -131,7 +138,7 @@ Only plain JSON crosses. No functions, no class instances, no host references.
 
 Build against a folder rather than a registry:
 
-**Extensions → Load unpacked**, pick your folder, review the permissions.
+**Extensions → Choose extension folder**, pick your folder, review the permissions.
 
 Vestra reads `manifest.json` and `main` straight off disk. The consent screen is
 the same one a registry install shows. Nothing is pinned — a folder can change
@@ -140,7 +147,7 @@ under you, and Vestra says so rather than pretending otherwise.
 A local HTTP server will not work: outbound fetches refuse loopback and private
 addresses, deliberately, so reading the folder is the way in.
 
-Re-run Load unpacked after changing your code.
+Choose the extension folder again and review the install after changing your code.
 
 ## Publishing
 
@@ -158,21 +165,26 @@ A registry is a JSON array served over https. Each entry:
 }
 ```
 
-`payloadURI` must be in the listing. Vestra fingerprints those exact bytes at
-install and re-checks on every read, so a listing without one cannot be
-installed at all.
+`payloadURI` is optional in the listing. The installer resolves it from the
+manifest's `payloadURI`, or resolves the native manifest's relative `main` beside
+the manifest URL. A listing needs a usable `manifestURI`. Users can also paste a
+manifest URL directly into **Extensions → Add an extension**, without a registry.
+Vestra fingerprints the installed payload and checks its integrity when loading.
 
 Point at a commit, not a branch. Both work, but a branch can change after the
 user consented, and Vestra will label it as such.
 
 Users add registries under **Extensions → Registries**. Vestra ships none.
 
-## What will not be accepted
+## Native and compatibility formats
 
-`onlinestream-provider`, `anime-torrent-provider` and `manga-provider` are
-listed by the UI and cannot be installed. They resolve content by scraping
-sites that redistribute without a licence from the rights holder, and Vestra
-does not ship that. It is a decision rather than a missing feature, so it is
-not coming in a later version.
+New extensions should use the Vestra SDK manifest and `activate` contract above.
+Registry category labels such as `onlinestream-provider` and `manga-provider` do
+not decide the execution format: `sdkVersion` identifies the native SDK manifest.
+Existing provider scripts use the optional Compatibility importer and a different
+API. They are supported imports, not native Vestra extensions.
 
-Metadata, enrichment, and sources pointing at servers you own are all fair game.
+Extensions have no browser DOM, Node.js modules, filesystem or unrestricted
+network. Use `host.fetch` for API requests and declare the required hosts. Bundle
+TypeScript and dependencies into one compatible JavaScript entry file before
+installing a native SDK extension. Its `main` must be inside the selected folder.

@@ -36,7 +36,7 @@ for your source's metadata API and declare its hosts too.
 
 1. Copy the [authoring template](../packages/extension-host/examples/manga-source-template/)
    and replace its placeholder data and hosts with your source's API.
-2. Open Extensions → Installed → Load unpacked and choose the extension folder.
+2. Open Extensions → Choose extension folder and choose the extension folder.
 3. Review its requested permissions and install.
 4. Select the new source in Manga Library. The same selection carries into
    details and the reader.
