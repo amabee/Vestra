@@ -13,6 +13,12 @@ episodes, direct video and plain SRT/VTT subtitles.
 3. Review its hosts and source-session/header permission, then install.
 4. Open Movies or Series and choose KissKH in **Browse from**.
 
+Alternatively, paste the
+[pinned KissKH manifest](https://raw.githubusercontent.com/amabee/Vestra/08f69c7f19b23065115989e24bb16f03c1ff4163/extensions/kisskh/manifest.json)
+into Add an extension, or add the
+[Vestra source registry](https://raw.githubusercontent.com/amabee/Vestra/main/extensions/registry.json)
+under Registries. The same review applies to these install paths.
+
 The extension needs no browser cookies or existing account. It uses the source's
 public request format through Vestra's network broker. Nothing is auto-installed.
 
