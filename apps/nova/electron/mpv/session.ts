@@ -1,3 +1,4 @@
+import { RebufferTracker } from "./rebuffer-tracker";
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -229,6 +230,7 @@ export class MpvSession {
   #seekTimer: ReturnType<typeof setTimeout> | null = null;
 
   #stallTimer: ReturnType<typeof setTimeout> | null = null;
+  #rebuffer = new RebufferTracker();
   #activeRemote: {
     filePath: string;
     remote: RemotePlayback;
@@ -243,7 +245,23 @@ export class MpvSession {
   #watchStall(): void {
     this.#clearStall();
     const active = this.#activeRemote;
-    if (!active || this.#state.paused || !this.#state.buffering) return;
+    if (!active || this.#state.paused) {
+      this.#rebuffer.reset();
+      return;
+    }
+    if (!this.#state.buffering) {
+      this.#rebuffer.end(Date.now(), this.#state.position);
+      return;
+    }
+    const recurring =
+      active.automatic && !active.recovered && !this.#state.loading;
+    if (recurring) this.#rebuffer.begin(Date.now(), this.#state.position);
+    const wait = recurring
+      ? Math.min(
+          Math.max(0, STALL_RECOVERY_MS - this.#rebuffer.elapsed(Date.now())),
+          this.#rebuffer.remaining(Date.now()),
+        )
+      : STALL_RECOVERY_MS;
     const startedAt = this.#state.position;
     this.#stallTimer = setTimeout(() => {
       this.#stallTimer = null;
@@ -255,28 +273,44 @@ export class MpvSession {
         return;
       // A stale buffer flag must not restart video whose playhead is advancing.
       if (Math.abs(this.#state.position - startedAt) >= 0.5) {
+        this.#rebuffer.reset();
         this.#watchStall();
         return;
       }
-      this.#recoverStream();
-    }, STALL_RECOVERY_MS);
+      // Completed pauses can leave the rolling window while this timer waits.
+      if (
+        recurring &&
+        this.#rebuffer.elapsed(Date.now()) < STALL_RECOVERY_MS &&
+        this.#rebuffer.remaining(Date.now()) > 0
+      ) {
+        this.#watchStall();
+        return;
+      }
+      this.#recoverStream(
+        recurring && this.#rebuffer.remaining(Date.now()) <= 0,
+      );
+    }, wait);
   }
 
-  #recovering: object | null = null;
-  #recoverStream(): void {
+  #recovering: { active: object } | null = null;
+  #recoverStream(recurring = false): void {
     const active = this.#activeRemote;
-    if (!active || this.#state.paused || this.#recovering === active) return;
+    if (!active || this.#state.paused || this.#recovering?.active === active)
+      return;
     this.#clearStall();
     if (active.automatic && !active.recovered) {
-      this.#recovering = active;
+      const attempt = { active };
+      this.#recovering = attempt;
       void (async () => {
         const next = active.fallback
           ? await active.fallback()
           : { playback: active.remote, lowerQuality: true };
         if (
           this.#activeRemote !== active ||
+          this.#recovering !== attempt ||
           this.#state.paused ||
-          !this.#state.buffering
+          (recurring && this.#state.ended) ||
+          (!recurring && !this.#state.buffering)
         )
           return;
         await this.load(
@@ -289,7 +323,8 @@ export class MpvSession {
         );
       })()
         .catch(() => {
-          if (this.#activeRemote !== active) return;
+          if (this.#activeRemote !== active || this.#recovering !== attempt)
+            return;
           this.#emit({
             loading: false,
             buffering: false,
@@ -298,7 +333,7 @@ export class MpvSession {
           });
         })
         .finally(() => {
-          if (this.#recovering === active) this.#recovering = null;
+          if (this.#recovering === attempt) this.#recovering = null;
         });
     } else {
       void this.stop()
@@ -505,6 +540,7 @@ export class MpvSession {
           break;
         case "pause":
           if (typeof event.data === "boolean") {
+            if (event.data) this.#recovering = null;
             this.#emit({ paused: event.data });
             this.#watchStall();
           }
@@ -577,6 +613,9 @@ export class MpvSession {
         break;
       case "end-file":
         this.#clearStall();
+        this.#rebuffer.reset();
+        if (event.reason === "eof" || event.reason === "stop")
+          this.#recovering = null;
         if (event.reason !== "stop")
           this.#emit({ loading: false, buffering: false });
         // "eof" is a normal finish; anything else is a real failure worth
@@ -624,6 +663,8 @@ export class MpvSession {
     fallback?: () => Promise<PlaybackRecovery>,
   ): Promise<void> {
     this.#clearStall();
+    this.#rebuffer.reset();
+    this.#recovering = null;
     this.#activeRemote = remote
       ? { filePath, remote, automatic, recovered, fallback }
       : null;
@@ -687,6 +728,7 @@ export class MpvSession {
   }
 
   async pause(): Promise<void> {
+    this.#recovering = null;
     await this.#require().setProperty("pause", true);
   }
 
@@ -698,7 +740,11 @@ export class MpvSession {
    * several seconds from where the scrub bar was released.
    */
   async seek(seconds: number): Promise<void> {
+    this.#recovering = null;
+    this.#rebuffer.reset();
+    this.#clearStall();
     await this.#require().command("seek", seconds, "absolute+exact");
+    this.#watchStall();
   }
 
   /**
@@ -715,6 +761,9 @@ export class MpvSession {
    * even with the exact flag set, while absolute seeks landed precisely.
    */
   seekBy(deltaSeconds: number): void {
+    this.#recovering = null;
+    this.#rebuffer.reset();
+    this.#clearStall();
     this.#pendingSeek += deltaSeconds;
 
     if (this.#seekTimer) clearTimeout(this.#seekTimer);
@@ -728,7 +777,10 @@ export class MpvSession {
     this.#pendingSeek = 0;
     this.#seekTimer = null;
 
-    if (delta === 0 || !this.#connection) return;
+    if (delta === 0 || !this.#connection) {
+      this.#watchStall();
+      return;
+    }
 
     const connection = this.#connection;
 
@@ -835,6 +887,7 @@ export class MpvSession {
   async stop(): Promise<void> {
     this.#clearStall();
     this.#activeRemote = null;
+    this.#recovering = null;
     this.#subtitles.cancel();
     if (!this.#connection) return;
     this.#cancelPendingSeek();
@@ -860,6 +913,10 @@ export class MpvSession {
 
   /** Shut mpv down. Safe to call when it was never started. */
   dispose(): void {
+    this.#clearStall();
+    this.#rebuffer.reset();
+    this.#activeRemote = null;
+    this.#recovering = null;
     this.#subtitles.cancel();
     this.#cancelPendingSeek();
     this.#connection?.close();

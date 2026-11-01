@@ -1,5 +1,11 @@
 # Streaming buffering policy
 
+Nova 0.1.1 also handles repeated short cache pauses that never reach the
+continuous-stall deadline: in Auto, at least three genuine pauses totaling six
+seconds in sixty seconds trigger the existing HD-first recovery path. See the
+[short-stall repair](short-stall-recovery.md) for cancellation rules, final
+rendition selection and the inconclusive startup-profile experiment.
+
 ## Loading and UI overhead (2026-11-01)
 
 Manifest probes and Streamplay extractor HTTP requests now pass cancellation to

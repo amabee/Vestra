@@ -102,7 +102,8 @@ after that observation still need visual verification and an installer refresh.
 - [ ] Measure cold/warm startup, idle/peak memory and time to first video frame.
 - [ ] Measure provider execution separately from network latency, including p50/p95.
 - [x] Capture three one-minute native HD source observations with the packaged worker; see [playback/release validation](playback-release-validation.md).
-- [ ] Investigate measured native first-ready delays and repeated short cache pauses (AnimeGG had five pauses in its one-minute sample).
+- [x] Fix the recovery gap for repeated short cache pauses; verify manual-quality and seek/pause behavior with controlled session fixtures.
+- [ ] Reduce measured native first-ready delays using repeatable evidence; initial probing/refill changes did not establish a reliable improvement.
 - [ ] Measure library scan and manga page-load times with repeatable fixtures.
 - [ ] Profile slow paths and implement justified scheduling, caching or IO improvements.
 - [ ] Repeat the measurements and document regressions as well as improvements.

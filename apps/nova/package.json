@@ -1,6 +1,6 @@
 {
   "name": "@vestra/nova",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Vestra Nova — the Vestra desktop application (Electron).",
   "main": "dist-electron/main.js",

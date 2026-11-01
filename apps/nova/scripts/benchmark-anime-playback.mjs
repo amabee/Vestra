@@ -2,7 +2,14 @@ import { build } from "esbuild";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
-import { copyFile, mkdtemp, readFile, writeFile, mkdir, rm } from "node:fs/promises";
+import {
+  copyFile,
+  mkdtemp,
+  readFile,
+  writeFile,
+  mkdir,
+  rm,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -50,7 +57,7 @@ const compiler = createRequire(join(root, "apps/nova/package.json")).resolve(
 );
 await copyFile(compiler, join(scratch, "provider-typescript.cjs"));
 
-async function playback(stream) {
+async function playback(stream, profile = { probeInfo: "auto", pauseWait: 1 }) {
   const pipe =
     process.platform === "win32"
       ? `\\\\.\\pipe\\vestra-benchmark-${randomUUID()}`
@@ -66,6 +73,8 @@ async function playback(stream) {
       "--idle=yes",
       "--terminal=no",
       ...api.STREAM_CACHE_ARGS,
+      `--demuxer-lavf-probe-info=${profile.probeInfo}`,
+      `--cache-pause-wait=${profile.pauseWait}`,
       `--hls-bitrate=${api.AUTO_HLS_BITRATE}`,
       `--input-ipc-server=${pipe}`,
     ],
@@ -164,6 +173,7 @@ async function playback(stream) {
     speeds.sort((a, b) => a - b);
     return {
       outcome,
+      profile,
       firstReadyMs: ready ? Math.round(ready - started) : null,
       observedMs: ready ? Math.round(ended - ready) : 0,
       playheadAdvanceSeconds:
@@ -193,7 +203,14 @@ try {
       join(process.env.APPDATA, "Vestra Nova/data/csharp-managed-sources.json"),
       "utf8",
     ),
-  ).filter((row) => row.enabled && row.type === "onlinestream-provider");
+  ).filter(
+    (row) =>
+      row.enabled &&
+      row.type === "onlinestream-provider" &&
+      (!option("--provider", "") ||
+        row.id === option("--provider", "") ||
+        row.name === option("--provider", "")),
+  );
   if (!definitions.length)
     throw Error("No enabled anime compatibility sources are installed.");
   for (let index = 0; index < samples; index++) {
@@ -291,10 +308,31 @@ try {
       );
       result.server = winner.server;
       result.quality = video.quality;
-      result.playback = await playback({
+      result.streamType = video.type;
+      const stream = {
         ...video,
         headers: { ...winner.headers, ...video.headers },
-      });
+      };
+      const profile = {
+        probeInfo: option("--probe-info", "auto"),
+        pauseWait: Number(option("--pause-wait", "1")),
+      };
+      if (
+        !["auto", "nostreams"].includes(profile.probeInfo) ||
+        !Number.isFinite(profile.pauseWait) ||
+        profile.pauseWait < 1 ||
+        profile.pauseWait > 10
+      )
+        throw Error("Invalid playback profile.");
+      if (process.argv.includes("--compare")) {
+        if (process.argv.includes("--candidate-first")) {
+          result.playback = await playback(stream, profile);
+          result.baseline = await playback(stream);
+        } else {
+          result.baseline = await playback(stream);
+          result.playback = await playback(stream, profile);
+        }
+      } else result.playback = await playback(stream, profile);
     } catch (error) {
       // Provider errors can contain signed URLs. Keep only sanitized diagnostic text.
       result.error = String(error.message)
