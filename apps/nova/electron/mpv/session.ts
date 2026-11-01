@@ -17,6 +17,10 @@ import {
   STALL_RECOVERY_MS,
 } from "./stream-policy";
 import { ExternalSubtitleLoader } from "./subtitles";
+import {
+  subtitleFontsDirectory,
+  subtitleFontRevision,
+} from "../subtitle-fonts";
 
 /**
  * An mpv process bound to a window.
@@ -206,6 +210,8 @@ export interface MpvOptions {
 }
 
 export class MpvSession {
+  #fontRevision = 0;
+  #fontDirectoryAlternate = false;
   #process: ChildProcess | null = null;
   #connection: MpvConnection | null = null;
   #state: MpvState = { ...INITIAL_STATE };
@@ -385,6 +391,8 @@ export class MpvSession {
       // Matroska fonts are attached to the file; libass needs them to render
       // styled subtitles the way the release intended.
       "--embeddedfonts=yes",
+      // Google Fonts installed from the subtitle menu live here.
+      `--sub-fonts-dir=${subtitleFontsDirectory()}`,
       "--sub-auto=fuzzy",
       "--msg-level=all=warn",
     ];
@@ -393,6 +401,8 @@ export class MpvSession {
       args.push(`--volume=${Math.round(options.volume * 100)}`);
     }
 
+    this.#fontRevision = subtitleFontRevision();
+    this.#fontDirectoryAlternate = false;
     const child = spawn(binary, args, { stdio: ["ignore", "pipe", "pipe"] });
     this.#process = child;
 
@@ -770,6 +780,16 @@ export class MpvSession {
 
   /** Subtitle font family. `null` puts back the default sans-serif font. */
   async setSubtitleFont(family: string | null): Promise<void> {
+    const revision = subtitleFontRevision();
+    if (revision !== this.#fontRevision) {
+      // A changed fonts-dir recreates libass's font provider for the current
+      // video. A distinct path spelling also reloads consecutive installs.
+      const directory =
+        subtitleFontsDirectory() + (this.#fontDirectoryAlternate ? "" : "/.");
+      await this.#require().setProperty("sub-fonts-dir", directory);
+      this.#fontRevision = revision;
+      this.#fontDirectoryAlternate = !this.#fontDirectoryAlternate;
+    }
     await this.#require().setProperty(
       "sub-font",
       family?.trim() || "sans-serif",

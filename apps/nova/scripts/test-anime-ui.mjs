@@ -213,6 +213,14 @@ try {
         assert.equal(await run('window.fixture.managed[0].id'),'existing-provider');
         assert.equal(await run('document.querySelectorAll("h1").length'),1);
         console.log('PASS Extensions owns existing provider enablement, configuration and import controls');
+        assert.equal(await run('document.getElementById("ext-panel-available").hidden'),true);
+        await run('document.getElementById("ext-tab-available").click()');
+        await until('!document.getElementById("ext-panel-available").hidden');
+        assert.equal(await run('document.getElementById("ext-panel-providers").hidden'),true);
+        await run('document.getElementById("ext-tab-available").dispatchEvent(new KeyboardEvent("keydown",{key:"ArrowRight",bubbles:true}))');
+        await until('!document.getElementById("ext-panel-registries").hidden');
+        assert.equal(await run('document.activeElement.id'),'ext-tab-registries');
+        await run('document.getElementById("ext-tab-available").click()');
         await until('Array.from(document.querySelectorAll("button")).some(b=>b.textContent.trim()==="Review")');
         assert.equal(await run('document.getElementById("root").textContent.includes("No code listed")'),false);
         await run('Array.from(document.querySelectorAll("button")).find(b=>b.textContent.trim()==="Review").click()');

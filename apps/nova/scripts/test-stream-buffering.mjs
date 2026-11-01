@@ -34,13 +34,19 @@ await build({
           path: "connection",
           namespace: "fixture",
         }));
+        b.onResolve({ filter: /^\.\.\/subtitle-fonts$/ }, () => ({
+          path: "fonts",
+          namespace: "fixture",
+        }));
         b.onLoad({ filter: /.*/, namespace: "fixture" }, ({ path }) => ({
           contents:
-            path === "electron"
-              ? `export const app={isPackaged:false,getAppPath:()=>"fixture",getPath:()=>"fixture"};`
-              : path === "spawn"
-                ? `import {EventEmitter} from 'node:events';export function spawn(_binary,args){globalThis.fixtureArgs=args;const child=new EventEmitter();child.stdout=new EventEmitter();child.stderr=new EventEmitter();child.kill=()=>{};return child;}`
-                : `export class MpvConnection { constructor(){globalThis.fixtureConnection=this;this.writes=[];} async connect(){} async observeProperty(){} onEvent(fn){this.emit=fn;} async setProperty(...args){this.writes.push(['set',...args]);} async command(...args){this.writes.push(args);if(args[0]==='loadfile'){this.emit({event:'start-file'});this.emit({event:'file-loaded'});}} close(){} }`,
+            path === "fonts"
+              ? `export const subtitleFontsDirectory=()=>"fixture-fonts";export const subtitleFontRevision=()=>globalThis.fixtureFontRevision??0;`
+              : path === "electron"
+                ? `export const app={isPackaged:false,getAppPath:()=>"fixture",getPath:()=>"fixture"};`
+                : path === "spawn"
+                  ? `import {EventEmitter} from 'node:events';export function spawn(_binary,args){globalThis.fixtureArgs=args;const child=new EventEmitter();child.stdout=new EventEmitter();child.stderr=new EventEmitter();child.kill=()=>{};return child;}`
+                  : `export class MpvConnection { constructor(){globalThis.fixtureConnection=this;this.writes=[];} async connect(){} async observeProperty(){} onEvent(fn){this.emit=fn;} async setProperty(...args){this.writes.push(['set',...args]);} async command(...args){this.writes.push(args);if(args[0]==='loadfile'){this.emit({event:'start-file'});this.emit({event:'file-loaded'});}} close(){} }`,
         }));
       },
     },
@@ -415,4 +421,24 @@ test("loader waits for playback readiness rather than metadata or a position not
   );
   connection.emit({ event: "end-file", reason: "error" });
   assert.equal(session.state.loading, false);
+});
+
+test("fonts installed during playback refresh the native font directory on each revision", async (t) => {
+  const { session, connection } = await sessionFixture(t);
+  t.after(() => {
+    delete globalThis.fixtureFontRevision;
+  });
+  globalThis.fixtureFontRevision = 1;
+  await session.setSubtitleFont("Roboto");
+  globalThis.fixtureFontRevision = 3;
+  await session.setSubtitleFont("Open Sans");
+  const directories = connection.writes
+    .filter((row) => row[1] === "sub-fonts-dir")
+    .map((row) => row[2]);
+  assert.deepEqual(directories, ["fixture-fonts/.", "fixture-fonts"]);
+  assert.ok(
+    connection.writes.some(
+      (row) => row[1] === "sub-font" && row[2] === "Open Sans",
+    ),
+  );
 });

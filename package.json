@@ -15,6 +15,7 @@
     "test:server:bridge": "pnpm run build:server && node apps/nova/scripts/test-csharp-worker.mjs",
     "test:playback": "node apps/nova/scripts/test-remote-playback.mjs",
     "test:playback:quality": "node apps/nova/scripts/test-player-quality.mjs && node apps/nova/scripts/test-remote-playback.mjs",
+    "test:playback:fonts": "node apps/nova/scripts/test-subtitle-fonts.mjs",
     "test:playback:subtitles": "node apps/nova/scripts/test-subtitle-metadata.mjs",
     "test:anime": "node apps/nova/scripts/test-anime-service.mjs && node apps/nova/scripts/test-anime-servers.mjs",
     "test:extensions:install": "node apps/nova/scripts/test-extension-install.mjs",

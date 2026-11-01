@@ -122,6 +122,13 @@ const api = {
    * trip per frame. The listener is wrapped so the renderer never receives
    * Electron's event object, only the payload.
    */
+  subtitleFonts: {
+    search: (query: string): Promise<unknown> =>
+      invoke("subtitle-fonts:search", query),
+    install: (family: string): Promise<unknown> =>
+      invoke("subtitle-fonts:install", family),
+    installed: (): Promise<unknown> => invoke("subtitle-fonts:installed"),
+  },
   mpv: {
     status: (): Promise<unknown> => invoke("mpv:status"),
     subscribe: (): Promise<unknown> => invoke("mpv:subscribe"),

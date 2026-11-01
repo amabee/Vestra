@@ -11,7 +11,7 @@ const scratch = await mkdtemp(join(tmpdir(), "vestra-playback-repair-"));
 after(() => rm(scratch, { recursive: true, force: true }));
 await build({
   stdin: {
-    contents: `export {fetchSkipTimes} from './packages/providers/src/aniskip'; export {safeFetch} from './apps/nova/electron/safe-fetch'; export {registerDeferredVariants, resolveRemotePlayback, remoteQualities, invalidateRemotePlayback} from './apps/nova/electron/remote-playback';`,
+    contents: `export {fetchSkipTimes} from './packages/providers/src/aniskip'; export {safeFetch, safeFetchBytes} from './apps/nova/electron/safe-fetch'; export {registerDeferredVariants, resolveRemotePlayback, remoteQualities, invalidateRemotePlayback} from './apps/nova/electron/remote-playback';`,
     resolveDir: root,
   },
   bundle: true,
@@ -37,6 +37,7 @@ await build({
 const {
   fetchSkipTimes,
   safeFetch,
+  safeFetchBytes,
   registerDeferredVariants,
   resolveRemotePlayback,
   remoteQualities,
@@ -216,5 +217,40 @@ test("nested aggregate network faults retain retry codes without leaking request
   assert.equal(calls, 3);
   assert.ok(
     logs.every((line) => !/private-token|hidden|secret-value/.test(line)),
+  );
+});
+
+test("binary downloads bound DNS, fetch and stream waits and stop oversized chunked bodies", async (t) => {
+  network(t, async () => new Response(new Uint8Array([0, 255, 128, 1])));
+  assert.deepEqual(
+    await safeFetchBytes({ url: "https://fonts.example/file.ttf" }),
+    new Uint8Array([0, 255, 128, 1]),
+  );
+  let cancelled = false;
+  globalThis.fetch = async () =>
+    new Response(
+      new ReadableStream({
+        pull(controller) {
+          controller.enqueue(new Uint8Array(5));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      }),
+    );
+  await assert.rejects(
+    safeFetchBytes({ url: "https://fonts.example/file.ttf", maxBytes: 8 }),
+    /larger than allowed/,
+  );
+  assert.equal(cancelled, true);
+  globalThis.fetch = () => new Promise(() => {});
+  await assert.rejects(
+    safeFetchBytes({ url: "https://fonts.example/file.ttf", timeoutMs: 20 }),
+    /timed out/,
+  );
+  globalThis.fixtureLookup = () => new Promise(() => {});
+  await assert.rejects(
+    safeFetchBytes({ url: "https://fonts.example/file.ttf", timeoutMs: 20 }),
+    /timed out/,
   );
 });

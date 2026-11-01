@@ -39,7 +39,7 @@ try {
     join(scratch, "index.html"),
     `<!doctype html><html><head><link rel="stylesheet" href="fixture.css"></head><body><div id="root"></div><script>
     window.fixture={commands:[],seeks:[],state:{running:true,idle:false,paused:false,position:40,duration:1440,volume:1,muted:false,speed:1,subtitleDelay:0,subtitleScale:1,tracks:[],chapters:[],subtitleVisible:true,error:null},playing:{title:'Fixture',episodeLabel:'Ep 1',index:0,total:2,sessionId:1,autoSkip:false,loading:true,skips:[{kind:'opening',startSeconds:30,endSeconds:120}]}};
-    window.fixtureBridge={mpv:{onState:fn=>{fixture.stateChanged=fn;return ()=>{};},subscribe:async()=>fixture.state,setSubtitleFont:async n=>{if(fixture.rejectStyle)throw Error("fixture rejection");fixture.font=n},setSubtitleColor:async n=>{if(fixture.rejectStyle)throw Error("fixture rejection");fixture.color=n},seek:async n=>fixture.seeks.push(n)},player:{onNowPlaying:fn=>{fixture.playingChanged=fn;return ()=>{};},getNowPlaying:async()=>fixture.playing,setInteractive:async()=>{},send:async n=>fixture.commands.push(n),focus:async()=>{}},window:{isFullscreen:async()=>false}};
+    window.fixtureBridge={subtitleFonts:{installed:async()=>[],search:async q=>{if(fixture.rejectSearch)throw Error("fixture search failure");return ["Roboto"]},install:async family=>{fixture.installedFont=family;return family}},mpv:{onState:fn=>{fixture.stateChanged=fn;return ()=>{};},subscribe:async()=>fixture.state,setSubtitleFont:async n=>{if(fixture.rejectStyle)throw Error("fixture rejection");fixture.font=n},setSubtitleColor:async n=>{if(fixture.rejectStyle)throw Error("fixture rejection");fixture.color=n},seek:async n=>fixture.seeks.push(n)},player:{onNowPlaying:fn=>{fixture.playingChanged=fn;return ()=>{};},getNowPlaying:async()=>fixture.playing,setInteractive:async()=>{},send:async n=>fixture.commands.push(n),focus:async()=>{}},window:{isFullscreen:async()=>false}};
   </script><script src="fixture.js"></script></body></html>`,
   );
   await writeFile(
@@ -63,14 +63,23 @@ try {
         await run('Array.from(document.querySelectorAll("button")).find(b=>b.textContent.startsWith("Subtitles")).click()');
         await until('Array.from(document.querySelectorAll("button")).some(b=>b.textContent.startsWith("Font"))');
         await run('Array.from(document.querySelectorAll("button")).find(b=>b.textContent.startsWith("Font")).click()');
-        await until('document.querySelector("input[type=text]")');
-        assert.equal(await run('document.querySelector("input[type=text]").value'),'');
-        await run('const field=document.querySelector("input[type=text]");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(field,"Georgia");field.dispatchEvent(new Event("input",{bubbles:true}))');
-        await run('Array.from(document.querySelectorAll("button")).find(b=>b.textContent==="Apply").click()');
+        await until('document.querySelector("select")');
+        assert.equal(await run('document.querySelector("select").value'),'');
+        await run('var field=document.querySelector("select");field.value="Georgia";field.dispatchEvent(new Event("change",{bubbles:true}))');
         await until('fixture.font==="Georgia" && localStorage.getItem("vestra.subtitleFont")==="Georgia"');
-        await run('fixture.rejectStyle=true;Array.from(document.querySelectorAll("button")).find(b=>b.textContent==="Default").click()');
+        await run('fixture.rejectStyle=true;var field=document.querySelector("select");field.value="";field.dispatchEvent(new Event("change",{bubbles:true}))');
         await until('document.querySelector("[role=alert]")?.textContent.includes("Could not apply subtitle font")');
         assert.equal(await run('localStorage.getItem("vestra.subtitleFont")'),'Georgia');
+        await run('fixture.rejectStyle=false;var field=document.querySelector("input[type=search]");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(field,"Ro");field.dispatchEvent(new Event("input",{bubbles:true}))');
+        await until('document.querySelector("[role=status]")?.textContent.includes("Searching")');
+        await run('var field=document.querySelector("input[type=search]");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(field,"");field.dispatchEvent(new Event("input",{bubbles:true}))');
+        await until('!document.querySelector("[role=status]")?.textContent.includes("Searching")');
+        await run('fixture.rejectSearch=true;var field=document.querySelector("input[type=search]");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(field,"Ro");field.dispatchEvent(new Event("input",{bubbles:true}))');
+        await until('document.querySelector("[role=alert]")?.textContent.includes("Could not search Google Fonts")');
+        await run('fixture.rejectSearch=false;var field=document.querySelector("input[type=search]");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(field,"Rob");field.dispatchEvent(new Event("input",{bubbles:true}))');
+        await until('Array.from(document.querySelectorAll("button")).some(b=>b.textContent.includes("Roboto"))');
+        await run('Array.from(document.querySelectorAll("button")).find(b=>b.textContent.includes("Roboto")).click()');
+        await until('fixture.installedFont==="Roboto" && fixture.font==="Roboto" && localStorage.getItem("vestra.subtitleFont")==="Roboto"');
         await run('document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}))');
         await until('Array.from(document.querySelectorAll("button")).some(b=>b.textContent.startsWith("Colour"))');
         await run('Array.from(document.querySelectorAll("button")).find(b=>b.textContent.startsWith("Colour")).click()');

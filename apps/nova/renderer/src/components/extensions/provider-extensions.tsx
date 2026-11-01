@@ -58,6 +58,22 @@ export function ProviderExtensions() {
       action.reset();
     },
   });
+  const sourceGroups = [
+    {
+      type: "onlinestream-provider" as const,
+      label: "Anime streaming",
+      items: (sources.data ?? []).filter(
+        (source) => source.type === "onlinestream-provider",
+      ),
+    },
+    {
+      type: "manga-provider" as const,
+      label: "Manga",
+      items: (sources.data ?? []).filter(
+        (source) => source.type === "manga-provider",
+      ),
+    },
+  ];
   return (
     <section aria-label="Provider extensions">
       <h2 className="font-serif text-2xl">Provider extensions</h2>
@@ -182,160 +198,177 @@ export function ProviderExtensions() {
           started.
         </p>
       )}
-      <div className="grid gap-4 py-4">
-        {sources.data?.map((source) => (
-          <article key={source.id} className="rounded-xl border rule p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold">{source.name}</h2>
-                <p className="text-sm text-base-content/60">
-                  {source.type === "manga-provider" ? "Manga" : "Anime"} ·{" "}
-                  {source.id}
-                  {source.remote ? ` · ${source.remote.version}` : ""}
-                </p>
-              </div>
-              <span
-                className={`badge ${source.status === "error" ? "badge-error" : source.status === "ready" ? "badge-success" : "badge-ghost"}`}
-              >
-                {source.status === "ready"
-                  ? "Loaded"
-                  : source.status === "error"
-                    ? "Needs attention"
-                    : "Disabled"}
-              </span>
-            </div>
-            <p className="break-words py-3 text-sm text-base-content/60">
-              Allowed websites: {source.hosts.join(", ") || "None"}
+      {sourceGroups.map((group) => (
+        <section key={group.type} aria-label={group.label} className="pt-6">
+          <h3 className="text-base font-semibold">
+            {group.label}{" "}
+            <span className="text-sm font-normal text-base-content/60">
+              ({group.items.length})
+            </span>
+          </h3>
+          {group.items.length === 0 && (
+            <p className="py-4 text-sm text-base-content/60">
+              No {group.label.toLowerCase()} provider installed.
             </p>
-            {source.preferredServer && (
-              <p className="text-sm">Server: {source.preferredServer}</p>
-            )}
-            {source.error && (
-              <p role="alert" className="py-2 text-error">
-                {source.error}
-              </p>
-            )}
-            {source.checkedAt && (
-              <p className="py-2 text-xs text-base-content/60">
-                Runtime checked {new Date(source.checkedAt).toLocaleString()}.
-                Website availability is checked when searching or playing.
-              </p>
-            )}
-            <div className="flex flex-wrap gap-2 pt-3">
-              <button
-                className="btn btn-sm"
-                disabled={action.isPending}
-                onClick={() =>
-                  action.mutate(() =>
-                    bridge.sources.update(source.id, {
-                      ...source,
-                      enabled: !source.enabled,
-                    }),
-                  )
-                }
-              >
-                {source.enabled ? "Disable" : "Enable"}
-              </button>
-              <button
-                className="btn btn-sm"
-                disabled={action.isPending}
-                onClick={() => {
-                  setEditing(source);
-                  setRemote(null);
-                  setPicked(null);
-                  setReplacing(null);
-                  action.reset();
-                }}
-              >
-                Configure
-              </button>
-              <button
-                className="btn btn-sm"
-                disabled={action.isPending || pick.isPending}
-                onClick={() => pick.mutate(source)}
-              >
-                Replace script
-              </button>
-              <button
-                className="btn btn-sm"
-                disabled={action.isPending || !source.enabled}
-                onClick={() =>
-                  action.mutate(() => bridge.sources.check(source.id))
-                }
-              >
-                Check runtime
-              </button>
-              {source.type === "onlinestream-provider" &&
-                source.status === "ready" && (
-                  <Link
-                    className="btn btn-sm"
-                    to={`/anime?source=${encodeURIComponent(`ext-csharp-${source.id}`)}`}
+          )}
+          <div className="grid gap-4 py-4">
+            {group.items.map((source) => (
+              <article key={source.id} className="rounded-xl border rule p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold">{source.name}</h2>
+                    <p className="text-sm text-base-content/60">
+                      {source.type === "manga-provider" ? "Manga" : "Anime"} ·{" "}
+                      {source.id}
+                      {source.remote ? ` · ${source.remote.version}` : ""}
+                    </p>
+                  </div>
+                  <span
+                    className={`badge ${source.status === "error" ? "badge-error" : source.status === "ready" ? "badge-success" : "badge-ghost"}`}
                   >
-                    Browse anime
-                  </Link>
-                )}
-              {source.remote && (
-                <button
-                  className="btn btn-sm"
-                  disabled={action.isPending}
-                  onClick={() =>
-                    action.mutate(async () =>
-                      reviewRemote(
-                        await bridge.sources.checkUpdates(source.id),
-                      ),
-                    )
-                  }
-                >
-                  Check for updates
-                </button>
-              )}
-              <button
-                className="btn btn-sm btn-ghost text-error"
-                disabled={action.isPending}
-                onClick={() =>
-                  action.mutate(() => bridge.sources.remove(source.id))
-                }
-              >
-                Remove
-              </button>
-            </div>
-            {!!source.versions.length && (
-              <details className="pt-4 text-sm">
-                <summary className="cursor-pointer">
-                  Previous scripts ({source.versions.length})
-                </summary>
-                <div className="grid gap-2 pt-2">
-                  {source.versions.map((version) => (
-                    <div
-                      key={version.id}
-                      className="flex items-center justify-between gap-3"
-                    >
-                      <span>
-                        {version.version} · {version.sourceHash.slice(0, 12)}
-                      </span>
-                      <button
-                        className="btn btn-sm"
-                        disabled={action.isPending}
-                        onClick={() =>
-                          action.mutate(() =>
-                            bridge.sources.rollback(
-                              source.id,
-                              version.id,
-                              source.sourceHash,
-                            ),
-                          )
-                        }
-                      >
-                        Restore
-                      </button>
-                    </div>
-                  ))}
+                    {source.status === "ready"
+                      ? "Loaded"
+                      : source.status === "error"
+                        ? "Needs attention"
+                        : "Disabled"}
+                  </span>
                 </div>
-              </details>
-            )}
-          </article>
-        ))}
-      </div>
+                <p className="break-words py-3 text-sm text-base-content/60">
+                  Allowed websites: {source.hosts.join(", ") || "None"}
+                </p>
+                {source.preferredServer && (
+                  <p className="text-sm">Server: {source.preferredServer}</p>
+                )}
+                {source.error && (
+                  <p role="alert" className="py-2 text-error">
+                    {source.error}
+                  </p>
+                )}
+                {source.checkedAt && (
+                  <p className="py-2 text-xs text-base-content/60">
+                    Runtime checked{" "}
+                    {new Date(source.checkedAt).toLocaleString()}. Website
+                    availability is checked when searching or playing.
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2 pt-3">
+                  <button
+                    className="btn btn-sm"
+                    disabled={action.isPending}
+                    onClick={() =>
+                      action.mutate(() =>
+                        bridge.sources.update(source.id, {
+                          ...source,
+                          enabled: !source.enabled,
+                        }),
+                      )
+                    }
+                  >
+                    {source.enabled ? "Disable" : "Enable"}
+                  </button>
+                  <button
+                    className="btn btn-sm"
+                    disabled={action.isPending}
+                    onClick={() => {
+                      setEditing(source);
+                      setRemote(null);
+                      setPicked(null);
+                      setReplacing(null);
+                      action.reset();
+                    }}
+                  >
+                    Configure
+                  </button>
+                  <button
+                    className="btn btn-sm"
+                    disabled={action.isPending || pick.isPending}
+                    onClick={() => pick.mutate(source)}
+                  >
+                    Replace script
+                  </button>
+                  <button
+                    className="btn btn-sm"
+                    disabled={action.isPending || !source.enabled}
+                    onClick={() =>
+                      action.mutate(() => bridge.sources.check(source.id))
+                    }
+                  >
+                    Check runtime
+                  </button>
+                  {source.type === "onlinestream-provider" &&
+                    source.status === "ready" && (
+                      <Link
+                        className="btn btn-sm"
+                        to={`/anime?source=${encodeURIComponent(`ext-csharp-${source.id}`)}`}
+                      >
+                        Browse anime
+                      </Link>
+                    )}
+                  {source.remote && (
+                    <button
+                      className="btn btn-sm"
+                      disabled={action.isPending}
+                      onClick={() =>
+                        action.mutate(async () =>
+                          reviewRemote(
+                            await bridge.sources.checkUpdates(source.id),
+                          ),
+                        )
+                      }
+                    >
+                      Check for updates
+                    </button>
+                  )}
+                  <button
+                    className="btn btn-sm btn-ghost text-error"
+                    disabled={action.isPending}
+                    onClick={() =>
+                      action.mutate(() => bridge.sources.remove(source.id))
+                    }
+                  >
+                    Remove
+                  </button>
+                </div>
+                {!!source.versions.length && (
+                  <details className="pt-4 text-sm">
+                    <summary className="cursor-pointer">
+                      Previous scripts ({source.versions.length})
+                    </summary>
+                    <div className="grid gap-2 pt-2">
+                      {source.versions.map((version) => (
+                        <div
+                          key={version.id}
+                          className="flex items-center justify-between gap-3"
+                        >
+                          <span>
+                            {version.version} ·{" "}
+                            {version.sourceHash.slice(0, 12)}
+                          </span>
+                          <button
+                            className="btn btn-sm"
+                            disabled={action.isPending}
+                            onClick={() =>
+                              action.mutate(() =>
+                                bridge.sources.rollback(
+                                  source.id,
+                                  version.id,
+                                  source.sourceHash,
+                                ),
+                              )
+                            }
+                          >
+                            Restore
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </article>
+            ))}
+          </div>
+        </section>
+      ))}
     </section>
   );
 }
