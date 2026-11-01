@@ -358,6 +358,9 @@ export function PlayerChrome() {
     >
       {loading && !playbackError && (
         <VideoLoader
+          title={nowPlaying?.title}
+          episodeLabel={nowPlaying?.episodeLabel}
+          buffering={!!mpv.buffering}
           bufferedSeconds={mpv.bufferedSeconds}
           downloadBytesPerSecond={mpv.downloadBytesPerSecond}
           label={mpv.buffering ? "Buffering video" : "Preparing your episode"}

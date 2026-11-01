@@ -1,10 +1,10 @@
 import { build } from "esbuild";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, rm, readdir } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawn } from "node:child_process";
 const nova = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const scratch = await mkdtemp(join(tmpdir(), "vestra-loading-ui-"));
@@ -35,9 +35,12 @@ try {
       },
     ],
   });
+  const theme = (
+    await readdir(join(nova, "dist-renderer/assets")).catch(() => [])
+  ).find((file) => file.startsWith("theme-") && file.endsWith(".css"));
   await writeFile(
     join(scratch, "index.html"),
-    `<!doctype html><html><head><link rel="stylesheet" href="fixture.css"></head><body><div id="root"></div><script>
+    `<!doctype html><html data-theme="vestra"><head>${theme ? `<link rel="stylesheet" href="${pathToFileURL(join(nova, "dist-renderer/assets", theme)).href}">` : ""}<link rel="stylesheet" href="fixture.css"></head><body><div id="root"></div><script>
     window.fixture={commands:[],seeks:[],state:{running:true,idle:false,paused:false,position:40,duration:1440,volume:1,muted:false,speed:1,subtitleDelay:0,subtitleScale:1,tracks:[],chapters:[],subtitleVisible:true,error:null},playing:{title:'Fixture',episodeLabel:'Ep 1',index:0,total:2,sessionId:1,autoSkip:false,loading:true,skips:[{kind:'opening',startSeconds:30,endSeconds:120}]}};
     window.fixtureBridge={subtitleFonts:{installed:async()=>[],search:async q=>{if(fixture.rejectSearch)throw Error("fixture search failure");return ["Roboto"]},install:async family=>{fixture.installedFont=family;return family}},mpv:{onState:fn=>{fixture.stateChanged=fn;return ()=>{};},subscribe:async()=>fixture.state,setSubtitleFont:async n=>{if(fixture.rejectStyle)throw Error("fixture rejection");fixture.font=n},setSubtitleColor:async n=>{if(fixture.rejectStyle)throw Error("fixture rejection");fixture.color=n},seek:async n=>fixture.seeks.push(n)},player:{onNowPlaying:fn=>{fixture.playingChanged=fn;return ()=>{};},getNowPlaying:async()=>fixture.playing,setInteractive:async()=>{},send:async n=>fixture.commands.push(n),focus:async()=>{}},window:{isFullscreen:async()=>false}};
   </script><script src="fixture.js"></script></body></html>`,
@@ -49,12 +52,17 @@ try {
     app.setPath("userData",${JSON.stringify(join(scratch, "profile"))});app.commandLine.appendSwitch('disable-gpu');app.whenReady().then(async()=>{
       const win=new BrowserWindow({show:false,webPreferences:{offscreen:true,contextIsolation:false}});
       win.webContents.on("console-message",e=>{if(e.level==="error")console.error(e.message)});
+      const capture=async name=>{const prefix=process.env.VESTRA_LOADER_SCREENSHOT;if(!prefix)return;require('node:fs').mkdirSync(require('node:path').dirname(prefix),{recursive:true});for(const width of [1200,375]){win.setContentSize(width,700);await new Promise(r=>setTimeout(r,200));require('node:fs').writeFileSync(prefix+'-'+name+'-'+width+'.png',(await win.webContents.capturePage()).toPNG());}win.setContentSize(1000,700);};
       const run=s=>win.webContents.executeJavaScript(s);const until=async s=>{for(let i=0;i<150;i++){if(await run('Boolean('+s+')'))return;await new Promise(r=>setTimeout(r,20));}throw Error('Timeout '+s);};
       try {
         await win.loadFile(${JSON.stringify(join(scratch, "index.html"))});
         await until('document.querySelector(".video-loader")');
-        assert.equal(await run('getComputedStyle(document.querySelector(".video-loader-orbit > span")).animationName'),'video-orbit');
+        assert.equal(await run('getComputedStyle(document.querySelector(".video-loader-frame")).animationName'),'video-loader-frame');
         assert.equal(await run('Array.from(document.querySelectorAll("button")).some(b=>b.textContent.includes("Skip opening"))'),false);
+        assert.equal(await run('document.querySelector(".video-loader-title").textContent'),'Fixture · Ep 1');
+        assert.equal(await run('!!document.querySelector(".video-loader--opening")'),true);
+        assert.equal(await run('document.querySelector(".video-loader-copy").getAttribute("role")'),'status');
+        await capture('opening');
         await run('fixture.playing={...fixture.playing,loading:false};fixture.playingChanged(fixture.playing)');
         await until('!document.querySelector(".video-loader")');
         await until('Array.from(document.querySelectorAll("button")).some(b=>b.textContent.includes("Skip opening"))');
@@ -94,7 +102,17 @@ try {
         await run('fixture.stateChanged({...fixture.state,buffering:true,bufferedSeconds:2.5,downloadBytesPerSecond:1048576})');
         await until('document.querySelector(".video-loader")?.textContent.includes("Buffering")');
         assert.ok(await run('document.querySelector(".video-loader-health")?.textContent.includes("2.5s buffered")'));
+        assert.equal(await run('!!document.querySelector(".video-loader--buffering")'),true);
+        assert.equal(await run('document.querySelector(".video-loader-health").getAttribute("aria-live")'),'off');
+        await capture('buffering');
         assert.ok(await run('document.querySelector(".video-loader-health")?.textContent.includes("1.00 MiB/s")'));
+        win.webContents.debugger.attach('1.3');
+        await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+        assert.equal(await run('getComputedStyle(document.querySelector(".video-loader-frame")).animationName'),'none');
+        assert.equal(await run('getComputedStyle(document.querySelector(".video-loader-track span")).animationName'),'none');
+        win.webContents.debugger.detach();
+        await run('fixture.stateChanged({...fixture.state,buffering:true,bufferedSeconds:NaN,downloadBytesPerSecond:-1})');
+        await until('!document.querySelector(".video-loader-health")');
         await run('fixture.playingChanged({...fixture.playing,playbackError:"Fixture video failed"})');
         await until('document.querySelector("[role=alert]")?.textContent.includes("Fixture video failed")');
         assert.equal(await run('!!document.querySelector(".video-loader")'),false);
