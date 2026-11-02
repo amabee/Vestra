@@ -1,3 +1,4 @@
+import { unwrapPlaybackReply } from "../../../shared/playback-errors";
 import type { AppUpdateState } from "../../../shared/updates";
 import type { AnimePlaylist, PlaylistCommand } from "../../../shared/playlists";
 import type {
@@ -133,8 +134,10 @@ interface RawBridge {
     isFullscreen: () => Promise<unknown>;
   };
   updates: {
-    state: () => Promise<unknown>; check: () => Promise<unknown>;
-    download: () => Promise<unknown>; install: () => Promise<unknown>;
+    state: () => Promise<unknown>;
+    check: () => Promise<unknown>;
+    download: () => Promise<unknown>;
+    install: () => Promise<unknown>;
     onChanged: (listener: (state: unknown) => void) => () => void;
   };
   app: {
@@ -629,7 +632,8 @@ export const bridge = {
     check: async () => (await raw().updates.check()) as AppUpdateState,
     download: async () => (await raw().updates.download()) as AppUpdateState,
     install: async () => (await raw().updates.install()) as AppUpdateState,
-    onChanged: (listener: (state: AppUpdateState) => void) => raw().updates.onChanged(state => listener(state as AppUpdateState)),
+    onChanged: (listener: (state: AppUpdateState) => void) =>
+      raw().updates.onChanged((state) => listener(state as AppUpdateState)),
   },
   app: {
     version: async (): Promise<string> => String(await raw().app.getVersion()),
@@ -645,10 +649,14 @@ export const bridge = {
   },
 
   settings: {
-    tmdbStatus: async () => (await raw().settings.tmdbStatus()) as {
-      configured: boolean; saved: boolean; encryptionAvailable: boolean;
-      loadError: boolean; source: string;
-    },
+    tmdbStatus: async () =>
+      (await raw().settings.tmdbStatus()) as {
+        configured: boolean;
+        saved: boolean;
+        encryptionAvailable: boolean;
+        loadError: boolean;
+        source: string;
+      },
     saveTmdb: async (value: { accessToken: string; apiKey: string } | null) =>
       raw().settings.saveTmdb(value),
     get: async (): Promise<Settings> =>
@@ -678,15 +686,17 @@ export const bridge = {
     details: async (item: MediaItem): Promise<MediaDetails | null> =>
       (await raw().media.details(item)) as MediaDetails | null,
 
-    streamQualities: (locator: string) =>
-      raw().media.streamQualities(locator) as Promise<
-        { locator: string; label: string }[]
-      >,
+    streamQualities: async (locator: string) =>
+      unwrapPlaybackReply<{ locator: string; label: string }[]>(
+        await raw().media.streamQualities(locator),
+      ),
     resolvePlayback: async (
       item: MediaItem,
       source?: string,
     ): Promise<PlaybackSource[]> =>
-      (await raw().media.resolvePlayback(item, source)) as PlaybackSource[],
+      unwrapPlaybackReply<PlaybackSource[]>(
+        await raw().media.resolvePlayback(item, source),
+      ),
 
     probe: async (fileId: string): Promise<ProbeResult> =>
       (await raw().media.probe(fileId)) as ProbeResult,
@@ -885,7 +895,8 @@ export const bridge = {
       streamLocator?: string;
       startSeconds?: number;
       rect: SurfaceRect;
-    }): Promise<MpvState> => (await raw().mpv.open(request)) as MpvState,
+    }): Promise<MpvState> =>
+      unwrapPlaybackReply<MpvState>(await raw().mpv.open(request)),
 
     setRect: async (rect: SurfaceRect): Promise<void> => {
       await raw().mpv.setRect(rect);

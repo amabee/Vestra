@@ -113,6 +113,7 @@ export async function activateCSharpSource(
   const source = applyProviderCompatibility(
     transpileProvider(definition.source, definition.filename),
     definition.compatibility,
+    definition,
   );
   const providerDefinition = {
     id,

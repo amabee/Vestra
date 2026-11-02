@@ -111,9 +111,14 @@ export class CSharpAnimePool {
     });
   }
 
-  private release(entry: Entry) {
+  private release(
+    entry: Entry,
+    reason: "idle" | "evicted" | "load-failed" | "disabled" | "shutdown",
+  ) {
     clearTimeout(entry.idle);
-    entry.session?.stop();
+    if (entry.busy && entry.session)
+      console.info(`[nova] anime worker released during a request: ${reason}`);
+    entry.session?.stop(new Error(`C# provider worker stopped (${reason}).`));
     entry.session = undefined;
   }
 
@@ -133,7 +138,7 @@ export class CSharpAnimePool {
               .filter((row) => !row.busy)
               .sort((a, b) => a.used - b.used)[0];
             if (!idle) continue;
-            this.release(idle);
+            this.release(idle, "evicted");
           }
         }
         this.queue.splice(this.queue.indexOf(job), 1);
@@ -160,7 +165,7 @@ export class CSharpAnimePool {
             job.signal,
           );
         } catch (error) {
-          this.release(entry);
+          this.release(entry, "load-failed");
           throw error;
         }
       }
@@ -177,7 +182,16 @@ export class CSharpAnimePool {
       entry.busy = false;
       entry.used = Date.now();
       if (!this.stopped && this.entries.get(entry.definition.id) === entry) {
-        entry.idle = setTimeout(() => this.release(entry), 60_000);
+        const session = entry.session;
+        entry.idle = setTimeout(() => {
+          // A timer queued before another request started must not stop its worker.
+          if (
+            !entry.busy &&
+            entry.session === session &&
+            this.entries.get(entry.definition.id) === entry
+          )
+            this.release(entry, "idle");
+        }, 60_000);
         entry.idle.unref();
       }
       this.pump();
@@ -188,7 +202,7 @@ export class CSharpAnimePool {
     const entry = this.entries.get(id);
     if (!entry) return;
     this.entries.delete(id);
-    this.release(entry);
+    this.release(entry, this.stopped ? "shutdown" : "disabled");
     for (const job of this.queue.filter((row) => row.entry === entry)) {
       job.cleanup();
       job.reject(new Error("Anime provider was disabled."));

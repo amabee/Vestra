@@ -73,3 +73,30 @@ repeated short-stall handling, keeping explicit quality choices and HD-first
 mirror recovery intact. No before/after speed multiplier is established by this
 run. A zero benchmark exit code means observations completed, not that playback
 was stall-free. Raw local measurements are in `.tools/playback-benchmark/report.json`.
+
+## Shonen compatibility repair — 2026-11-02
+
+The installed legacy Shonen adapter accepted only absolute stream/caption URLs.
+The live source response now includes a signed, relative
+`/api/v1/zoko-media` primary URL alongside absolute backup URLs. The adapter
+silently discarded the primary and attempted the remaining backup. A live
+Naruto episode 1 run reproduced a timeout at the backup host `anigato.lol`.
+
+Nova now applies a narrowly scoped runtime repair to the recognized installed
+Shonen adapter. It resolves relative video/caption URLs against `https://shonen.to`,
+retains signed query parameters, recognizes HLS proxy URLs and explicit type
+hints, deduplicates streams, and keeps captions associated with their source.
+Stored extension code, user preferences and host permissions are unchanged.
+The same repair is used by the playback benchmark.
+
+After the repair, the same title/episode resolved in 2.215 seconds and reached
+native playback readiness 7.967 seconds after extraction. A 10.010-second
+observation decoded 1056×800 video, advanced 10.14 seconds and recorded zero
+cache pauses. This is one short sample, not a full-episode reliability claim or
+an end-to-end UI startup measurement. Sanitized local reports are
+`.tools/shonen-check/report.json` (failure) and
+`.tools/shonen-check/repaired.json` (success).
+
+Regression fixtures cover relative signed URLs, absolute CDN/MP4 streams,
+source-specific captions, invalid URL schemes, missing media, invalid episode
+IDs and repair isolation. Run `pnpm test:anime:repair`.

@@ -1,5 +1,10 @@
+import { playbackFailureReply, playbackIssue } from "../shared/playback-errors";
 import { join } from "node:path";
-import { listBundled, prepareBundled, BUNDLED_REGISTRY } from "./bundled-extensions";
+import {
+  listBundled,
+  prepareBundled,
+  BUNDLED_REGISTRY,
+} from "./bundled-extensions";
 import { tmdbSettingsStatus, saveTmdbSettings } from "./tmdb-settings";
 import { prepareExtensionReview } from "./extension-install";
 import { prepareProviderExtension } from "./source-ipc";
@@ -130,6 +135,10 @@ function handle<TArgs extends unknown[], TResult>(
     try {
       return plain(await handler(...(args as TArgs)));
     } catch (error) {
+      if (channel === "playback:resolve" || channel === "playback:qualities") {
+        console.warn(`[nova] ${channel}: ${playbackIssue(error).code}`);
+        return playbackFailureReply(error);
+      }
       // Log the real error here; hand the renderer something safe to display.
       console.error(`[nova] ${channel} failed`, error);
       throw new Error(
@@ -171,7 +180,9 @@ const bookmarkInputSchema = z.object({
  * and the type is checked again by `assertLoadable` inside the install.
  */
 function bundledRoot() {
-  return app.isPackaged ? join(process.resourcesPath, "extensions") : join(app.getAppPath(), "../../extensions");
+  return app.isPackaged
+    ? join(process.resourcesPath, "extensions")
+    : join(app.getAppPath(), "../../extensions");
 }
 
 const installCandidateSchema = z.object({
@@ -692,8 +703,8 @@ export function registerDataIpc(): void {
     }
 
     const bundled = await listBundled(bundledRoot());
-    const listed = new Set(entries.map(entry => entry.id));
-    entries.push(...bundled.entries.filter(entry => !listed.has(entry.id)));
+    const listed = new Set(entries.map((entry) => entry.id));
+    entries.push(...bundled.entries.filter((entry) => !listed.has(entry.id)));
     errors.push(...bundled.errors);
     return { entries, errors, rejected };
   });
@@ -710,8 +721,14 @@ export function registerDataIpc(): void {
       raw,
       "extension",
     );
-    if (typeof candidate !== "string" && candidate.registryUrl === BUNDLED_REGISTRY)
-      return { kind: "sdk", plan: await prepareBundled(bundledRoot(), candidate.id) };
+    if (
+      typeof candidate !== "string" &&
+      candidate.registryUrl === BUNDLED_REGISTRY
+    )
+      return {
+        kind: "sdk",
+        plan: await prepareBundled(bundledRoot(), candidate.id),
+      };
     return prepareExtensionReview(
       candidate,
       transport,

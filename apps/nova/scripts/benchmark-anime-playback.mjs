@@ -234,6 +234,7 @@ try {
           source: api.applyProviderCompatibility(
             api.transpileProvider(definition.source, definition.filename),
             definition.compatibility,
+            definition,
           ),
           hosts: definition.hosts,
           preferences: definition.preferences,

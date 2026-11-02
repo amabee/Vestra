@@ -1,3 +1,7 @@
+import {
+  playbackFailureReply,
+  playbackIssue,
+} from "../../shared/playback-errors";
 import { MpvStatePublisher } from "./state-publisher";
 import { BrowserWindow, ipcMain } from "electron";
 import { getLocalFiles, getSettings } from "@vestra/storage";
@@ -128,6 +132,10 @@ function handle<TResult>(
       const result = await handler(event, ...args);
       return JSON.parse(JSON.stringify(result ?? null)) as TResult;
     } catch (error) {
+      if (channel === "mpv:open") {
+        console.warn(`[nova] ${channel}: ${playbackIssue(error).code}`);
+        return playbackFailureReply(error);
+      }
       console.error(`[nova] ${channel} failed`, error);
       throw new Error(
         error instanceof Error ? error.message : `${channel} failed.`,
