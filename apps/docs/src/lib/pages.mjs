@@ -1,4 +1,5 @@
 export const pages = [
+  { id: 'website/internet-archive', path: 'using/internet-archive', title: 'Internet Archive classics', group: 'Using Vestra', description: 'Watch archival feature films without an account or extra server.' },
   { id: 'website/start', path: 'start', title: 'Start using Vestra', group: 'Using Vestra', description: 'Run the desktop app and connect your first source.' },
   { id: 'website/extensions', path: 'using/extensions', title: 'Install an extension', group: 'Using Vestra', description: 'Install from a folder, manifest link or registry.' },
   { id: 'website/moviebox', path: 'using/moviebox', title: 'MovieBox source', group: 'Using Vestra', description: 'Connect the native Movies/TV source and understand guest access.' },

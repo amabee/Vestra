@@ -1,0 +1,16 @@
+{
+  "id": "vestra-internet-archive",
+  "name": "Internet Archive · Classics",
+  "version": "0.1.0",
+  "sdkVersion": "1.4.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": ["movie"],
+  "permissions": ["network"],
+  "hosts": ["archive.org"],
+  "author": "Vestra",
+  "description": "Classic and archival feature films through Internet Archive's public search and metadata APIs. No account, API key or additional server. Availability and quality depend on each archive item; not a catalogue of current Movies/TV releases.",
+  "homepage": "https://archive.org/details/feature_films",
+  "icon": "https://archive.org/favicon.ico",
+  "discovery": { "categories": ["popular", "latest"] }
+}

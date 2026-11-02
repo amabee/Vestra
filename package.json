@@ -60,7 +60,9 @@
     "test:moviebox:live": "node apps/nova/scripts/test-moviebox-live.mjs --live",
     "build:extension:kisskh": "node apps/nova/scripts/build-kisskh-extension.mjs",
     "test:kisskh": "node apps/nova/scripts/build-kisskh-extension.mjs && pnpm --filter @vestra/extension-host exec vitest run src/examples/kisskh.test.ts",
-    "test:kisskh:live": "node apps/nova/scripts/test-kisskh-live.mjs --live"
+    "test:kisskh:live": "node apps/nova/scripts/test-kisskh-live.mjs --live",
+    "test:archive": "pnpm --filter @vestra/extension-host exec vitest run src/examples/internet-archive.test.ts",
+    "test:archive:live": "node apps/nova/scripts/test-archive-live.mjs --live"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",

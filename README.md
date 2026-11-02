@@ -29,6 +29,12 @@ pnpm --filter @vestra/nova build
 pnpm --filter @vestra/nova start
 ```
 
+## Internet Archive classics
+
+Install **Internet Archive · Classics** from **Extensions → Available** using the
+Vestra registry. No account, key or extra server is required. See the
+[setup and source limits](docs/website/internet-archive.md).
+
 ## What Nova does
 
 - **Anime search and details.** Search a title, see its artwork, synopsis and
