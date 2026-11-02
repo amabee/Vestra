@@ -754,6 +754,7 @@ function QualityList({
     choices: { locator: string; label: string }[];
   }>({ status: "loading", choices: [] });
 
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let cancelled = false;
     setState({ status: "loading", choices: [] });
@@ -768,7 +769,7 @@ function QualityList({
     return () => {
       cancelled = true;
     };
-  }, [streamSource]);
+  }, [streamSource, attempt]);
 
   if (state.status === "loading") {
     return (
@@ -780,7 +781,14 @@ function QualityList({
   if (state.status === "failed") {
     return (
       <p role="alert" className="px-3 py-2 text-sm text-white/50">
-        Could not load qualities.
+        Could not load qualities. Your current video is unchanged.
+        <button
+          type="button"
+          className="ml-2 underline"
+          onClick={() => setAttempt((value) => value + 1)}
+        >
+          Retry
+        </button>
       </p>
     );
   }

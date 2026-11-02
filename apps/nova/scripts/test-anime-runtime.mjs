@@ -162,6 +162,35 @@ test("idle workers are released and shutdown rejects queued operations", async (
   await assert.rejects(f.pool.load({ id: "c" }), /shutting down/);
 });
 
+test("an old idle callback cannot stop an active or replaced worker", async (t) => {
+  const callbacks = [];
+  t.mock.method(globalThis, "setTimeout", (callback) => {
+    callbacks.push(callback);
+    return { unref() {} };
+  });
+  t.mock.method(globalThis, "clearTimeout", () => {});
+  const f = fakePool(1);
+  try {
+    await f.pool.load({ id: "a" });
+    const stale = callbacks[0];
+    const gate = deferred();
+    f.gates.set("a:slow", gate);
+    const active = f.pool.call("a", "slow", []);
+    await tick();
+    stale();
+    assert.equal(f.workers[0].stopped, false);
+    gate.resolve();
+    await active;
+    await f.pool.load({ id: "b" });
+    await f.pool.call("a", "fresh", []);
+    const replacement = f.workers.at(-1);
+    stale();
+    assert.equal(replacement.stopped, false);
+  } finally {
+    f.pool.stop();
+  }
+});
+
 test("a rejected provider load releases its slot and permits a repaired activation", async () => {
   let attempts = 0;
   let stopped = 0;

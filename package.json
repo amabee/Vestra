@@ -36,7 +36,7 @@
     "test:anime:live": "node apps/nova/scripts/test-anime-servers.mjs --live --native",
     "test:anime:playlists": "node apps/nova/scripts/test-anime-playlists.mjs",
     "test:anime:buffering": "node apps/nova/scripts/test-stream-buffering.mjs",
-    "test:anime:repair": "node apps/nova/scripts/test-playback-repair.mjs && node apps/nova/scripts/test-player-loading-ui.mjs",
+    "test:anime:repair": "node apps/nova/scripts/test-shonen-compat.mjs && node apps/nova/scripts/test-playback-errors.mjs && node apps/nova/scripts/test-playback-repair.mjs && node apps/nova/scripts/test-player-loading-ui.mjs",
     "test:anime:ui": "node apps/nova/scripts/test-anime-ui.mjs",
     "test:server:compat": "pnpm run build:server && node apps/nova/scripts/check-provider-compat.mjs",
     "check:providers:live": "pnpm run build:server && node apps/nova/scripts/check-provider-compat.mjs --live --repair",

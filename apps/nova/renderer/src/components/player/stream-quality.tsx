@@ -1,3 +1,4 @@
+import { playbackIssue } from "../../../../shared/playback-errors";
 import { useMutation } from "@tanstack/react-query";
 import { bridge } from "@/lib/bridge";
 
@@ -28,7 +29,7 @@ export function StreamQuality({
         {choices.isPending && <p role="status">Resolving qualities…</p>}
         {choices.error && (
           <p role="alert">
-            {choices.error.message}{" "}
+            {playbackIssue(choices.error).message}{" "}
             <button
               type="button"
               className="btn btn-xs"

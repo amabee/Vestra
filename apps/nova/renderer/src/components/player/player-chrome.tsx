@@ -1,3 +1,4 @@
+import { playbackIssue } from "../../../../shared/playback-errors";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -372,12 +373,11 @@ export function PlayerChrome() {
           className="absolute inset-0 z-20 grid place-items-center bg-black p-8 text-white"
         >
           <div className="max-w-md text-center">
-            <p className="font-serif text-3xl">Cannot play this</p>
+            <p className="font-serif text-3xl">
+              {playbackIssue(playbackError).title}
+            </p>
             <p className="mt-3 text-sm text-white/60">
-              {playbackError.replace(
-                /^Error invoking remote method '[^']+':\s*/i,
-                "",
-              )}
+              {playbackIssue(playbackError).message}
             </p>
             <button
               className="mt-6 mr-3 rounded-lg border border-white/25 px-4 py-2"

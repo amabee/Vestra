@@ -229,9 +229,9 @@ export class CSharpProviderSession {
     );
     return result;
   }
-  stop(): void {
+  stop(error = new Error("C# provider session stopped.")): void {
     this.stopped = true;
-    this.worker.stop();
+    this.worker.stop(error);
     this.definitions.clear();
   }
 }

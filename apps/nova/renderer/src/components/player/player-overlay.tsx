@@ -1,3 +1,4 @@
+import { playbackIssue } from "../../../../shared/playback-errors";
 import { usePlaybackPersistence } from "./use-playback-persistence";
 import { mediaKey, type MediaItem } from "@vestra/types";
 import { preferChapters, skipRangesFromChapters } from "@vestra/core/chapters";
@@ -755,21 +756,16 @@ export function PlayerOverlay() {
       )}
 
       {error && !decision.needsMpv ? (
-        <div className="absolute inset-0 grid place-items-center bg-black p-8">
+        <div
+          role="alert"
+          className="absolute inset-0 grid place-items-center bg-black p-8"
+        >
           <div className="max-w-md text-center">
-            <p className="font-serif text-display-sm">Cannot play this</p>
-            <p className="mt-2 text-sm leading-relaxed text-base-content/55">
-              {error.replace(/^Error invoking remote method '[^']+':\s*/i, "")}
+            <p className="font-serif text-display-sm">
+              {playbackIssue(error).title}
             </p>
-            {decision.probe ? (
-              <p className="meta mt-3">
-                {decision.probe.video[0]?.codec ?? "?"} ·{" "}
-                {decision.probe.audio[0]?.codec ?? "?"} ·{" "}
-                {decision.probe.container ?? "?"}
-              </p>
-            ) : null}
-            <p className="mt-3 text-sm text-base-content/70">
-              Try again, or try another playback source from the anime page.
+            <p className="mt-2 text-sm leading-relaxed text-base-content/55">
+              {playbackIssue(error).message}
             </p>
             <button
               type="button"
@@ -794,7 +790,7 @@ export function PlayerOverlay() {
               onClick={close}
               className="mt-6 rounded-field border border-base-content/20 px-4 py-2 text-sm transition-colors hover:bg-base-content/10"
             >
-              Try another source
+              Close player
             </button>
           </div>
         </div>

@@ -113,11 +113,18 @@ try {
         win.webContents.debugger.detach();
         await run('fixture.stateChanged({...fixture.state,buffering:true,bufferedSeconds:NaN,downloadBytesPerSecond:-1})');
         await until('!document.querySelector(".video-loader-health")');
-        await run('fixture.playingChanged({...fixture.playing,playbackError:"Fixture video failed"})');
-        await until('document.querySelector("[role=alert]")?.textContent.includes("Fixture video failed")');
+        await run('fixture.playingChanged({...fixture.playing,playbackError:"No playable mirror was available. Sub: C# provider worker stopped. https://secret.example/private-token"})');
+        await until('document.querySelector("[role=alert]")?.textContent.includes("Playback was interrupted")');
         assert.equal(await run('!!document.querySelector(".video-loader")'),false);
         await run('Array.from(document.querySelectorAll("button")).find(b=>b.textContent==="Try again").click()');
         assert.equal(await run('fixture.commands.at(-1)'),'retry');
+        assert.equal(await run('document.querySelector("[role=alert]").textContent.includes("C#")'),false);
+        assert.equal(await run('document.querySelector("[role=alert]").textContent.includes("secret.example")'),false);
+        await run('Array.from(document.querySelectorAll("[role=alert] button")).find(b=>b.textContent==="Close").click()');
+        assert.equal(await run('fixture.commands.at(-1)'),'close');
+        await run('fixture.playingChanged({...fixture.playing,playbackError:null});fixture.stateChanged({...fixture.state,error:"unrecognized private failure https://secret.example/token"})');
+        await until('document.querySelector("[role=alert]")?.textContent.includes("We couldn")');
+        assert.equal(await run('document.querySelector("[role=alert]").textContent.includes("secret")'),false);
         console.log('PASS native overlay animated loader, ready state, buffering, skip suppression and visible retry');
         win.destroy();app.exit(0);
       }catch(e){console.error(e);win.destroy();app.exit(1);}
