@@ -625,9 +625,8 @@ export function registerDataIpc(): void {
   /**
    * Add or remove a registry the user wants to browse.
    *
-   * Vestra ships none. Pointing the app at a third-party index is a decision
-   * the user makes explicitly, and it is recorded in their settings rather
-   * than compiled in.
+   * New profiles start with the Vestra registry. Users can keep, remove or
+   * supplement it; their saved list is respected.
    */
   handle("extensions:set-registries", async (raw: unknown) => {
     const registries = parse(

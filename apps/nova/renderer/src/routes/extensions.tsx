@@ -18,6 +18,7 @@ import {
   FolderOpen,
   Loader2,
   Plus,
+  RefreshCw,
   ShieldCheck,
   Trash2,
   X,
@@ -86,8 +87,8 @@ function splitByKind<T extends { type: string }>(entries: T[]): KindGroup<T>[] {
  * surface: point the app at a registry, look at what a listing asks for, and
  * decide.
  *
- * Nothing is bundled. Vestra ships no registry of its own, so the list is
- * empty until the user adds one, and what they add is their call.
+ * Extension payloads are downloaded after review. New profiles start with the
+ * Vestra catalogue; users control the saved registry list.
  *
  * Types Vestra will not run are still listed, with the reason, and cannot be
  * installed. Hiding them would suggest the registry was smaller than it is;
@@ -551,9 +552,18 @@ export function ExtensionsRoute() {
             label="Available"
             count={browse.data?.entries.length}
             trailing={
-              browse.isFetching ? (
-                <Loader2 className="size-3.5 animate-spin text-base-content/40" />
-              ) : null
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs gap-1.5"
+                disabled={browse.isFetching || !registries.data?.length}
+                onClick={() => browse.refetch()}
+                aria-label="Refresh available extensions"
+              >
+                <RefreshCw
+                  className={`size-3.5 ${browse.isFetching ? "animate-spin" : ""}`}
+                />
+                Refresh
+              </button>
             }
           />
 
