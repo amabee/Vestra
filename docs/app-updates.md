@@ -4,7 +4,7 @@ Nova uses electron-updater with a Windows x64 NSIS installer and the public [ama
 
 ## In the app
 
-Open **Settings → App updates** to check, download, view release notes and restart to install. An indicator appears in the status bar when an update is available or downloaded. Checks run 30 seconds after startup and every six hours while the app stays open. Manual checks remain available, including when a previous update is offered.
+Open **Settings → Updates** to check, download, view release notes and restart to install. An indicator appears in the status bar when an update is available or downloaded. Checks run 30 seconds after startup and every six hours while the app stays open. Manual checks remain available, including when a previous update is offered.
 
 Downloads start only when requested. Installation starts after the updater has completed and verified the download and the user clicks **Restart and install**. Closing normally does not silently install an update. Download failures can be retried. A missing or unpublished feed is shown as unavailable, never as “up to date”.
 

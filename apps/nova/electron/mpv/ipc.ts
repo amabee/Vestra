@@ -1,3 +1,4 @@
+import { playbackDiagnostics } from "../playback-diagnostics";
 import {
   playbackFailureReply,
   playbackIssue,
@@ -56,6 +57,7 @@ interface NowPlaying {
     skipId: string | null;
   }[];
   autoSkip: boolean;
+  seekStepSeconds?: number;
   /** Counts up per playback, so replaying one episode is not one session. */
   sessionId: number;
 }
@@ -133,7 +135,10 @@ function handle<TResult>(
       return JSON.parse(JSON.stringify(result ?? null)) as TResult;
     } catch (error) {
       if (channel === "mpv:open") {
-        console.warn(`[nova] ${channel}: ${playbackIssue(error).code}`);
+        const diagnostic = playbackDiagnostics.failure(channel, error);
+        console.warn(
+          `[nova] ${channel}: ${diagnostic.code} (#${diagnostic.id}) ${diagnostic.detail}`,
+        );
         return playbackFailureReply(error);
       }
       console.error(`[nova] ${channel} failed`, error);
@@ -481,6 +486,7 @@ const nowPlayingSchema = z.object({
     )
     .default([]),
   autoSkip: z.boolean().default(false),
+  seekStepSeconds: z.number().int().min(1).max(600).optional(),
   sessionId: z.number().int().min(0).default(0),
   streamSource: z.string().max(2000).nullable().default(null),
   activeStream: z.string().max(2000).nullable().default(null),

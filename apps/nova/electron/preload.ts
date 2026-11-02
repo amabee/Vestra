@@ -23,7 +23,8 @@ const api = {
     download: () => invoke("updates:download"),
     install: () => invoke("updates:install"),
     onChanged: (listener: (state: unknown) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, state: unknown) => listener(state);
+      const handler = (_event: Electron.IpcRendererEvent, state: unknown) =>
+        listener(state);
       ipcRenderer.on("updates:changed", handler);
       return () => ipcRenderer.removeListener("updates:changed", handler);
     },
@@ -104,6 +105,9 @@ const api = {
     getDataDir: (): Promise<unknown> => invoke("app:data-dir"),
     /** Aggregate status: providers, adapters, extensions, counts. */
     diagnostics: (): Promise<unknown> => invoke("diagnostics:report"),
+    playbackDiagnostics: () => invoke("diagnostics:playback"),
+    copyPlaybackDiagnostics: () => invoke("diagnostics:copy"),
+    sourceHealth: () => invoke("diagnostics:sources"),
   },
 
   shell: {
@@ -111,7 +115,23 @@ const api = {
       invoke("shell:open-external", url),
   },
 
+  torrents: {
+    configuration: () => invoke("torrents:configuration"),
+    save: (value: unknown) => invoke("torrents:save", value),
+    test: () => invoke("torrents:test"),
+    list: () => invoke("torrents:list"),
+    add: (urls: string[]) => invoke("torrents:add", urls),
+    pause: (hash: string) => invoke("torrents:pause", hash),
+    resume: (hash: string) => invoke("torrents:resume", hash),
+  },
   settings: {
+    patch: (value: unknown) => invoke("settings:patch", value),
+    onChanged: (listener: (value: unknown) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, value: unknown) =>
+        listener(value);
+      ipcRenderer.on("settings:changed", handler);
+      return () => ipcRenderer.removeListener("settings:changed", handler);
+    },
     tmdbStatus: () => invoke("settings:tmdb-status"),
     saveTmdb: (value: unknown) => invoke("settings:tmdb-save", value),
     get: (): Promise<unknown> => invoke("settings:get"),

@@ -1,7 +1,7 @@
 import { DiscoverRoute } from "@/routes/discover";
 import { ScheduleRoute } from "@/routes/schedule";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { StrictMode } from "react";
+import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import { createHashRouter, RouterProvider, Navigate } from "react-router";
 
@@ -16,7 +16,6 @@ import {
 } from "@/routes/collections";
 import { ExtensionsRoute } from "@/routes/extensions";
 import { HomeRoute } from "@/routes/home";
-import { SettingsRoute } from "@/routes/system";
 import { MangaRoute } from "@/routes/manga";
 
 import "@/styles/theme.css";
@@ -41,12 +40,37 @@ const queryClient = new QueryClient({
   },
 });
 
+const SettingsRoute = lazy(() =>
+  import("@/routes/system").then((module) => ({
+    default: module.SettingsRoute,
+  })),
+);
+const DownloadsRoute = lazy(() =>
+  import("@/routes/downloads").then((module) => ({
+    default: module.DownloadsRoute,
+  })),
+);
+
 const router = createHashRouter([
   {
     path: "/",
     element: <AppShell />,
     children: [
       { index: true, element: <HomeRoute /> },
+      {
+        path: "downloads",
+        element: (
+          <Suspense
+            fallback={
+              <p role="status" className="p-8">
+                Loading downloads…
+              </p>
+            }
+          >
+            <DownloadsRoute />
+          </Suspense>
+        ),
+      },
       { path: "schedule", element: <ScheduleRoute /> },
       { path: "discover", element: <DiscoverRoute /> },
       {
@@ -85,7 +109,20 @@ const router = createHashRouter([
       { path: "history", element: <HistoryRoute /> },
       { path: "extensions", element: <ExtensionsRoute /> },
       { path: "sources", element: <Navigate to="/extensions" replace /> },
-      { path: "settings", element: <SettingsRoute /> },
+      {
+        path: "settings",
+        element: (
+          <Suspense
+            fallback={
+              <p role="status" className="p-8">
+                Loading settings…
+              </p>
+            }
+          >
+            <SettingsRoute />
+          </Suspense>
+        ),
+      },
       { path: "search", element: <SearchRoute /> },
       { path: "media/:source/:kind/:id", element: <DetailRoute /> },
     ],

@@ -12,6 +12,7 @@ export const themeModeSchema = z.enum(["dark", "light", "system"]);
 export type ThemeMode = z.infer<typeof themeModeSchema>;
 
 export const ACCENT_PRESETS = [
+  "vestra",
   "violet",
   "electric",
   "emerald",
@@ -32,6 +33,9 @@ export const appearanceSettingsSchema = z.object({
     .regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/)
     .nullable()
     .default(null),
+  customizeAccent: z.boolean().default(false),
+  textScale: z.enum(["small", "default", "large"]).default("default"),
+  sidebarLabels: z.boolean().default(false),
   glassEffects: z.boolean().default(true),
   reducedMotion: z.boolean().default(false),
   sidebarCollapsed: z.boolean().default(false),
@@ -201,8 +205,24 @@ export type ExtensionSettings = z.infer<typeof extensionSettingsSchema>;
  * `.default()` expects the fully-populated OUTPUT type, whereas `.prefault()`
  * feeds the value through the schema so each section's own defaults apply.
  */
+export const appSettingsSchema = z.object({
+  startupPage: z
+    .enum([
+      "/",
+      "/discover",
+      "/anime",
+      "/manga",
+      "/films",
+      "/series",
+      "/library",
+    ])
+    .default("/"),
+  showStatusBar: z.boolean().default(true),
+});
+
 export const settingsSchema = z.object({
   version: z.literal(1).default(1),
+  app: appSettingsSchema.prefault({}),
   appearance: appearanceSettingsSchema.prefault({}),
   sources: sourceSettingsSchema.prefault({}),
   playback: playbackSettingsSchema.prefault({}),
@@ -216,3 +236,31 @@ export type Settings = z.infer<typeof settingsSchema>;
 
 /** Fully-populated defaults, produced by the schema itself so they never drift. */
 export const DEFAULT_SETTINGS: Settings = settingsSchema.parse({});
+
+/** Optional patch fields must remove defaults before optional(), including in Zod 4. */
+function patchSection<T extends z.ZodRawShape>(schema: z.ZodObject<T>) {
+  type Shape = {
+    [K in keyof T]: z.ZodOptional<
+      T[K] extends z.ZodDefault<infer Inner> ? Inner : T[K]
+    >;
+  };
+  const shape = Object.fromEntries(
+    Object.entries(schema.shape).map(([key, value]) => [
+      key,
+      z.optional(value instanceof z.ZodDefault ? value.removeDefault() : value),
+    ]),
+  ) as Shape;
+  return z.object(shape).strict();
+}
+export const settingsPatchSchema = z
+  .object({
+    app: patchSection(appSettingsSchema).optional(),
+    appearance: patchSection(appearanceSettingsSchema).optional(),
+    playback: patchSection(playbackSettingsSchema).optional(),
+    downloads: patchSection(downloadSettingsSchema)
+      .extend({ category: z.string().trim().min(1).max(100).optional() })
+      .optional(),
+    privacy: patchSection(privacySettingsSchema).optional(),
+  })
+  .strict();
+export type SettingsPatch = z.infer<typeof settingsPatchSchema>;

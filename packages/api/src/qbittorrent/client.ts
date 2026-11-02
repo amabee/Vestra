@@ -27,6 +27,7 @@ const AUTH_PATH = "api/v2/auth/login";
 const SESSION_TTL_MS = 30 * 60 * 1000;
 
 interface Session {
+  key: string;
   cookie: string;
   expiresAt: number;
 }
@@ -56,11 +57,17 @@ function getConnection(): Connection {
   try {
     parsed = new URL(rawUrl);
   } catch {
-    throw new ProviderError("qbittorrent", "QBITTORRENT_URL is not a valid URL.");
+    throw new ProviderError(
+      "qbittorrent",
+      "QBITTORRENT_URL is not a valid URL.",
+    );
   }
 
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new ProviderError("qbittorrent", "QBITTORRENT_URL must use http or https.");
+    throw new ProviderError(
+      "qbittorrent",
+      "QBITTORRENT_URL must use http or https.",
+    );
   }
 
   return {
@@ -94,15 +101,23 @@ async function login(connection: Connection): Promise<string> {
       cache: "no-store",
     });
   } catch (error) {
-    throw new ProviderError("qbittorrent", "Could not reach the qBittorrent Web UI.", {
-      cause: error,
-    });
+    throw new ProviderError(
+      "qbittorrent",
+      "Could not reach the qBittorrent Web UI.",
+      {
+        cause: error,
+      },
+    );
   }
 
   if (!response.ok) {
-    throw new ProviderError("qbittorrent", `qBittorrent login failed (${response.status}).`, {
-      status: response.status,
-    });
+    throw new ProviderError(
+      "qbittorrent",
+      `qBittorrent login failed (${response.status}).`,
+      {
+        status: response.status,
+      },
+    );
   }
 
   const text = await response.text();
@@ -118,20 +133,27 @@ async function login(connection: Connection): Promise<string> {
   const sid = setCookie ? /SID=([^;]+)/.exec(setCookie)?.[1] : null;
 
   if (!sid) {
-    throw new ProviderError("qbittorrent", "qBittorrent did not return a session cookie.");
+    throw new ProviderError(
+      "qbittorrent",
+      "qBittorrent did not return a session cookie.",
+    );
   }
 
   return `SID=${sid}`;
 }
 
-async function getSessionCookie(connection: Connection, force = false): Promise<string> {
+async function getSessionCookie(
+  connection: Connection,
+  force = false,
+): Promise<string> {
   const now = Date.now();
-  if (!force && session && session.expiresAt > now) {
+  const key = JSON.stringify(connection);
+  if (!force && session && session.key === key && session.expiresAt > now) {
     return session.cookie;
   }
 
   const cookie = await login(connection);
-  session = { cookie, expiresAt: now + SESSION_TTL_MS };
+  session = { key, cookie, expiresAt: now + SESSION_TTL_MS };
   return cookie;
 }
 
@@ -163,9 +185,13 @@ async function qbRequest(
       cache: "no-store",
     });
   } catch (error) {
-    throw new ProviderError("qbittorrent", "Could not reach the qBittorrent Web UI.", {
-      cause: error,
-    });
+    throw new ProviderError(
+      "qbittorrent",
+      "Could not reach the qBittorrent Web UI.",
+      {
+        cause: error,
+      },
+    );
   }
 
   // The session expired server-side — re-authenticate once, then give up.
@@ -260,10 +286,18 @@ function mapTorrent(raw: RawTorrent): Torrent {
     savePath: raw.save_path,
     contentPath: raw.content_path ?? null,
     category: raw.category ?? "",
-    tags: raw.tags ? raw.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
+    tags: raw.tags
+      ? raw.tags
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean)
+      : [],
     // qBittorrent uses seconds; Vestra uses milliseconds throughout.
     addedAt: raw.added_on ? raw.added_on * 1000 : null,
-    completedAt: raw.completion_on && raw.completion_on > 0 ? raw.completion_on * 1000 : null,
+    completedAt:
+      raw.completion_on && raw.completion_on > 0
+        ? raw.completion_on * 1000
+        : null,
   };
 }
 
@@ -286,13 +320,16 @@ export async function getQbittorrentStatus(): Promise<QbittorrentStatus> {
 }
 
 export interface ListTorrentsOptions {
-  filter?: "all" | "downloading" | "completed" | "paused" | "active" | "inactive";
+  filter?:
+    "all" | "downloading" | "completed" | "paused" | "active" | "inactive";
   category?: string;
   sort?: string;
   reverse?: boolean;
 }
 
-export async function listTorrents(options: ListTorrentsOptions = {}): Promise<Torrent[]> {
+export async function listTorrents(
+  options: ListTorrentsOptions = {},
+): Promise<Torrent[]> {
   const response = await qbRequest("api/v2/torrents/info", {
     query: {
       filter: options.filter ?? "all",
@@ -307,7 +344,9 @@ export async function listTorrents(options: ListTorrentsOptions = {}): Promise<T
 }
 
 export async function getTorrentFiles(hash: string): Promise<TorrentFile[]> {
-  const response = await qbRequest("api/v2/torrents/files", { query: { hash } });
+  const response = await qbRequest("api/v2/torrents/files", {
+    query: { hash },
+  });
 
   const raw = (await response.json()) as {
     index?: number;
@@ -334,7 +373,9 @@ export async function getTorrentFiles(hash: string): Promise<TorrentFile[]> {
 export async function addTorrent(input: AddTorrentInput): Promise<void> {
   for (const url of input.urls) {
     const isAllowed =
-      url.startsWith("magnet:") || url.startsWith("http://") || url.startsWith("https://");
+      url.startsWith("magnet:") ||
+      url.startsWith("http://") ||
+      url.startsWith("https://");
     if (!isAllowed) {
       throw new ProviderError(
         "qbittorrent",
@@ -350,10 +391,21 @@ export async function addTorrent(input: AddTorrentInput): Promise<void> {
   if (input.tags?.length) form.append("tags", input.tags.join(","));
   form.append("paused", String(input.paused));
 
-  await qbRequest("api/v2/torrents/add", { method: "POST", body: form });
+  const response = await qbRequest("api/v2/torrents/add", {
+    method: "POST",
+    body: form,
+  });
+  if (/^fails?\.?$/i.test((await response.text()).trim()))
+    throw new ProviderError(
+      "qbittorrent",
+      "qBittorrent could not add this torrent. Check the magnet or torrent URL.",
+    );
 }
 
-async function torrentAction(paths: readonly string[], hashes: readonly string[]): Promise<void> {
+async function torrentAction(
+  paths: readonly string[],
+  hashes: readonly string[],
+): Promise<void> {
   const body = new URLSearchParams({ hashes: hashes.join("|") });
 
   let lastError: unknown = null;
@@ -367,6 +419,12 @@ async function torrentAction(paths: readonly string[], hashes: readonly string[]
       return;
     } catch (error) {
       lastError = error;
+      // Endpoint renames are the only reason to fall back; never replay a POST after a timeout or server error.
+      if (
+        !(error instanceof ProviderError) ||
+        ![404, 405].includes(error.status ?? 0)
+      )
+        throw error;
     }
   }
 
@@ -376,11 +434,17 @@ async function torrentAction(paths: readonly string[], hashes: readonly string[]
 }
 
 export async function pauseTorrents(hashes: readonly string[]): Promise<void> {
-  await torrentAction(["api/v2/torrents/stop", "api/v2/torrents/pause"], hashes);
+  await torrentAction(
+    ["api/v2/torrents/stop", "api/v2/torrents/pause"],
+    hashes,
+  );
 }
 
 export async function resumeTorrents(hashes: readonly string[]): Promise<void> {
-  await torrentAction(["api/v2/torrents/start", "api/v2/torrents/resume"], hashes);
+  await torrentAction(
+    ["api/v2/torrents/start", "api/v2/torrents/resume"],
+    hashes,
+  );
 }
 
 export async function deleteTorrents(

@@ -1,4 +1,6 @@
-import { playbackFailureReply, playbackIssue } from "../shared/playback-errors";
+import { createSettingsPatcher } from "./settings-service";
+import { playbackDiagnostics } from "./playback-diagnostics";
+import { playbackFailureReply } from "../shared/playback-errors";
 import { join } from "node:path";
 import {
   listBundled,
@@ -7,7 +9,7 @@ import {
 } from "./bundled-extensions";
 import { tmdbSettingsStatus, saveTmdbSettings } from "./tmdb-settings";
 import { prepareExtensionReview } from "./extension-install";
-import { prepareProviderExtension } from "./source-ipc";
+import { managedSourceSnapshot, prepareProviderExtension } from "./source-ipc";
 import { resolveCataloguePlayback } from "./catalogue-playback";
 import { getScreenService, screenSnapshot } from "./screen-ipc";
 import { randomUUID } from "node:crypto";
@@ -66,7 +68,14 @@ import {
   reportSkipTime,
   scanLibrary,
 } from "@vestra/providers";
-import { app, ipcMain, shell, dialog } from "electron";
+import {
+  app,
+  ipcMain,
+  shell,
+  dialog,
+  clipboard,
+  BrowserWindow,
+} from "electron";
 import { z } from "zod";
 
 import {
@@ -136,7 +145,10 @@ function handle<TArgs extends unknown[], TResult>(
       return plain(await handler(...(args as TArgs)));
     } catch (error) {
       if (channel === "playback:resolve" || channel === "playback:qualities") {
-        console.warn(`[nova] ${channel}: ${playbackIssue(error).code}`);
+        const diagnostic = playbackDiagnostics.failure(channel, error);
+        console.warn(
+          `[nova] ${channel}: ${diagnostic.code} (#${diagnostic.id}) ${diagnostic.detail}`,
+        );
         return playbackFailureReply(error);
       }
       // Log the real error here; hand the renderer something safe to display.
@@ -239,6 +251,12 @@ export function registerDataIpc(): void {
   handle("settings:save", (raw: unknown) =>
     saveSettings(getDriver(), parse(settingsSchema, raw, "settings")),
   );
+
+  const patchSettings = createSettingsPatcher(getDriver(), (saved) => {
+    for (const window of BrowserWindow.getAllWindows())
+      window.webContents.send("settings:changed", saved);
+  });
+  handle("settings:patch", (raw: unknown) => patchSettings(raw));
 
   handle("app:data-dir", () => resolveDataDir());
 
@@ -888,6 +906,60 @@ export function registerDataIpc(): void {
   /* --------------------------------------------------------------------- *
    * Diagnostics — lets the shell prove the bridge works before a UI exists.
    * --------------------------------------------------------------------- */
+
+  handle("diagnostics:playback", () => playbackDiagnostics.list());
+  handle("diagnostics:copy", () => {
+    clipboard.writeText(
+      JSON.stringify(
+        { version: app.getVersion(), events: playbackDiagnostics.list() },
+        null,
+        2,
+      ),
+    );
+    return null;
+  });
+  handle("diagnostics:sources", async () => {
+    const installed = await listInstalled(getDriver());
+    const managed = await managedSourceSnapshot();
+    const loaded = new Set(listLoadedExtensions());
+    const registry = getStreamSourceRegistry();
+    const rows = [
+      ...installed.map((row) => ({
+        id: `ext-${row.id}`,
+        name: row.name,
+        enabled: row.enabled !== false,
+        loaded: loaded.has(row.id),
+        kind: "native",
+        version: row.version,
+        needsReview: Boolean(row.driftDetectedAt),
+      })),
+      ...managed.map((row) => ({
+        id: `ext-csharp-${row.id}`,
+        name: row.name,
+        enabled: row.enabled,
+        loaded: row.status === "ready",
+        kind: "compatibility",
+        version: row.remote?.version,
+        needsReview: row.status === "error",
+      })),
+    ];
+    for (const source of registry.all()) {
+      if (!rows.some((row) => row.id === source.id))
+        rows.push({
+          id: source.id,
+          name: source.name,
+          enabled: registry.isEnabled(source.id),
+          loaded: true,
+          kind: "service",
+          version: undefined,
+          needsReview: false,
+        });
+    }
+    return rows.map((row) => ({
+      ...row,
+      observation: playbackDiagnostics.observation(row.id),
+    }));
+  });
 
   handle("diagnostics:report", async () => {
     const providers = getProviderRegistry()

@@ -16,6 +16,11 @@ import { getDriver } from "./services";
 
 let remoteService: RemoteSourceService | undefined;
 let initialization: Promise<void> | undefined;
+let sourceManager: SourceManager | undefined;
+export async function managedSourceSnapshot() {
+  await initialization;
+  return sourceManager?.list() ?? [];
+}
 export async function prepareProviderExtension(url: string, document: unknown) {
   await initialization;
   if (!remoteService)
@@ -29,6 +34,7 @@ export function registerSourceIpc(): void {
     deactivate: deactivateCSharpSource,
     check: checkCSharpSource,
   });
+  sourceManager = manager;
   const ready = manager.initialize(readLegacyCSharpSources);
   const remote = new RemoteSourceService(manager, downloadSourceArtifact);
   remoteService = remote;

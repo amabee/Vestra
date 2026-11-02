@@ -1,4 +1,9 @@
-import { extensionKinds, matchesExtensionCategory, type CategorizedExtension } from "@/lib/extension-category";
+import { SourceHealthPanel } from "@/components/settings/source-health";
+import {
+  extensionKinds,
+  matchesExtensionCategory,
+  type CategorizedExtension,
+} from "@/lib/extension-category";
 import {
   ExtensionArtwork,
   extensionDescription,
@@ -59,7 +64,9 @@ type KindGroup<T> = { label: string; items: T[] };
  * Providers tab uses. Empty groups are left out, so Other only shows when a
  * plugin or torrent entry exists.
  */
-function splitByKind<T extends CategorizedExtension>(entries: T[]): KindGroup<T>[] {
+function splitByKind<T extends CategorizedExtension>(
+  entries: T[],
+): KindGroup<T>[] {
   const isAnime = (type: string) => type === "onlinestream-provider";
   const isManga = (type: string) => type === "manga-provider";
   return [
@@ -73,12 +80,17 @@ function splitByKind<T extends CategorizedExtension>(entries: T[]): KindGroup<T>
     },
     {
       label: "Movies & series",
-      items: entries.filter(entry => extensionKinds(entry).some(k => k === "movie" || k === "tv")),
+      items: entries.filter((entry) =>
+        extensionKinds(entry).some((k) => k === "movie" || k === "tv"),
+      ),
     },
     {
       label: "Other",
       items: entries.filter(
-        (entry) => !isAnime(entry.type) && !isManga(entry.type) && !extensionKinds(entry).some(k => k === "movie" || k === "tv"),
+        (entry) =>
+          !isAnime(entry.type) &&
+          !isManga(entry.type) &&
+          !extensionKinds(entry).some((k) => k === "movie" || k === "tv"),
       ),
     },
   ].filter((group) => group.items.length > 0);
@@ -143,7 +155,6 @@ export function ExtensionsRoute() {
     queryKey: ["extensions", "browse", registries.data],
     queryFn: () => bridge.extensions.browse(),
     enabled: registries.isSuccess,
-
   });
 
   const refresh = () => {
@@ -246,7 +257,9 @@ export function ExtensionsRoute() {
     ...(managed.data ?? []).map((entry) => entry.id),
   ]);
   const runningIds = new Set(running.data ?? []);
-  const matches = (entry: CategorizedExtension & { name: string; id: string }) =>
+  const matches = (
+    entry: CategorizedExtension & { name: string; id: string },
+  ) =>
     `${entry.name} ${entry.id}`
       .toLowerCase()
       .includes(search.trim().toLowerCase()) &&
@@ -268,6 +281,15 @@ export function ExtensionsRoute() {
         title="Extensions"
         lead="Find a source, review its permissions, and install. Your sources appear in the matching anime, manga, movie or series library."
       />
+
+      <details className="mt-6 rounded-box border rule p-4">
+        <summary className="cursor-pointer text-sm font-medium">
+          Source health and recent playback
+        </summary>
+        <div className="mt-4">
+          <SourceHealthPanel />
+        </div>
+      </details>
 
       <section
         aria-label="Add extension"
@@ -572,7 +594,9 @@ export function ExtensionsRoute() {
             }
           />
 
-          {(registries.data ?? []).length === 0 && !(browse.data?.entries.length) && !browse.isFetching ? (
+          {(registries.data ?? []).length === 0 &&
+          !browse.data?.entries.length &&
+          !browse.isFetching ? (
             <>
               <button
                 className="btn btn-sm mt-3"
@@ -895,7 +919,10 @@ function AvailableRow({
 }) {
   const support = EXTENSION_TYPE_SUPPORT[entry.type];
   const health = healthOf(entry);
-  const installable = support.supported && entry.manifestURI.length > 0 && !entry.tags.includes("installation-blocked");
+  const installable =
+    support.supported &&
+    entry.manifestURI.length > 0 &&
+    !entry.tags.includes("installation-blocked");
   return (
     <article className="flex aspect-square min-h-80 w-full min-w-0 flex-col has-[details[open]]:aspect-auto rounded-box border rule bg-base-200/40 p-5 transition-colors hover:border-primary/30">
       <div className="flex items-start justify-between gap-3">
@@ -912,7 +939,11 @@ function AvailableRow({
       <p className="mt-3 line-clamp-3 text-sm text-base-content/60">
         {extensionDescription(entry.description, entry.type)}
       </p>
-      {entry.tags.includes("experimental") && <p className="meta mt-2 text-warning">Experimental · upstream unavailable</p>}
+      {entry.tags.includes("experimental") && (
+        <p className="meta mt-2 text-warning">
+          Experimental · upstream unavailable
+        </p>
+      )}
       {health === "broken" && (
         <p className="meta mt-2 text-error">Reported broken</p>
       )}
