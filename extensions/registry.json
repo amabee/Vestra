@@ -12,7 +12,12 @@
     "manifestURI": "https://raw.githubusercontent.com/amabee/Vestra/d84273671c613d0d55a1042caabc071f387b80b8/extensions/moviebox/manifest.json",
     "payloadURI": "https://raw.githubusercontent.com/amabee/Vestra/d84273671c613d0d55a1042caabc071f387b80b8/extensions/moviebox/index.js",
     "website": "https://github.com/amabee/Vestra/tree/d84273671c613d0d55a1042caabc071f387b80b8/extensions/moviebox",
-    "tags": ["vestra", "native", "movies", "tv"],
+    "tags": [
+      "vestra",
+      "native",
+      "movies",
+      "tv"
+    ],
     "workingTag": true,
     "lastWorkingVersion": "0.1.0"
   },
@@ -29,7 +34,35 @@
     "manifestURI": "https://raw.githubusercontent.com/amabee/Vestra/08f69c7f19b23065115989e24bb16f03c1ff4163/extensions/kisskh/manifest.json",
     "payloadURI": "https://raw.githubusercontent.com/amabee/Vestra/08f69c7f19b23065115989e24bb16f03c1ff4163/extensions/kisskh/index.js",
     "website": "https://github.com/amabee/Vestra/tree/08f69c7f19b23065115989e24bb16f03c1ff4163/extensions/kisskh",
-    "tags": ["vestra", "native", "movies", "tv", "asian-drama"],
+    "tags": [
+      "vestra",
+      "native",
+      "movies",
+      "tv",
+      "asian-drama"
+    ],
+    "workingTag": true,
+    "lastWorkingVersion": "0.1.0"
+  },
+  {
+    "id": "vestra-internet-archive",
+    "name": "Internet Archive · Classics",
+    "version": "0.1.0",
+    "author": "Vestra",
+    "description": "Classic and archival feature films through Internet Archive's public search and metadata APIs. No account, API key or additional server. Availability and quality depend on each archive item; not a catalogue of current Movies/TV releases.",
+    "type": "custom-source",
+    "language": "javascript",
+    "lang": "multi",
+    "icon": "https://archive.org/favicon.ico",
+    "manifestURI": "https://raw.githubusercontent.com/amabee/Vestra/ebf291131649421c71838111be6b476eb9eead48/extensions/internet-archive/manifest.json",
+    "payloadURI": "https://raw.githubusercontent.com/amabee/Vestra/ebf291131649421c71838111be6b476eb9eead48/extensions/internet-archive/index.js",
+    "website": "https://github.com/amabee/Vestra/tree/ebf291131649421c71838111be6b476eb9eead48/extensions/internet-archive",
+    "tags": [
+      "vestra",
+      "native",
+      "movies",
+      "classics"
+    ],
     "workingTag": true,
     "lastWorkingVersion": "0.1.0"
   }
