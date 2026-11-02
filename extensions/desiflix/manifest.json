@@ -1,0 +1,18 @@
+{
+  "id": "vestra-desiflix",
+  "name": "DesiFlix",
+  "version": "0.1.0",
+  "sdkVersion": "1.5.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": ["movie", "tv"],
+  "permissions": ["network", "network:session"],
+  "hosts": [
+    "manifest.desitvhub.eu.org",
+    "v3-cinemeta.strem.io",
+    "images.metahub.space"
+  ],
+  "author": "Vestra",
+  "description": "Native Movies/Series source using public IMDb metadata and DesiFlix direct-file APIs. No key or additional server. Language and availability vary by title; uses the native player for MKV.",
+  "homepage": "https://manifest.desitvhub.eu.org/"
+}

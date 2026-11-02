@@ -1,4 +1,10 @@
-import type { Anime, Episode, StreamResult, SubtitleTrack, VideoSource } from "./stream-types";
+import type {
+  Anime,
+  Episode,
+  StreamResult,
+  SubtitleTrack,
+  VideoSource,
+} from "./stream-types";
 
 /**
  * The seam between a foreign shape and Vestra's own.
@@ -99,10 +105,8 @@ export type SubtitleTrackMapping<Raw = unknown> = Mapping<Raw, SubtitleTrack>;
  * Map a source's rendition to {@link VideoSource}.
  *
  * The `type` field is where most conversions are needed. Vestra recognises
- * exactly two containers, `hls` and `mp4`; sources label the same two thing in
- * many ways, and some report a value meaning "we did not look". A mapping must
- * resolve to one of the two or return `null` — passing an unrecognised type
- * through reaches the player as a stall rather than a diagnosable failure.
+ * HLS manifests and direct MP4/MKV files. A mapping must use a recognised
+ * container or return null; unknown source labels are not playable metadata.
  */
 export type VideoSourceMapping<Raw = unknown> = Mapping<Raw, VideoSource>;
 

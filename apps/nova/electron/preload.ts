@@ -17,6 +17,17 @@ const invoke = (channel: string, ...args: unknown[]): Promise<unknown> =>
   ipcRenderer.invoke(channel, ...args);
 
 const api = {
+  updates: {
+    state: () => invoke("updates:state"),
+    check: () => invoke("updates:check"),
+    download: () => invoke("updates:download"),
+    install: () => invoke("updates:install"),
+    onChanged: (listener: (state: unknown) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: unknown) => listener(state);
+      ipcRenderer.on("updates:changed", handler);
+      return () => ipcRenderer.removeListener("updates:changed", handler);
+    },
+  },
   screen: {
     sources: (kind: string) => invoke("screen:sources", kind),
     browse: (query: unknown) => invoke("screen:browse", query),
@@ -101,6 +112,8 @@ const api = {
   },
 
   settings: {
+    tmdbStatus: () => invoke("settings:tmdb-status"),
+    saveTmdb: (value: unknown) => invoke("settings:tmdb-save", value),
     get: (): Promise<unknown> => invoke("settings:get"),
     save: (settings: unknown): Promise<unknown> =>
       invoke("settings:save", settings),

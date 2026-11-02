@@ -1,0 +1,29 @@
+{
+  "id": "vestra-streamflix",
+  "name": "Streamflix \u00b7 Experimental",
+  "version": "0.1.0",
+  "sdkVersion": "1.5.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": [
+    "movie"
+  ],
+  "permissions": [
+    "network",
+    "network:session"
+  ],
+  "hosts": [
+    "api.streamflix.app",
+    "image.tmdb.org"
+  ],
+  "author": "Vestra",
+  "description": "Experimental native movie catalogue and direct-file resolver. Current upstream mirrors fail live checks; playback is unavailable until the source recovers. TV is excluded because its API requires authorization. Installation is held while this port is under verification.",
+  "homepage": "https://api.streamflix.app/",
+  "icon": "https://streamflix.app/favicon.ico",
+  "discovery": {
+    "categories": [
+      "popular",
+      "latest"
+    ]
+  }
+}

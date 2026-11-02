@@ -43,9 +43,13 @@ export type AppearanceSettings = z.infer<typeof appearanceSettingsSchema>;
  * ========================================================================== */
 
 export const sourceSettingsSchema = z.object({
-  enabled: z.array(mediaSourceSchema).default(["tmdb", "anilist", "youtube", "local"]),
+  enabled: z
+    .array(mediaSourceSchema)
+    .default(["tmdb", "anilist", "youtube", "local"]),
   /** Ordering of result groups in universal search. */
-  order: z.array(mediaSourceSchema).default(["tmdb", "anilist", "youtube", "local"]),
+  order: z
+    .array(mediaSourceSchema)
+    .default(["tmdb", "anilist", "youtube", "local"]),
   /** Set once the user has completed AniList OAuth (token lives in keytar/httpOnly cookie). */
   anilistConnected: z.boolean().default(false),
   anilistUsername: z.string().nullable().default(null),
@@ -173,10 +177,14 @@ export const extensionSettingsSchema = z.object({
   /**
    * Registry URLs the user has added.
    *
-   * Deliberately empty by default. Vestra ships no bundled marketplace, so
-   * pointing at a third-party index is an explicit choice the user makes.
+   * New profiles start with Vestra's published catalogue. Saved custom lists,
+   * including an explicitly empty list, remain the user's choice.
    */
-  registries: z.array(z.string().url()).default([]),
+  registries: z
+    .array(z.string().url())
+    .default([
+      "https://raw.githubusercontent.com/amabee/Vestra/main/extensions/registry.json",
+    ]),
   /** Extension ids the user has enabled. */
   enabled: z.array(z.string()).default([]),
 });

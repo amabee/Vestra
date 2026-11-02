@@ -9,7 +9,9 @@ import { z } from "zod";
  */
 
 const serverEnvSchema = z.object({
-  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  NODE_ENV: z
+    .enum(["development", "production", "test"])
+    .default("development"),
 
   /**
    * Which host is running this server.
@@ -65,6 +67,16 @@ export function getServerEnv(): ServerEnv {
 
   cachedEnv = parsed.data;
   return cachedEnv;
+}
+
+/** Host-only credential override; desktop settings never enter publicEnv. */
+export function setTmdbCredentials(value: {
+  accessToken: string;
+  apiKey: string;
+}): void {
+  const env = getServerEnv();
+  env.TMDB_ACCESS_TOKEN = value.accessToken || undefined;
+  env.TMDB_API_KEY = value.apiKey || undefined;
 }
 
 /* -----------------------------------------------------------------------------

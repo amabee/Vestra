@@ -1,0 +1,60 @@
+.screen-details-body {
+  padding-top: 2rem;
+}
+.screen-episode-section {
+  scroll-margin-top: 2rem;
+}
+.screen-details .anime-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.screen-cover-placeholder {
+  height: 100%;
+  background: var(--color-base-200);
+}
+.screen-details .anime-introduction {
+  overflow-wrap: anywhere;
+}
+.screen-episode-search {
+  margin-left: auto;
+  max-width: 16rem;
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .screen-episode-search {
+    width: 100%;
+    max-width: none;
+  }
+  .screen-details-body {
+    padding-top: 1.25rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .screen-details .group > .min-w-0 {
+    flex-basis: calc(100% - 6rem);
+  }
+}
+
+.screen-streaming-providers {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid
+    color-mix(in oklch, var(--color-base-content) 15%, transparent);
+}
+.screen-provider-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block: 0.75rem;
+}
+.screen-provider-options [aria-pressed="true"] {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.screen-provider-note,
+.screen-source-warning {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}

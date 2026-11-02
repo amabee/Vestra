@@ -87,7 +87,7 @@ function codeOf(error: unknown): string {
  * Every address is checked, not just the first. A name that returns one public
  * and one loopback address is not half safe.
  */
-async function assertPublicHost(hostname: string): Promise<void> {
+export async function assertPublicHost(hostname: string): Promise<void> {
   // A literal address needs no lookup, and passing one to the resolver would
   // let a blocked literal through on some platforms.
   if (isIP(hostname) !== 0) {

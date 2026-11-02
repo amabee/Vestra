@@ -90,6 +90,8 @@ export const extensionManifestSchema = z
      * re-roling an installed extension would change what the user consented to.
      */
     role: extensionRoleSchema.default("metadata"),
+    /** SDK 1.5: host supplies public metadata; credentials never enter the guest. */
+    catalogueSource: z.literal("tmdb").optional(),
     discovery: discoveryManifestSchema.optional(),
     author: z.string().max(120).optional(),
     homepage: z.string().url().optional(),
@@ -110,6 +112,31 @@ export const extensionManifestSchema = z
       .optional(),
   })
   .superRefine((manifest, ctx) => {
+    if (
+      manifest.catalogueSource &&
+      (!/^1\.(?:[5-9]|[1-9]\d+)\./.test(manifest.sdkVersion) ||
+        !manifest.permissions.includes("network") ||
+        !manifest.hosts.includes("api.themoviedb.org"))
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["catalogueSource"],
+        message:
+          "TMDb catalogue integration requires SDK 1.5+, network permission and the api.themoviedb.org host.",
+      });
+
+    if (
+      manifest.catalogueSource &&
+      (manifest.role !== "stream-source" ||
+        manifest.kinds.length === 0 ||
+        manifest.kinds.some((kind) => kind !== "movie" && kind !== "tv"))
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["catalogueSource"],
+        message:
+          "TMDb catalogue integration requires a Movies/TV stream source.",
+      });
     if (
       manifest.permissions.includes("network:session") &&
       !manifest.permissions.includes("network")

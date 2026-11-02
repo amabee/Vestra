@@ -1,3 +1,4 @@
+import { UpdateIndicator } from "@/components/updates/app-updates";
 import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { useState } from "react";
@@ -109,6 +110,7 @@ function StatusBar() {
       <span className="meta">{data?.counts.localFiles ?? 0} files indexed</span>
       <span className="meta">{data?.counts.watchlist ?? 0} on watchlist</span>
       <div className="flex-1" />
+      <UpdateIndicator />
       {data?.extensions.length ? (
         <span className="meta">{data.extensions.length} extensions</span>
       ) : null}

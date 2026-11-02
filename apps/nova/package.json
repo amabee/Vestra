@@ -2,7 +2,7 @@
   "name": "@vestra/nova",
   "version": "0.1.2",
   "private": true,
-  "description": "Vestra Nova — the Vestra desktop application (Electron).",
+  "description": "Vestra Nova \u2014 the Vestra desktop application (Electron).",
   "main": "dist-electron/main.js",
   "scripts": {
     "build:renderer": "vite build --config renderer/vite.config.ts",
@@ -19,9 +19,12 @@
     "package": "pnpm run fetch:mpv && pnpm run publish:worker && pnpm run build && electron-builder --win --x64",
     "package:dir": "pnpm run publish:worker && pnpm run build && electron-builder --win --x64 --dir",
     "typecheck": "tsc --noEmit -p tsconfig.electron.json && tsc --noEmit -p renderer/tsconfig.json",
-    "clean": "rimraf dist-electron dist-renderer release .turbo"
+    "clean": "rimraf dist-electron dist-renderer release .turbo",
+    "release:build": "pnpm run fetch:mpv && pnpm run publish:worker && pnpm run build && electron-builder --win nsis --x64 --publish never"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3.14.24",
+    "@vestra/api": "workspace:*",
     "@vestra/config": "workspace:*",
     "@vestra/core": "workspace:*",
     "@vestra/extension-host": "workspace:*",
@@ -29,8 +32,8 @@
     "@vestra/providers": "workspace:*",
     "@vestra/storage": "workspace:*",
     "@vestra/types": "workspace:*",
-    "zod": "catalog:",
-    "@vestra/api": "workspace:*"
+    "electron-updater": "^6.8.11",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "7zip-min": "^3.0.1",
@@ -79,6 +82,19 @@
     ],
     "extraResources": [
       {
+        "from": "../../extensions",
+        "to": "extensions",
+        "filter": [
+          "moviebox/**",
+          "kisskh/**",
+          "internet-archive/**",
+          "vixsrc/**",
+          "streamflix/**",
+          "vidlink/**",
+          "desiflix/**"
+        ]
+      },
+      {
         "from": "vendor/server",
         "to": "server"
       },
@@ -94,6 +110,33 @@
     "electronLanguages": [
       "en-US"
     ],
-    "compression": "maximum"
+    "compression": "maximum",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Vestra-Nova-${version}-Setup-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "differentialPackage": true
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "amabee",
+        "repo": "Vestra",
+        "releaseType": "draft"
+      }
+    ]
   }
 }

@@ -25,6 +25,7 @@ export function registerSourceEpisode(
   source: StreamSourceProvider,
   episodeId: string,
   check: () => void,
+  refreshOnFailure = false,
 ): string {
   const resolve = async (excludeServers: string[] = []) => {
     check();
@@ -44,7 +45,12 @@ export function registerSourceEpisode(
       throw Error("This episode has no untried playable mirror.");
     return variants;
   };
-  return registerDeferredVariants(() => resolve(), check, resolve);
+  return registerDeferredVariants(
+    () => resolve(),
+    check,
+    resolve,
+    refreshOnFailure,
+  );
 }
 
 export async function matchSourceAnime(
@@ -118,7 +124,12 @@ export function sourceEpisodeQueue(
     .slice(0, MAX_EXTENSION_EPISODES)
     .map((episode) => ({
       kind: "stream",
-      locator: registerSourceEpisode(source, episode.id, check),
+      locator: registerSourceEpisode(
+        source,
+        episode.id,
+        check,
+        item.kind === "movie" || item.kind === "tv",
+      ),
       progressId:
         "stream-" +
         createHash("sha256")
@@ -138,7 +149,7 @@ export function sourceEpisodeQueue(
           ? episode.title || item.title
           : `${episode.season === undefined ? "" : `S${episode.season} · `}E${episode.number}${episode.title ? ` · ${episode.title}` : ""}`,
       priority: 80,
-      ...(item.kind !== "movie" && Number.isInteger(episode.number)
+      ...(item.kind !== "movie" && Number.isFinite(episode.number)
         ? { episode: episode.number }
         : {}),
       ...(item.kind !== "movie" && episode.season !== undefined
@@ -153,10 +164,12 @@ export function createStreamSourceAdapter(
 ): SourceAdapter {
   const requireCurrent = () => {
     if (!isCurrent())
-      throw new Error("Streaming source changed or was disabled. Reload episodes.");
+      throw new Error(
+        "Streaming source changed or was disabled. Reload episodes.",
+      );
   };
   return {
-    id: `ext-stream-${source.id.slice("ext-".length)}`,
+    id: `ext-stream-${source.id.startsWith("ext-") ? source.id.slice("ext-".length) : source.id}`,
     name: source.name,
     isAvailable: isCurrent,
     canHandle: (item) =>

@@ -68,3 +68,45 @@
     transition: none;
   }
 }
+
+/* Keep the loader stable and outside browser scroll anchoring. */
+.screen-pagination {
+  min-height: 5rem;
+  overflow-anchor: none;
+  flex-wrap: wrap;
+}
+
+.screen-virtual-grid {
+  position: relative;
+  width: 100%;
+  overflow-anchor: none;
+}
+.screen-virtual-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+.screen-card {
+  display: block;
+  min-width: 0;
+}
+.screen-card h2 {
+  height: 2.8em;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.screen-card p {
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.screen-poster-image {
+  display: block;
+  height: 100%;
+  width: 100%;
+}

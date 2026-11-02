@@ -11,6 +11,17 @@ export function getScreenService() {
 export async function screenSnapshot(ref: MediaRef) {
   if (ref.kind !== "movie" && ref.kind !== "tv") return null;
   const known = getScreenService().remembered(ref);
+  const source = getStreamSourceRegistry().get(ref.source);
+  if (
+    source?.catalogueDetails &&
+    getStreamSourceRegistry().isEnabled(source.id)
+  ) {
+    try {
+      return await source.catalogueDetails(ref.sourceId);
+    } catch (error) {
+      if (!known) throw error;
+    }
+  }
   if (known) return mediaDetailsSchema.parse(known);
   const matches = (row: { ref: MediaRef }) =>
     row.ref.source === ref.source &&

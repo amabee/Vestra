@@ -267,6 +267,11 @@ export interface StreamSourceProvider {
   readonly name: string;
   readonly kinds: readonly MediaKind[];
   readonly browseCategories?: readonly DiscoveryCategory[];
+  /** Host-only public metadata integration; no credentials cross into the guest. */
+  readonly catalogueSource?: "tmdb";
+  catalogueDetails?(
+    titleId: string,
+  ): Promise<import("@vestra/types").MediaDetails>;
   browse?(
     category: DiscoveryCategory,
     options: { page: number; limit: number; kind?: MediaKind },

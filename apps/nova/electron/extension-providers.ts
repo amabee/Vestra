@@ -10,6 +10,7 @@ import { callExtension, listLoadedExtensions } from "./extensions";
 import { MangaExtensionRegistry } from "./manga-extension";
 import { getMangaService } from "./manga-ipc";
 import { fetchCSharpImage, getMangaProgress } from "./csharp-providers";
+import { withSourceCatalogue } from "./catalogue-stream-source";
 import { createStreamSourceAdapter } from "./stream-source-adapter";
 import {
   getAdapterRegistry,
@@ -129,7 +130,7 @@ export function attachStreamSourceProvider(
   // chosen an episode rather than before.
   if (!canActAsStreamSource(methods) || kinds.length === 0) return;
 
-  const source = createStreamSourceProvider({
+  const nativeSource = createStreamSourceProvider({
     extensionId: record.id,
     // From the manifest the user consented to, not from the guest.
     name: record.name,
@@ -140,6 +141,15 @@ export function attachStreamSourceProvider(
     onWarning: (message) =>
       console.warn(`[stream-source:${record.id}] ${message}`),
   });
+
+  if (record.manifest.catalogueSource && !methods.includes("matchCatalogue"))
+    throw Error("Catalogue-backed source must export matchCatalogue().");
+  const source =
+    record.manifest.catalogueSource === "tmdb"
+      ? withSourceCatalogue(nativeSource, (method, args) =>
+          callExtension(record.id, method, args),
+        )
+      : nativeSource;
 
   const registry = getStreamSourceRegistry();
 

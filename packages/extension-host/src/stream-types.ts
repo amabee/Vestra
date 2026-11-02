@@ -127,16 +127,14 @@ export type SubtitleTrack = z.infer<typeof subtitleTrackSchema>;
  * One playable rendition.
  *
  * `type` is the container Vestra cares about, not whatever the source called
- * it. Only two matter to the player: a manifest it must follow (`hls`) or a
- * file it can open directly (`mp4`). Sources that report anything else are
- * normalised in `adapt.ts` or dropped — an unrecognised type reaching the
- * player is a hang, not an error.
+ * it. HLS is a manifest; MP4 and MKV are direct files opened by the native
+ * player. Keep direct container labels accurate instead of calling MKV MP4.
  */
 export const videoSourceSchema = z.object({
   url: httpsUrlSchema,
   /** Free text as labelled by the source: "1080p", "auto", "HD". */
   quality: z.string().min(1).max(60),
-  type: z.enum(["hls", "mp4"]),
+  type: z.enum(["hls", "mp4", "mkv"]),
   headers: headersSchema.optional(),
   subtitles: z.array(subtitleTrackSchema).max(50).optional(),
 });

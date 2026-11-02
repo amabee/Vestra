@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router";
 import { Search } from "lucide-react";
 import type { DiscoveryCategory } from "@vestra/extension-host";
-import { mediaKey } from "@vestra/types";
+import { useScreenFeed } from "./use-screen-feed";
+import { ScreenTitleGrid } from "./screen-title-grid";
 import type { ScreenKind } from "../../../../shared/screen";
 import { bridge } from "@/lib/bridge";
-import { AnimePoster } from "./anime-hub-cards";
 import { Notice } from "@/components/layout/page";
 import "./anime-hub.css";
 import "./screen-workspace.css";
@@ -21,26 +21,12 @@ export function ScreenWorkspace({ kind }: { kind: ScreenKind }) {
     queryFn: () => bridge.screen.sources(kind),
     refetchInterval: 5000,
   });
-  const [preferred] = useState(() => {
-    try {
-      return localStorage.getItem(`vestra-screen-source-${kind}`) ?? "";
-    } catch {
-      return "";
-    }
-  });
-  const selected =
-    params.get("source") ??
-    (sources.data?.some((row) => row.id === preferred)
-      ? preferred
-      : sources.data?.[0]?.id) ??
-    "";
-  const source = sources.data?.find((row) => row.id === selected);
+  const categories = [
+    ...new Set(sources.data?.flatMap((row) => row.categories) ?? []),
+  ];
   const category = (params.get("category") ??
-    source?.categories[0] ??
+    categories[0] ??
     "popular") as DiscoveryCategory;
-  const rawPage = Number(params.get("page") ?? 1);
-  const page =
-    Number.isInteger(rawPage) && rawPage >= 1 && rawPage <= 100 ? rawPage : 1;
   const patch = (values: Record<string, string>) =>
     setParams((current) => {
       const next = new URLSearchParams(current);
@@ -48,23 +34,55 @@ export function ScreenWorkspace({ kind }: { kind: ScreenKind }) {
         value ? next.set(key, value) : next.delete(key);
       return next;
     });
+  const eligible = (sources.data ?? []).filter(
+    (row) => !!query || row.categories.includes(category),
+  );
+  const canBrowse = eligible.length > 0;
+  const feed = useScreenFeed(kind, eligible, query, category);
+  const sentinel = useRef<HTMLDivElement>(null);
+  const lastAutoCount = useRef(-1);
+  const autoArmed = useRef(false);
+  const { items } = feed;
   useEffect(() => {
-    if (!source) return;
-    try {
-      localStorage.setItem(`vestra-screen-source-${kind}`, source.id);
-    } catch {
-      /* Preference is optional. */
-    }
-  }, [kind, source?.id]);
-  const canBrowse =
-    !!source && (!!query || source.categories.includes(category));
-  const results = useQuery({
-    queryKey: ["screen-browse", kind, selected, query, category, page],
-    queryFn: () =>
-      bridge.screen.browse({ kind, source: selected, query, category, page }),
-    enabled: canBrowse,
-    staleTime: 120000,
-  });
+    lastAutoCount.current = -1;
+    autoArmed.current = false;
+  }, [feed.key]);
+  useEffect(() => {
+    const target = sentinel.current;
+    if (!target || !feed.hasMore || feed.loading || feed.warnings.length)
+      return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (
+          !autoArmed.current ||
+          !entry?.isIntersecting ||
+          lastAutoCount.current === items.length
+        )
+          return;
+        autoArmed.current = false;
+        lastAutoCount.current = items.length;
+        feed.loadMore();
+      },
+      { root: target.closest("main"), rootMargin: "0px" },
+    );
+    const scrollRoot = target.closest("main") ?? window;
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        autoArmed.current = true;
+        observer.unobserve(target);
+        observer.observe(target);
+      });
+    };
+    scrollRoot.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+      scrollRoot.removeEventListener("scroll", onScroll);
+    };
+  }, [feed.hasMore, feed.loading, feed.loadMore, items.length]);
   return (
     <div className="anime-hub screen-workspace">
       <header className="hub-heading">
@@ -73,34 +91,10 @@ export function ScreenWorkspace({ kind }: { kind: ScreenKind }) {
           <h1>{kind === "movie" ? "Movies" : "TV series"}</h1>
           <p>Find a title, choose what to watch, and press play.</p>
         </div>
-        {!!sources.data?.length && (
-          <label>
-            Browse from
-            <select
-              aria-label="Movies and TV source"
-              value={selected}
-              onChange={(event) =>
-                patch({
-                  source: event.target.value,
-                  category: "",
-                  page: "",
-                  q: "",
-                })
-              }
-            >
-              {!source && <option value={selected}>Unavailable source</option>}
-              {sources.data.map((row) => (
-                <option key={row.id} value={row.id}>
-                  {row.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
       </header>
       <nav className="hub-nav" aria-label="Movies and TV browsing">
         <Link to={kind === "movie" ? "/films" : "/series"} aria-current="page">
-          Installed sources
+          Browse
         </Link>
         <Link to={`?view=catalogue`}>Catalogue</Link>
         <Link to="/extensions">Manage extensions</Link>
@@ -130,11 +124,6 @@ export function ScreenWorkspace({ kind }: { kind: ScreenKind }) {
             Open catalogue
           </Link>
         </div>
-      ) : !source ? (
-        <Notice
-          title="This extension is unavailable"
-          body="Choose an enabled source above."
-        />
       ) : (
         <>
           <form
@@ -151,12 +140,20 @@ export function ScreenWorkspace({ kind }: { kind: ScreenKind }) {
               id={`screen-search-${kind}`}
               value={input}
               maxLength={500}
-              placeholder={`Search ${source.name}…`}
+              placeholder="Search movies and series..."
               onChange={(event) => setInput(event.target.value)}
             />
             <button className="btn btn-primary" type="submit">
               <Search size={16} aria-hidden="true" />
               Search
+            </button>
+            <button
+              className="btn btn-ghost"
+              type="button"
+              onClick={feed.refresh}
+              disabled={feed.loading}
+            >
+              Refresh titles
             </button>
             {!!query && (
               <button
@@ -168,7 +165,7 @@ export function ScreenWorkspace({ kind }: { kind: ScreenKind }) {
               </button>
             )}
           </form>
-          {!query && !!source.categories.length && (
+          {!query && !!categories.length && (
             <label className="screen-category">
               Collection
               <select
@@ -178,10 +175,10 @@ export function ScreenWorkspace({ kind }: { kind: ScreenKind }) {
                   patch({ category: event.target.value, page: "" })
                 }
               >
-                {!source.categories.includes(category) && (
+                {!categories.includes(category) && (
                   <option value={category}>Unavailable collection</option>
                 )}
-                {source.categories.map((name) => (
+                {categories.map((name) => (
                   <option key={name} value={name}>
                     {name[0]!.toUpperCase() + name.slice(1)}
                   </option>
@@ -189,12 +186,20 @@ export function ScreenWorkspace({ kind }: { kind: ScreenKind }) {
               </select>
             </label>
           )}
+          {!!feed.warnings.length && (
+            <div className="screen-source-warning" role="status">
+              <p>Some providers could not load. {feed.warnings.join("; ")}</p>
+              <button className="btn btn-ghost btn-sm" onClick={feed.retry}>
+                Retry unavailable providers
+              </button>
+            </div>
+          )}
           {!canBrowse ? (
             <Notice
               title="Search this source"
-              body="Enter a title above. This extension does not offer the selected collection."
+              body="Enter a title above. Your installed extensions do not offer this collection."
             />
-          ) : results.isPending ? (
+          ) : feed.initialPending ? (
             <div
               className="screen-grid"
               aria-label="Loading titles"
@@ -204,20 +209,14 @@ export function ScreenWorkspace({ kind }: { kind: ScreenKind }) {
                 <div className="screen-skeleton animate-pulse" key={index} />
               ))}
             </div>
-          ) : results.error ? (
+          ) : feed.error && !items.length && !feed.loading ? (
             <div role="alert">
-              <Notice
-                title="Could not load titles"
-                body={results.error.message}
-              />
-              <button
-                className="btn btn-ghost"
-                onClick={() => void results.refetch()}
-              >
+              <Notice title="Could not load titles" body={feed.error.message} />
+              <button className="btn btn-ghost" onClick={() => feed.retry()}>
                 Retry
               </button>
             </div>
-          ) : !results.data?.items.length ? (
+          ) : !items.length ? (
             <Notice
               title="No titles found"
               body="Try another title or collection."
@@ -225,48 +224,32 @@ export function ScreenWorkspace({ kind }: { kind: ScreenKind }) {
           ) : (
             <>
               <p className="meta screen-result-count">
-                {source.name} ·{" "}
-                {query ? `Results for “${query}”` : `Page ${page}`}
+                All providers ·{" "}
+                {query
+                  ? `Results for “${query}”`
+                  : `${items.length} titles loaded`}
               </p>
-              <div className="screen-grid">
-                {results.data.items.map((item) => (
-                  <Link
-                    className="screen-card"
-                    key={mediaKey(item)}
-                    to={`/media/${encodeURIComponent(item.source)}/${item.kind}/${encodeURIComponent(item.sourceId)}`}
-                  >
-                    <div className="screen-poster">
-                      <AnimePoster item={item} />
-                    </div>
-                    <h2>{item.title}</h2>
-                    <p>
-                      {item.year ?? "Year unknown"} ·{" "}
-                      {item.kind === "movie" ? "Movie" : "TV series"}
-                    </p>
-                  </Link>
-                ))}
-              </div>
+              <ScreenTitleGrid key={feed.key} items={items} />
             </>
           )}
-          {!query && canBrowse && (
-            <div className="screen-pagination">
-              <button
-                className="btn btn-ghost"
-                disabled={page <= 1 || results.isFetching}
-                onClick={() => patch({ page: String(page - 1) })}
-              >
-                Previous
-              </button>
-              <span>Page {page}</span>
-              <button
-                className="btn btn-ghost"
-                disabled={
-                  !results.data?.hasMore || page >= 100 || results.isFetching
-                }
-                onClick={() => patch({ page: String(page + 1) })}
-              >
-                Next
-              </button>
+          {canBrowse && (
+            <div className="screen-pagination" ref={sentinel}>
+              {feed.loading && <p role="status">Loading more titles...</p>}
+              {feed.hasMore || feed.warnings.length > 0 ? (
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => feed.loadMore(true)}
+                  disabled={feed.loading && !feed.hasMore}
+                >
+                  {feed.warnings.length ? "Retry loading more" : "Load more"}
+                </button>
+              ) : !feed.loading && items.length > 0 ? (
+                <p role="status">
+                  {feed.capped
+                    ? "Browsing limit reached. Search to narrow your results."
+                    : "All available titles loaded"}
+                </p>
+              ) : null}
             </div>
           )}
         </>
