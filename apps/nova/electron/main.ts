@@ -1,3 +1,5 @@
+import { initAutoUpdate } from "./auto-update";
+import { loadTmdbSettings } from "./tmdb-settings";
 import { join } from "node:path";
 
 import {
@@ -329,17 +331,6 @@ function registerIpc(): void {
   );
 }
 
-/* -----------------------------------------------------------------------------
- * Auto-update — placeholder.
- * Wire electron-updater here once a release feed exists.
- * -------------------------------------------------------------------------- */
-
-function initAutoUpdate(): void {
-  if (isDev) return;
-  // TODO: import { autoUpdater } from "electron-updater" and call
-  // autoUpdater.checkForUpdatesAndNotify() once releases are published.
-}
-
 // A single instance owns the tray and window; a second launch focuses the first.
 const gotLock = app.requestSingleInstanceLock();
 
@@ -353,7 +344,8 @@ if (!gotLock) {
     }
   });
 
-  void app.whenReady().then(() => {
+  void app.whenReady().then(async () => {
+    await loadTmdbSettings();
     registerIpc();
     registerMediaProtocolHandler();
     registerMangaIpc(fetchCSharpImage, getMangaBookmarks());
@@ -363,7 +355,7 @@ if (!gotLock) {
 
     mainWindow = createWindow();
     createTray();
-    initAutoUpdate();
+    initAutoUpdate(() => mainWindow);
 
     /*
       Fill in runtimes and stills for anything indexed without them.

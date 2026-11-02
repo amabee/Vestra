@@ -117,7 +117,14 @@ export async function prepareUnpacked(folder: string): Promise<InstallPlan> {
       id: manifest.id,
       name: manifest.name,
       version: manifest.version,
-      type: manifest.role === "manga-source" ? "manga-provider" : "plugin",
+      type:
+        manifest.role === "manga-source"
+          ? "manga-provider"
+          : manifest.role === "stream-source"
+            ? manifest.kinds.some((kind) => kind === "movie" || kind === "tv")
+              ? "custom-source"
+              : "onlinestream-provider"
+            : "plugin",
       manifestURI: resolveInside(folder, MANIFEST_FILE),
       payloadURI: payload,
       registryUrl: LOCAL_REGISTRY,

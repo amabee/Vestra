@@ -1,19 +1,17 @@
+import { AppUpdatesPanel } from "@/components/updates/app-updates";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FolderPlus, Loader2, RefreshCw, Trash2, Wand2 } from "lucide-react";
 import { useState } from "react";
 
-import { Notice, Page, PageHeader, SectionRule } from "@/components/layout/page";
+import {
+  Notice,
+  Page,
+  PageHeader,
+  SectionRule,
+} from "@/components/layout/page";
 import { bridge, type ScanSummary } from "@/lib/bridge";
 import { keys, useDiagnostics, useSettings } from "@/lib/queries";
 
-/**
- * Settings.
- *
- * Read-only for now, and honest about it. Provider credentials come from the
- * environment rather than the UI, so the useful thing this screen can do today
- * is tell you what is actually connected — which is the question you have when
- * a section comes up empty.
- */
 export function SettingsRoute() {
   const { data: diagnostics } = useDiagnostics();
   const { data: settings } = useSettings();
@@ -23,9 +21,11 @@ export function SettingsRoute() {
       <PageHeader
         eyebrow="System"
         title="Settings"
-        lead="Connections are configured through environment variables and never stored in the app."
+        lead="Manage your media folders and catalogue connections."
       />
 
+      <AppUpdatesPanel />
+      <TmdbConnection />
       <MediaFolders />
 
       <section className="mt-10">
@@ -56,8 +56,14 @@ export function SettingsRoute() {
       <section className="mt-10">
         <SectionRule label="Storage" />
         <Row label="Data directory" value={diagnostics?.dataDir ?? "—"} mono />
-        <Row label="Files indexed" value={String(diagnostics?.counts.localFiles ?? 0)} />
-        <Row label="On watchlist" value={String(diagnostics?.counts.watchlist ?? 0)} />
+        <Row
+          label="Files indexed"
+          value={String(diagnostics?.counts.localFiles ?? 0)}
+        />
+        <Row
+          label="On watchlist"
+          value={String(diagnostics?.counts.watchlist ?? 0)}
+        />
         <Row
           label="Media folders"
           value={String(settings?.library.folders.length ?? 0)}
@@ -80,6 +86,139 @@ export function SettingsRoute() {
         />
       </section>
     </Page>
+  );
+}
+
+function TmdbConnection() {
+  const client = useQueryClient();
+  const status = useQuery({
+    queryKey: ["tmdb-credentials"],
+    queryFn: bridge.settings.tmdbStatus,
+  });
+  const [accessToken, setAccessToken] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [message, setMessage] = useState("");
+  const save = useMutation({
+    mutationFn: bridge.settings.saveTmdb,
+    onSuccess: async (_, value) => {
+      setAccessToken("");
+      setApiKey("");
+      setMessage(
+        value
+          ? "TMDb credentials saved. The new configuration applies immediately."
+          : "Saved credentials removed. Environment configuration applies if present.",
+      );
+      await client.invalidateQueries();
+    },
+  });
+  return (
+    <section className="mt-10">
+      <SectionRule label="TMDb connection" />
+      <p className="mt-3 text-sm text-base-content/60">
+        Movie and series metadata. Use an API Read Access Token (recommended) or
+        a v3 API key from{" "}
+        <a
+          className="link"
+          href="https://www.themoviedb.org/settings/api"
+          target="_blank"
+          rel="noreferrer"
+        >
+          your TMDb account
+        </a>
+        . Credentials are encrypted on this computer and kept outside
+        extensions.
+      </p>
+      <p className="my-3 meta" role="status">
+        {status.isPending
+          ? "Checking connection configuration…"
+          : status.data?.configured
+            ? `Configured through ${status.data.source}`
+            : "Not configured"}
+      </p>
+      {status.data?.loadError && (
+        <p role="alert" className="text-sm text-warning">
+          Saved credentials could not be opened. Enter them again or remove the
+          saved connection.
+        </p>
+      )}
+      {status.error && <p role="alert">Could not read connection settings.</p>}
+      <form
+        className="mt-4 grid max-w-xl gap-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setMessage("");
+          save.mutate({ accessToken, apiKey });
+        }}
+      >
+        <label className="grid gap-1 text-sm">
+          API Read Access Token
+          <input
+            className="input input-bordered w-full"
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            value={accessToken}
+            onChange={(e) => setAccessToken(e.target.value)}
+            placeholder="Enter a new token"
+            disabled={save.isPending}
+          />
+        </label>
+        <label className="grid gap-1 text-sm">
+          API key (v3)
+          <input
+            className="input input-bordered w-full"
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="Or enter a v3 key"
+            disabled={save.isPending}
+          />
+        </label>
+        <div className="flex gap-2">
+          <button
+            className="btn btn-primary btn-sm"
+            disabled={
+              save.isPending ||
+              !status.data?.encryptionAvailable ||
+              !(accessToken.trim() || apiKey.trim())
+            }
+          >
+            {save.isPending ? "Saving…" : "Save connection"}
+          </button>
+          {(status.data?.saved || status.data?.loadError) && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={save.isPending}
+              onClick={() => {
+                setMessage("");
+                save.mutate(null);
+              }}
+            >
+              Remove saved credentials
+            </button>
+          )}
+        </div>
+      </form>
+      {status.data && !status.data.encryptionAvailable && (
+        <p role="alert" className="mt-3 text-sm">
+          Secure storage is unavailable. Configure TMDB_ACCESS_TOKEN or
+          TMDB_API_KEY in the environment.
+        </p>
+      )}
+      {save.error && (
+        <p role="alert" className="mt-3 text-sm text-error">
+          {save.error.message}
+        </p>
+      )}
+      {message && (
+        <p role="status" className="mt-3 text-sm text-success">
+          {message}
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -227,11 +366,15 @@ function MediaFolders() {
       )}
 
       {scan.error ? (
-        <p className="mt-3 text-xs text-error">{(scan.error as Error).message}</p>
+        <p className="mt-3 text-xs text-error">
+          {(scan.error as Error).message}
+        </p>
       ) : null}
 
       {rematch.error ? (
-        <p className="mt-3 text-xs text-error">{(rematch.error as Error).message}</p>
+        <p className="mt-3 text-xs text-error">
+          {(rematch.error as Error).message}
+        </p>
       ) : null}
 
       {rematched ? (
@@ -246,16 +389,26 @@ function MediaFolders() {
 
       {summary ? (
         <p className="meta mt-3">
-          {summary.scanned} scanned · {summary.added} added · {summary.removed} removed ·{" "}
-          {summary.matched} matched · {summary.unmatched} unmatched
-          {summary.errors.length > 0 ? ` · ${summary.errors.length} errors` : ""}
+          {summary.scanned} scanned · {summary.added} added · {summary.removed}{" "}
+          removed · {summary.matched} matched · {summary.unmatched} unmatched
+          {summary.errors.length > 0
+            ? ` · ${summary.errors.length} errors`
+            : ""}
         </p>
       ) : null}
     </section>
   );
 }
 
-function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Row({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
   return (
     <div className="flex items-center justify-between gap-6 border-b rule px-2 py-2.5">
       <span className="text-sm text-base-content/60">{label}</span>

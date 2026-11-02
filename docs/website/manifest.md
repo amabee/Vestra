@@ -17,6 +17,12 @@ native SDK rather than a compatibility-script manifest.
 
 ## Permissions
 
+Optional `catalogueSource: "tmdb"` uses SDK 1.5 host-owned metadata for a
+Movies/TV `stream-source`. It requires network permission and an explicit
+`api.themoviedb.org` host. The current host supplies search, artwork and aired
+episode hints; configured credentials remain in Vestra. See
+[Movies and TV sources](movies-tv.md) for the contract.
+
 `permissions` may contain `network`, `network:session`, `library:read` and `progress:read`. Network
 requests also need explicit bare hostnames in `hosts`. Undeclared hosts and
 subdomains do not inherit grants. Network without hosts is not a valid manifest.

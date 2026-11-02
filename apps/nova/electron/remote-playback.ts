@@ -95,6 +95,7 @@ type Entry = {
   resolve: () => Promise<RemoteVariant[]>;
   selected?: string;
   recover?: (excluded: string[]) => Promise<RemoteVariant[]>;
+  refreshOnFailure?: boolean;
   validate?: () => void;
   choices: Map<string, string>;
 };
@@ -173,8 +174,15 @@ export function registerDeferredVariants(
   resolve: () => Promise<RemoteVariant[]>,
   validate?: () => void,
   recover?: (excluded: string[]) => Promise<RemoteVariant[]>,
+  refreshOnFailure = false,
 ): string {
-  return register({ resolve, validate, recover, choices: new Map() });
+  return register({
+    resolve,
+    validate,
+    recover,
+    refreshOnFailure,
+    choices: new Map(),
+  });
 }
 export async function remoteQualities(
   locator: string,
@@ -234,6 +242,7 @@ export function createRemoteRecovery(
   let currentServer: string | undefined;
   let current = initial;
   let attempts = 0;
+  let refreshed = false;
   const next = async (): Promise<PlaybackRecovery> => {
     entry.validate?.();
     const rows = currentRows ?? (await initialRows) ?? (await variants(entry));
@@ -246,6 +255,45 @@ export function createRemoteRecovery(
     const previous =
       rows.find((row) => row.playback.url === current.url) ??
       rows.find((row) => row.server === currentServer);
+    // Single-provider sources may issue a new signed URL on the same server.
+    // Refresh once before mirror exclusion or quality fallback, preserving the
+    // current rendition where possible. Never loop on an unchanged URL.
+    if (entry.refreshOnFailure && !refreshed) {
+      refreshed = true;
+      variantCache.delete(entry.resolve);
+      try {
+        const fresh = await loadVariants(entry);
+        entry.validate?.();
+        const changed = fresh.filter(
+          (row) => !rows.some((old) => old.playback.url === row.playback.url),
+        );
+        const replacement =
+          changed.find((row) => row.key === previous?.key) ??
+          automaticVariant(changed);
+        if (replacement) {
+          variantCache.set(entry.resolve, {
+            at: Date.now(),
+            pending: Promise.resolve(fresh),
+          });
+          currentRows = fresh;
+          currentServer = replacement.server;
+          current = replacement.playback;
+          const oldHeight = Number(
+            /\b(\d{3,4})p\b/i.exec(previous?.label ?? "")?.[1],
+          );
+          const newHeight = Number(
+            /\b(\d{3,4})p\b/i.exec(replacement.label)?.[1],
+          );
+          return {
+            playback: current,
+            lowerQuality: newHeight > 0 && oldHeight > newHeight,
+            retry: next,
+          };
+        }
+      } catch {
+        entry.validate?.();
+      }
+    }
     if (currentServer) usedServers.add(currentServer);
     if (usedServers.size && attempts++ < 3) {
       let alternatives = rows.filter(

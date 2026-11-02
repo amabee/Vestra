@@ -40,25 +40,21 @@ export const EXTENSION_TYPE_SUPPORT: Record<
   "custom-source": { supported: true, reason: "" },
   "anime-torrent-provider": {
     supported: true,
-    reason:
-      "Torrent trackers are supported.",
+    reason: "Torrent trackers are supported.",
   },
   "onlinestream-provider": {
     supported: true,
-    reason:
-      "Supported",
+    reason: "Supported",
   },
   "manga-provider": {
     supported: true,
-    reason:
-      "Supported",
+    reason: "Supported",
   },
 };
 
 /** Types Vestra will actually run. Everything else is listed but inert. */
-export const SUPPORTED_EXTENSION_TYPES: readonly ExtensionType[] = EXTENSION_TYPES.filter(
-  (type) => EXTENSION_TYPE_SUPPORT[type].supported,
-);
+export const SUPPORTED_EXTENSION_TYPES: readonly ExtensionType[] =
+  EXTENSION_TYPES.filter((type) => EXTENSION_TYPE_SUPPORT[type].supported);
 
 export const EXTENSION_TYPE_LABEL: Record<ExtensionType, string> = {
   plugin: "Plugins",
@@ -96,6 +92,9 @@ export const marketplaceEntrySchema = z.object({
   deprecatedTag: z.boolean().default(false),
   official: z.boolean().default(false),
 
+  kinds: z
+    .array(z.enum(["movie", "tv", "anime", "manga", "kdrama"]))
+    .default([]),
   tags: z.array(z.string()).default([]),
   scannedOnVersion: z.string().nullable().default(null),
   lastWorkingVersion: z.string().nullable().default(null),
@@ -155,7 +154,8 @@ export interface ScanResult {
 /** Parse the VirusTotal summary string, e.g. "1/61". */
 export function parseScan(flags: string): ScanResult {
   const match = /^(\d+)\s*\/\s*(\d+)$/.exec(flags.trim());
-  if (!match?.[1] || !match[2]) return { scanned: false, detections: 0, engines: 0 };
+  if (!match?.[1] || !match[2])
+    return { scanned: false, detections: 0, engines: 0 };
 
   const engines = Number.parseInt(match[2], 10);
   // "0/0" is a placeholder some registries use for unscanned entries.
@@ -232,7 +232,8 @@ export function analyzeTrust(entry: MarketplaceEntry): TrustReport {
   }
 
   if (health === "broken") warnings.push("Reported broken by the registry.");
-  if (health === "deprecated") warnings.push("Marked deprecated by its author.");
+  if (health === "deprecated")
+    warnings.push("Marked deprecated by its author.");
 
   return { supported, health, scan, pinned, hasPayload, warnings };
 }
@@ -251,9 +252,13 @@ export function sortEntries(
 
   switch (sort) {
     case "stars":
-      return copy.sort((a, b) => b.stars - a.stars || a.name.localeCompare(b.name));
+      return copy.sort(
+        (a, b) => b.stars - a.stars || a.name.localeCompare(b.name),
+      );
     case "updated":
-      return copy.sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
+      return copy.sort((a, b) =>
+        (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""),
+      );
     default:
       return copy.sort((a, b) => a.name.localeCompare(b.name));
   }

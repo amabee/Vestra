@@ -25,7 +25,10 @@ import type {
  * Images
  * -------------------------------------------------------------------------- */
 
-export function tmdbImage(path: string | null | undefined, size: string): string | null {
+export function tmdbImage(
+  path: string | null | undefined,
+  size: string,
+): string | null {
   if (!path) return null;
   return `${TMDB_IMAGE_BASE}/${size}${path}`;
 }
@@ -82,9 +85,12 @@ function mapCast(cast: TmdbCastMember[] | undefined): CastMember[] {
  * A Korean-origin TV show is surfaced as a K-drama; everything else stays "tv".
  * TMDb has no K-drama category, so Vestra derives one from origin country.
  */
-export function tvKind(show: Pick<TmdbTv, "origin_country" | "original_language">): MediaKind {
+export function tvKind(
+  show: Pick<TmdbTv, "origin_country" | "original_language">,
+): MediaKind {
   const isKorean =
-    show.origin_country?.includes("KR") === true || show.original_language === "ko";
+    show.origin_country?.includes("KR") === true ||
+    show.original_language === "ko";
   return isKorean ? "kdrama" : "tv";
 }
 
@@ -98,7 +104,10 @@ export function normaliseMovie(movie: TmdbMovie): MediaItem {
     kind: "movie",
     sourceId: String(movie.id),
     title: movie.title,
-    originalTitle: movie.original_title !== movie.title ? (movie.original_title ?? null) : null,
+    originalTitle:
+      movie.original_title !== movie.title
+        ? (movie.original_title ?? null)
+        : null,
     year: yearFrom(movie.release_date),
     overview: movie.overview ?? null,
     images: {
@@ -175,7 +184,9 @@ export function mapWatchProviders(
  * TMDb nests one entry per country, each with several release types.
  */
 function movieCertification(movie: TmdbMovie): string | null {
-  const us = movie.release_dates?.results?.find((entry) => entry.iso_3166_1 === "US");
+  const us = movie.release_dates?.results?.find(
+    (entry) => entry.iso_3166_1 === "US",
+  );
   const certification = us?.release_dates?.find(
     (entry) => entry.certification && entry.certification.trim().length > 0,
   )?.certification;
@@ -183,7 +194,9 @@ function movieCertification(movie: TmdbMovie): string | null {
 }
 
 function tvCertification(show: TmdbTv): string | null {
-  const us = show.content_ratings?.results?.find((entry) => entry.iso_3166_1 === "US");
+  const us = show.content_ratings?.results?.find(
+    (entry) => entry.iso_3166_1 === "US",
+  );
   const rating = us?.rating?.trim();
   return rating && rating.length > 0 ? rating : null;
 }
@@ -216,7 +229,8 @@ export function normaliseTv(show: TmdbTv): MediaItem {
     kind: tvKind(show),
     sourceId: String(show.id),
     title: show.name,
-    originalTitle: show.original_name !== show.name ? (show.original_name ?? null) : null,
+    originalTitle:
+      show.original_name !== show.name ? (show.original_name ?? null) : null,
     year: yearFrom(show.first_air_date),
     overview: show.overview ?? null,
     images: {
@@ -267,8 +281,8 @@ export function normaliseTvDetails(show: TmdbTv): MediaDetails {
     tagline: show.tagline ?? null,
     certification: tvCertification(show),
     cast: mapCast(show.credits?.cast),
-    // Season 0 is "Specials"; keep the main run only.
-    seasons: (show.seasons ?? []).filter((s) => s.season_number > 0).map(normaliseSeason),
+    // Keep season 0: specials need the same stable episode identity as the main run.
+    seasons: (show.seasons ?? []).map(normaliseSeason),
     related: (show.similar?.results ?? []).slice(0, 12).map(normaliseTv),
     studios: (show.production_companies ?? []).map((c) => c.name),
     countries: (show.production_countries ?? []).map((c) => c.iso_3166_1),

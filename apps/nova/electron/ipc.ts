@@ -1,3 +1,6 @@
+import { join } from "node:path";
+import { listBundled, prepareBundled, BUNDLED_REGISTRY } from "./bundled-extensions";
+import { tmdbSettingsStatus, saveTmdbSettings } from "./tmdb-settings";
 import { prepareExtensionReview } from "./extension-install";
 import { prepareProviderExtension } from "./source-ipc";
 import { resolveCataloguePlayback } from "./catalogue-playback";
@@ -58,7 +61,7 @@ import {
   reportSkipTime,
   scanLibrary,
 } from "@vestra/providers";
-import { ipcMain, shell, dialog } from "electron";
+import { app, ipcMain, shell, dialog } from "electron";
 import { z } from "zod";
 
 import {
@@ -167,6 +170,10 @@ const bookmarkInputSchema = z.object({
  * and arrives via the renderer. The URLs are checked again by the transport,
  * and the type is checked again by `assertLoadable` inside the install.
  */
+function bundledRoot() {
+  return app.isPackaged ? join(process.resourcesPath, "extensions") : join(app.getAppPath(), "../../extensions");
+}
+
 const installCandidateSchema = z.object({
   id: z.string().min(1).max(200),
   name: z.string().min(1).max(300),
@@ -212,6 +219,9 @@ export function registerDataIpc(): void {
   /* --------------------------------------------------------------------- *
    * Settings
    * --------------------------------------------------------------------- */
+
+  handle("settings:tmdb-status", () => tmdbSettingsStatus());
+  handle("settings:tmdb-save", (raw: unknown) => saveTmdbSettings(raw));
 
   handle("settings:get", () => getSettings(getDriver()));
 
@@ -290,6 +300,12 @@ export function registerDataIpc(): void {
 
   handle("playback:resolve", async (raw: unknown, rawSource?: unknown) => {
     const ref = parse(mediaRefSchema, raw, "media reference") as MediaItem;
+    const selectedSource = z
+      .string()
+      .min(1)
+      .max(120)
+      .optional()
+      .parse(rawSource);
 
     if (
       (ref.kind === "movie" || ref.kind === "tv") &&
@@ -301,15 +317,9 @@ export function registerDataIpc(): void {
         throw Error(
           "Title information expired. Find this title in Movies or Series again.",
         );
-      return (await getScreenService().open(item)).queue;
+      return (await getScreenService().open(item, selectedSource)).queue;
     }
 
-    const selectedSource = z
-      .string()
-      .min(1)
-      .max(120)
-      .optional()
-      .parse(rawSource);
     return resolveCataloguePlayback(
       getProviderRegistry(),
       getAdapterRegistry(),
@@ -681,6 +691,10 @@ export function registerDataIpc(): void {
       }
     }
 
+    const bundled = await listBundled(bundledRoot());
+    const listed = new Set(entries.map(entry => entry.id));
+    entries.push(...bundled.entries.filter(entry => !listed.has(entry.id)));
+    errors.push(...bundled.errors);
     return { entries, errors, rejected };
   });
 
@@ -696,6 +710,8 @@ export function registerDataIpc(): void {
       raw,
       "extension",
     );
+    if (typeof candidate !== "string" && candidate.registryUrl === BUNDLED_REGISTRY)
+      return { kind: "sdk", plan: await prepareBundled(bundledRoot(), candidate.id) };
     return prepareExtensionReview(
       candidate,
       transport,

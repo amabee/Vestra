@@ -56,7 +56,23 @@ isolate has no DOM, Node.js or global browser `fetch`. Bundle any parser into th
 entry file. Site-specific extraction belongs in the extension rather than the
 player or application routes.
 
-## Choosing the first site
+## Optional host catalogue — SDK 1.5
+
+A source whose public index contains only TMDb IDs can declare
+`catalogueSource: "tmdb"`, SDK `1.5.0`, the `network` permission and
+`api.themoviedb.org` in `hosts`. This requires a current Vestra host with TMDb
+credentials configured. Existing self-contained sources do not need it.
+
+Export `matchCatalogue(candidateIds)`, returning a unique subset of canonical
+IDs such as `movie|278` or `tv|1396`. The host owns search, Popular pagination,
+artwork and details; the guest receives IDs rather than metadata credentials.
+For TV, `getEpisodes(titleId, hints)` receives aired metadata episodes with
+canonical IDs such as `tv|1396|s5|e1`. Return only valid hints supported by the
+source. Keep movie handling and `getStreams(entryId)` in the extension.
+Catalogue episodes are not proof of streaming availability; validate on Play.
+The [VixSrc source](vixsrc.md) is a complete local example.
+
+## Choosing another site
 
 For another site, record its search, title, season, episode and stream
 responses as fixtures. Implement and validate that site's mapping independently

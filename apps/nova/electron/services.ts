@@ -4,6 +4,8 @@ import { StreamSourceRegistry } from "@vestra/extension-host";
 import { createRegistries, type Registries } from "@vestra/providers";
 import { NodeDriver, type StorageDriver } from "@vestra/storage";
 import { app } from "electron";
+import { createVylaService } from "./vyla-service";
+import { createStreamSourceAdapter } from "./stream-source-adapter";
 
 /**
  * Composition root.
@@ -47,7 +49,8 @@ export function getRegistries(): Registries {
       // Local files are served through Nova's own protocol handler rather than
       // an HTTP route. A renderer cannot open `file://` under sandbox, and
       // there is no longer a server to range-stream through.
-      buildStreamUrl: (fileId) => `vestra-media://local/${encodeURIComponent(fileId)}`,
+      buildStreamUrl: (fileId) =>
+        `vestra-media://local/${encodeURIComponent(fileId)}`,
     },
   });
 
@@ -67,9 +70,36 @@ export function getAdapterRegistry() {
  *
  * Held apart from `getRegistries()` on purpose: these answer "where can this
  * play from", never "what is this", so they must not reach catalogue search.
- * Only extensions register here — there is no first-party equivalent.
+ * Extensions and explicitly configured host-owned service connectors register
+ * here; service credentials never cross into an extension isolate.
  */
 export function getStreamSourceRegistry(): StreamSourceRegistry {
-  streamSources ??= new StreamSourceRegistry();
+  if (!streamSources) {
+    const registry = new StreamSourceRegistry();
+    streamSources = registry;
+    const url = process.env.VESTRA_VYLA_URL?.trim();
+    if (url) {
+      try {
+        const source = createVylaService({
+          url,
+          token: process.env.VESTRA_VYLA_TOKEN,
+        });
+        registry.register(source);
+        getAdapterRegistry().register(
+          createStreamSourceAdapter(
+            source,
+            () =>
+              registry.get(source.id) === source &&
+              registry.isEnabled(source.id),
+          ),
+        );
+      } catch {
+        registry.unregister("service-vyla");
+        console.warn(
+          "[vyla] Invalid service configuration; connector disabled. Check VESTRA_VYLA_URL and VESTRA_VYLA_TOKEN.",
+        );
+      }
+    }
+  }
   return streamSources;
 }

@@ -1,0 +1,24 @@
+{
+  "id": "vestra-vidlink",
+  "name": "Vidlink \u00b7 Experimental",
+  "version": "0.1.0",
+  "sdkVersion": "1.5.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": ["movie", "tv"],
+  "permissions": ["network", "network:session"],
+  "hosts": [
+    "enc-dec.app",
+    "vidlink.pro",
+    "api.themoviedb.org",
+    "image.tmdb.org"
+  ],
+  "author": "Vestra",
+  "description": "Experimental native Movies/TV resolver using Vestra TMDb metadata. Upstream encoding helper currently returns HTTP 403; playback is unverified and may be unavailable.",
+  "homepage": "https://vidlink.pro/",
+  "icon": "https://vidlink.pro/favicon.ico",
+  "discovery": {
+    "categories": ["popular"]
+  },
+  "catalogueSource": "tmdb"
+}

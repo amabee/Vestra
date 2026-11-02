@@ -32,17 +32,20 @@ export async function resolveCataloguePlayback(
       .all()
       .filter((adapter) => !adapter.id.startsWith("ext-stream-"))
       .map((adapter) => adapter.id);
-  } else if (ref.kind === "anime" && selectedSource) {
+  } else if (
+    (ref.kind === "anime" || ref.kind === "movie" || ref.kind === "tv") &&
+    selectedSource
+  ) {
     const source = streams
-      .supporting("anime")
+      .supporting(ref.kind)
       .find((row) => row.id === selectedSource);
     if (!source)
       throw new Error(
-        "The selected anime source is unavailable. Choose an enabled source in Anime.",
+        "The selected streaming source is unavailable. Choose an enabled provider.",
       );
     if (!item)
       throw new Error(
-        "Anime information could not be loaded. Retry to find episodes.",
+        "Title information could not be loaded. Retry to find playback options.",
       );
     selectedAdapter = `ext-stream-${source.id.slice("ext-".length)}`;
     // Keep owned files and official links; only the selected community source

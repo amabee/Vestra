@@ -5,6 +5,8 @@ export type ScreenKind = "movie" | "tv";
 export interface ScreenSource {
   id: string;
   name: string;
+  revision?: number;
+  catalogueSource?: "tmdb";
   categories: readonly DiscoveryCategory[];
 }
 export interface ScreenPage {

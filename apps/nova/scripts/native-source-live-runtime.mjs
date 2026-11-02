@@ -88,7 +88,14 @@ export async function loadNativeSource(name) {
       methods: await loaded.listMethods(AbortSignal.timeout(10000)),
       call: (method, args, signal) => loaded.call(method, [...args], signal),
     });
-    return { source, manifest, safeFetch, dispose };
+    return {
+      source,
+      manifest,
+      safeFetch,
+      dispose,
+      call: (method, args) =>
+        loaded.call(method, args, AbortSignal.timeout(15000)),
+    };
   } catch (error) {
     await dispose();
     throw error;

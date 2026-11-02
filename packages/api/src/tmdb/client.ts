@@ -16,7 +16,13 @@ import {
   normaliseTv,
   normaliseTvDetails,
 } from "./normalize";
-import type { TmdbMovie, TmdbMultiResult, TmdbPaged, TmdbSeason, TmdbTv } from "./types";
+import type {
+  TmdbMovie,
+  TmdbMultiResult,
+  TmdbPaged,
+  TmdbSeason,
+  TmdbTv,
+} from "./types";
 
 /**
  * TMDb client. Server-only — credentials must never reach the browser.
@@ -28,7 +34,7 @@ function assertConfigured(): void {
   if (!isTmdbConfigured()) {
     throw new ProviderNotConfiguredError(
       "tmdb",
-      "Set TMDB_ACCESS_TOKEN (v4) or TMDB_API_KEY (v3) in your environment.",
+      "Add your TMDb token or API key in Settings, or configure TMDB_ACCESS_TOKEN / TMDB_API_KEY in the environment.",
     );
   }
 }
@@ -56,7 +62,10 @@ async function tmdbGet<T>(
 ): Promise<T> {
   assertConfigured();
 
-  const { headers, query: authedQuery } = authFor({ language: "en-US", ...query });
+  const { headers, query: authedQuery } = authFor({
+    language: "en-US",
+    ...query,
+  });
   const url = buildUrl(TMDB_API_BASE, path, authedQuery);
 
   return requestJson<T>("tmdb", url, {
@@ -138,7 +147,9 @@ export async function getTrendingMovies(
   window: TrendingWindow = "week",
   page = 1,
 ): Promise<MediaItem[]> {
-  const data = await tmdbGet<TmdbPaged<TmdbMovie>>(`trending/movie/${window}`, { page });
+  const data = await tmdbGet<TmdbPaged<TmdbMovie>>(`trending/movie/${window}`, {
+    page,
+  });
   return data.results.map(normaliseMovie);
 }
 
@@ -146,7 +157,9 @@ export async function getTrendingTv(
   window: TrendingWindow = "week",
   page = 1,
 ): Promise<MediaItem[]> {
-  const data = await tmdbGet<TmdbPaged<TmdbTv>>(`trending/tv/${window}`, { page });
+  const data = await tmdbGet<TmdbPaged<TmdbTv>>(`trending/tv/${window}`, {
+    page,
+  });
   return data.results.map(normaliseTv);
 }
 
@@ -157,7 +170,10 @@ export async function getTrendingKdramas(page = 1): Promise<MediaItem[]> {
     page,
   });
   // Force the K-drama kind — /discover/tv omits origin_country on some entries.
-  return data.results.map((show) => ({ ...normaliseTv(show), kind: "kdrama" as const }));
+  return data.results.map((show) => ({
+    ...normaliseTv(show),
+    kind: "kdrama" as const,
+  }));
 }
 
 export async function getPopularMovies(page = 1): Promise<MediaItem[]> {
@@ -174,30 +190,49 @@ export async function getPopularTv(page = 1): Promise<MediaItem[]> {
  * Details
  * -------------------------------------------------------------------------- */
 
-export async function getMovieDetails(id: string): Promise<MediaDetails> {
+export async function getMovieDetails(
+  id: string,
+  options: Pick<RequestOptions, "signal"> = {},
+): Promise<MediaDetails> {
   const movie = await tmdbGet<TmdbMovie>(
     `movie/${id}`,
     { append_to_response: "credits,similar,release_dates,watch/providers" },
-    { revalidate: CACHE_TTL.details },
+    {
+      revalidate: CACHE_TTL.details,
+      ...(options.signal ? { signal: options.signal } : {}),
+    },
   );
   return normaliseMovieDetails(movie);
 }
 
-export async function getTvDetails(id: string): Promise<MediaDetails> {
+export async function getTvDetails(
+  id: string,
+  options: Pick<RequestOptions, "signal"> = {},
+): Promise<MediaDetails> {
   const show = await tmdbGet<TmdbTv>(
     `tv/${id}`,
     { append_to_response: "credits,similar,content_ratings,watch/providers" },
-    { revalidate: CACHE_TTL.details },
+    {
+      revalidate: CACHE_TTL.details,
+      ...(options.signal ? { signal: options.signal } : {}),
+    },
   );
   return normaliseTvDetails(show);
 }
 
 /** Episodes are fetched per-season; TMDb does not return them on the show payload. */
-export async function getSeason(showId: string, seasonNumber: number) {
+export async function getSeason(
+  showId: string,
+  seasonNumber: number,
+  options: Pick<RequestOptions, "signal"> = {},
+) {
   const season = await tmdbGet<TmdbSeason>(
     `tv/${showId}/season/${seasonNumber}`,
     {},
-    { revalidate: CACHE_TTL.details },
+    {
+      revalidate: CACHE_TTL.details,
+      ...(options.signal ? { signal: options.signal } : {}),
+    },
   );
   return normaliseSeason(season);
 }

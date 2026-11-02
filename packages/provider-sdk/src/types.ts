@@ -67,7 +67,8 @@ export function hostSatisfies(
 ): boolean {
   if (!requires) return true;
   if (requires.filesystem && !host.filesystem) return false;
-  if (requires.platforms && !requires.platforms.includes(host.platform)) return false;
+  if (requires.platforms && !requires.platforms.includes(host.platform))
+    return false;
   return true;
 }
 
@@ -148,7 +149,10 @@ export interface MetadataProvider {
   isAvailable(): boolean;
 
   /** Required when `capabilities.search` is true. */
-  search?(query: SearchQuery, context: ProviderContext): Promise<ProviderSearchResult>;
+  search?(
+    query: SearchQuery,
+    context: ProviderContext,
+  ): Promise<ProviderSearchResult>;
 
   /**
    * Required when `capabilities.details` is true.
@@ -156,7 +160,10 @@ export interface MetadataProvider {
    * Takes a full `MediaRef`, not a bare id: ids are only unique within a
    * provider *and* kind. TMDb id 603 is both a film and a series.
    */
-  getDetails?(ref: MediaRef, context: ProviderContext): Promise<MediaDetails | null>;
+  getDetails?(
+    ref: MediaRef,
+    context: ProviderContext,
+  ): Promise<MediaDetails | null>;
 
   /** Required when `capabilities.trending` is true. */
   getTrending?(kind: MediaKind, context: ProviderContext): Promise<MediaItem[]>;
@@ -205,6 +212,8 @@ export interface ExtensionManifest {
   main: string;
   /** Minimum SDK version the extension was built against. */
   sdkVersion: string;
+  /** Host-owned TMDb catalogue for native Movies/TV sources (SDK 1.5). */
+  catalogueSource?: "tmdb";
   permissions: ExtensionPermission[];
   author?: string;
   homepage?: string;

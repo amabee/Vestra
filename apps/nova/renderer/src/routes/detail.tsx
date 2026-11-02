@@ -1,3 +1,7 @@
+import "@/components/media/anime-details.css";
+import "@/components/media/screen-details.css";
+import { AnimePoster } from "@/components/media/anime-hub-cards";
+import { screenPosterUrl } from "@/components/media/screen-artwork";
 import { AnimeDetails } from "@/components/media/anime-details";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDuration } from "@vestra/core/format";
@@ -78,9 +82,13 @@ export function DetailRoute() {
 function MediaDetailsRoute() {
   const { source, kind, id } = useParams();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const selectedSource =
-    kind === "anime" ? (params.get("source") ?? undefined) : undefined;
+  const [params, setParams] = useSearchParams();
+  const selectedSource = params.get("source") ?? undefined;
+  const streamingProviders = useQuery({
+    queryKey: ["screen-sources", kind],
+    queryFn: () => bridge.screen.sources(kind as "movie" | "tv"),
+    enabled: kind === "movie" || kind === "tv",
+  });
   const open = usePlayer((state) => state.open);
 
   const ref = parseMediaKey(`${source}:${kind}:${id}`);
@@ -137,6 +145,7 @@ function MediaDetailsRoute() {
   const bookmarks = useBookmarks();
   const library = useLibrary();
   const watchlist = useWatchlist();
+  const [episodeSearch, setEpisodeSearch] = useState("");
   const [filter, setFilter] = useState<EpisodeFilter>("all");
   const [selectedSeason, setSelectedSeason] = useState("all");
 
@@ -306,6 +315,11 @@ function MediaDetailsRoute() {
     ? selectedSeason
     : "all";
   const visible = episodes
+    .filter((entry) =>
+      `${entry.title} ${entry.source.episode ?? ""}`
+        .toLowerCase()
+        .includes(episodeSearch.trim().toLowerCase()),
+    )
     .filter(
       (entry) =>
         seasonFilter === "all" ||
@@ -362,128 +376,249 @@ function MediaDetailsRoute() {
 
   const data = details.data;
   const backdrop = data?.images.backdrop ?? null;
-  const poster = data?.images.poster ?? null;
 
   return (
-    <div>
-      {/*
-        One positioned block rather than a backdrop with the content dragged up
-        over it by a negative margin. That arrangement had the poster and title
-        clipping into the image with nothing sharing a baseline, so no amount of
-        padding could line them up.
-      */}
-      <div className="relative">
-        <div className="h-[22rem] w-full overflow-hidden bg-base-200">
-          {backdrop ? (
-            <img
-              src={backdrop}
-              alt=""
-              referrerPolicy="no-referrer"
-              className="size-full object-cover object-top opacity-50"
-            />
-          ) : null}
-          {/* Vertical fade to the page colour, plus a lift from the left so
-              bright artwork cannot swallow the title. */}
-          <div className="absolute inset-0 bg-gradient-to-t from-base-100 via-base-100/85 to-base-100/20" />
-          <div className="absolute inset-0 bg-gradient-to-r from-base-100/80 to-transparent" />
-        </div>
-
+    <div className="anime-details screen-details">
+      <nav className="anime-navigation" aria-label="Title navigation">
         <button
           type="button"
+          className="anime-text-button"
           onClick={() => void navigate(-1)}
-          className="absolute left-6 top-5 flex items-center gap-2 rounded-field border rule bg-base-100/70 px-3 py-1.5 text-xs backdrop-blur transition-colors hover:bg-base-200"
         >
-          <ArrowLeft className="size-3.5" />
-          Back
+          <ArrowLeft size={16} /> Back
         </button>
-
-        {/* Bottom-aligned, so poster and title share a baseline at any size. */}
-        <div className="absolute inset-x-0 bottom-0 flex items-end gap-4 px-5 pb-8 sm:gap-6 sm:px-8">
-          <div className="aspect-[2/3] w-24 shrink-0 overflow-hidden rounded-box border rule bg-base-200 sm:w-36">
-            {poster ? (
-              <img
-                src={poster}
-                alt=""
-                referrerPolicy="no-referrer"
-                className="size-full object-cover"
-              />
-            ) : null}
-          </div>
-
-          <div className="min-w-0 flex-1 pb-1">
-            {details.isPending ? (
-              <div className="h-14 w-2/3 animate-pulse rounded-selector bg-base-200" />
-            ) : (
-              <h1 className="break-words font-serif text-display-sm text-balance sm:text-display-lg">
-                {data?.title ?? "Untitled"}
-              </h1>
-            )}
-
-            {/* Surfaced rather than swallowed: a failed lookup used to render
-                as a page titled "Unknown" with no explanation. */}
-            {details.error ? (
-              <p className="mt-2 text-xs text-error">
-                {(details.error as Error).message}
-              </p>
-            ) : null}
-
-            {data?.tagline ? (
-              <p className="mt-1 font-serif text-display-sm italic text-base-content/50">
-                {data.tagline}
-              </p>
-            ) : null}
-
-            <MetaRow data={data} />
-          </div>
+        <Link
+          className="anime-text-link"
+          to={kind === "movie" ? "/films" : "/series"}
+        >
+          Browse {kind === "movie" ? "movies" : "series"}
+        </Link>
+      </nav>
+      <header className="anime-hero">
+        <div className="anime-backdrop" aria-hidden="true">
+          {backdrop && (
+            <img src={backdrop} alt="" referrerPolicy="no-referrer" />
+          )}
         </div>
-      </div>
-
-      <div className="px-8 pb-12 pt-8">
-        {(kind === "movie" || kind === "tv") && (
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              className="btn btn-sm"
-              disabled={
-                !data ||
-                watchlist.isPending ||
-                !!savedToList ||
-                saveTitle.isPending
-              }
-              onClick={() => saveTitle.mutate()}
-            >
-              <Bookmark size={15} aria-hidden="true" />
-              {savedToList ? "Saved to your list" : "Plan to watch"}
-            </button>
+        <div className="anime-hero-body">
+          <div className="anime-poster-column">
+            <div className="anime-poster">
+              {data ? (
+                <AnimePoster
+                  item={{
+                    ...data,
+                    images: {
+                      ...data.images,
+                      poster: screenPosterUrl(data.images.poster),
+                    },
+                  }}
+                />
+              ) : (
+                <div
+                  className="screen-cover-placeholder"
+                  aria-label="Loading cover"
+                />
+              )}
+            </div>
+            {episodes.length > 0 && (
+              <div className="anime-series-progress">
+                <div>
+                  <span>Viewing progress</span>
+                  <span>
+                    {episodes.filter((entry) => entry.watch?.completed).length}{" "}
+                    / {episodes.length}
+                  </span>
+                </div>
+                <progress
+                  aria-label="Completed titles"
+                  max={episodes.length}
+                  value={
+                    episodes.filter((entry) => entry.watch?.completed).length
+                  }
+                />
+              </div>
+            )}
+          </div>
+          <div className="anime-introduction">
+            <p className="anime-alternative">
+              {kind === "movie" ? "Movie" : "TV series"}
+            </p>
+            {details.isPending ? (
+              <div
+                className="anime-skeleton anime-title-skeleton"
+                aria-label="Loading title"
+              />
+            ) : (
+              <h1>{data?.title ?? "Title unavailable"}</h1>
+            )}
+            {details.error && (
+              <div className="anime-message" role="alert">
+                <p>{details.error.message}</p>
+                <button
+                  className="anime-text-button"
+                  onClick={() => void details.refetch()}
+                >
+                  Retry title
+                </button>
+              </div>
+            )}
+            {data?.tagline && (
+              <p className="anime-alternative">{data.tagline}</p>
+            )}
+            <MetaRow data={data} />
+            {!!data?.genres.length && (
+              <ul className="anime-genres" aria-label="Genres">
+                {data.genres.map((genre) => (
+                  <li key={genre.id ?? genre.name}>{genre.name}</li>
+                ))}
+              </ul>
+            )}
+            {data?.overview && (
+              <div className="anime-synopsis" data-selectable>
+                <p>{data.overview}</p>
+              </div>
+            )}
+            <div className="anime-actions">
+              <button
+                className="anime-primary"
+                disabled={!resume || sources.isPending}
+                onClick={() =>
+                  resume &&
+                  playEpisode(
+                    resume,
+                    resumeFrom ? Math.floor(resumeFrom.positionSeconds) : 0,
+                  )
+                }
+              >
+                {sources.isPending ? (
+                  <Loader2 size={17} className="animate-spin" />
+                ) : (
+                  <Play size={17} className="fill-current" />
+                )}
+                {sources.isPending
+                  ? "Loading playback..."
+                  : resumeFrom
+                    ? `Resume ${resume?.title ?? ""}`
+                    : kind === "movie"
+                      ? "Watch movie"
+                      : "Start watching"}
+              </button>
+              {(kind === "movie" || kind === "tv") && (
+                <button
+                  className="btn btn-sm"
+                  disabled={
+                    !data ||
+                    watchlist.isPending ||
+                    !!savedToList ||
+                    saveTitle.isPending
+                  }
+                  onClick={() => saveTitle.mutate()}
+                >
+                  <Bookmark size={15} aria-hidden="true" />
+                  {savedToList ? "Saved to your list" : "Plan to watch"}
+                </button>
+              )}
+              <a className="anime-text-link" href="#screen-episodes">
+                {kind === "movie" ? "Playback options" : "Browse episodes"}
+              </a>
+            </div>
             {saveTitle.error && (
-              <p role="alert" className="text-sm text-error">
+              <p role="alert" className="anime-error">
                 {saveTitle.error.message}
               </p>
             )}
           </div>
-        )}
-        {data?.overview ? (
-          <p
-            data-selectable
-            className="mt-8 max-w-[70ch] text-sm leading-relaxed text-base-content/70"
-          >
-            {data.overview}
-          </p>
-        ) : null}
-
-        {data && data.genres.length > 0 ? (
-          <div className="mt-4 flex flex-wrap gap-1.5">
-            {data.genres.map((genre) => (
-              <span
-                key={genre.id ?? genre.name}
-                className="meta rounded-selector border rule px-2 py-0.5"
-              >
-                {genre.name}
-              </span>
-            ))}
+        </div>
+      </header>
+      <section className="anime-information" aria-label="Title information">
+        <dl className="anime-facts">
+          <div>
+            <dt>Format</dt>
+            <dd>{kind === "movie" ? "Movie" : "Series"}</dd>
           </div>
-        ) : null}
-
-        <section className="mt-10">
+          {data?.year && (
+            <div>
+              <dt>Released</dt>
+              <dd>{data.year}</dd>
+            </div>
+          )}
+          {!!episodes.length && (
+            <div>
+              <dt>{kind === "movie" ? "Available versions" : "Episodes"}</dt>
+              <dd>{episodes.length}</dd>
+            </div>
+          )}
+          {seasons.length > 1 && (
+            <div>
+              <dt>Seasons</dt>
+              <dd>{seasons.length}</dd>
+            </div>
+          )}
+          {!!data?.durationSeconds && (
+            <div>
+              <dt>Runtime</dt>
+              <dd>{formatDuration(data.durationSeconds)}</dd>
+            </div>
+          )}
+          {!!data?.countries.length && (
+            <div>
+              <dt>Country</dt>
+              <dd>{data.countries.join(", ")}</dd>
+            </div>
+          )}
+          {!!data?.studios.length && (
+            <div>
+              <dt>Studio</dt>
+              <dd>{data.studios.join(", ")}</dd>
+            </div>
+          )}
+        </dl>
+      </section>
+      <div className="anime-body screen-details-body">
+        {(kind === "movie" || kind === "tv") &&
+          !!streamingProviders.data?.length && (
+            <section
+              className="screen-streaming-providers"
+              aria-label="Streaming providers"
+            >
+              <p className="meta">Watch with</p>
+              <div className="screen-provider-options">
+                {streamingProviders.data.map((provider) => (
+                  <button
+                    className="btn btn-sm"
+                    key={provider.id}
+                    aria-pressed={(selectedSource ?? source) === provider.id}
+                    onClick={() => {
+                      setSelectedSeason("all");
+                      setEpisodeSearch("");
+                      setParams(
+                        (current) => {
+                          const next = new URLSearchParams(current);
+                          next.set("source", provider.id);
+                          return next;
+                        },
+                        { replace: true },
+                      );
+                    }}
+                  >
+                    {provider.name}
+                  </button>
+                ))}
+              </div>
+              <p className="screen-provider-note">
+                Availability and episode lists vary by provider.
+              </p>
+              {streamingProviders.data.find(
+                (provider) => provider.id === (selectedSource ?? source),
+              )?.catalogueSource && (
+                <p className="screen-provider-note">
+                  Episodes are listed from the catalogue. This provider checks
+                  playback availability when you press Play.
+                </p>
+              )}
+            </section>
+          )}
+        <section id="screen-episodes" className="screen-episode-section">
           <SectionRule
             label={
               episodes.length > 0 && kind !== "movie" ? "Episodes" : "Play from"
@@ -595,6 +730,15 @@ function MediaDetailsRoute() {
                       )}
                     </div>
                   ) : null}
+                  {episodes.length > 1 && (
+                    <input
+                      className="input input-sm screen-episode-search"
+                      aria-label="Search episodes"
+                      placeholder="Find an episode..."
+                      value={episodeSearch}
+                      onChange={(event) => setEpisodeSearch(event.target.value)}
+                    />
+                  )}
                   {seasons.length > 1 && (
                     <label className="flex items-center gap-2 text-xs">
                       Season
@@ -622,9 +766,11 @@ function MediaDetailsRoute() {
                 <Notice
                   title="Nothing here"
                   body={
-                    filter === "bookmarked"
-                      ? "No episodes bookmarked yet."
-                      : "Every episode has been watched."
+                    episodeSearch.trim()
+                      ? "No episodes match your search."
+                      : filter === "bookmarked"
+                        ? "No episodes bookmarked yet."
+                        : "Every episode has been watched."
                   }
                 />
               ) : null}

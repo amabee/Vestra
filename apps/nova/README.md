@@ -85,4 +85,4 @@ Two things the bundle has to correct for:
    results are not built yet. The details page has grey loading blocks.
 2. **Faster first video.** Starting a stream can still take a long time when
    an extension's requests are slow. Measure which request is slow first.
-3. **Auto-update.** Wire `electron-updater` in `initAutoUpdate()`.
+3. **App updates.** Implemented in Settings with stable GitHub Releases, explicit download/restart and a draft release workflow. See the [release guide](../../docs/app-updates.md).

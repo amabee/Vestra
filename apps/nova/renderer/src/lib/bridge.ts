@@ -1,3 +1,4 @@
+import type { AppUpdateState } from "../../../shared/updates";
 import type { AnimePlaylist, PlaylistCommand } from "../../../shared/playlists";
 import type {
   EpisodeBookmark,
@@ -131,6 +132,11 @@ interface RawBridge {
     setFullscreen: (value: boolean) => Promise<unknown>;
     isFullscreen: () => Promise<unknown>;
   };
+  updates: {
+    state: () => Promise<unknown>; check: () => Promise<unknown>;
+    download: () => Promise<unknown>; install: () => Promise<unknown>;
+    onChanged: (listener: (state: unknown) => void) => () => void;
+  };
   app: {
     getVersion: () => Promise<unknown>;
     getDataDir: () => Promise<unknown>;
@@ -140,6 +146,8 @@ interface RawBridge {
     openExternal: (url: string) => Promise<unknown>;
   };
   settings: {
+    tmdbStatus: () => Promise<unknown>;
+    saveTmdb: (value: unknown) => Promise<unknown>;
     get: () => Promise<unknown>;
     save: (settings: unknown) => Promise<unknown>;
   };
@@ -446,6 +454,8 @@ export const bridge = {
       query?: string;
       category?: import("@vestra/extension-host").DiscoveryCategory;
       page?: number;
+      limit?: number;
+      refresh?: boolean;
     }) =>
       raw().screen.browse(query) as Promise<
         import("../../../shared/screen").ScreenPage
@@ -614,6 +624,13 @@ export const bridge = {
       (await raw().window.isFullscreen()) === true,
   },
 
+  updates: {
+    state: async () => (await raw().updates.state()) as AppUpdateState,
+    check: async () => (await raw().updates.check()) as AppUpdateState,
+    download: async () => (await raw().updates.download()) as AppUpdateState,
+    install: async () => (await raw().updates.install()) as AppUpdateState,
+    onChanged: (listener: (state: AppUpdateState) => void) => raw().updates.onChanged(state => listener(state as AppUpdateState)),
+  },
   app: {
     version: async (): Promise<string> => String(await raw().app.getVersion()),
     dataDir: async (): Promise<string> => String(await raw().app.getDataDir()),
@@ -628,6 +645,12 @@ export const bridge = {
   },
 
   settings: {
+    tmdbStatus: async () => (await raw().settings.tmdbStatus()) as {
+      configured: boolean; saved: boolean; encryptionAvailable: boolean;
+      loadError: boolean; source: string;
+    },
+    saveTmdb: async (value: { accessToken: string; apiKey: string } | null) =>
+      raw().settings.saveTmdb(value),
     get: async (): Promise<Settings> =>
       (await raw().settings.get()) as Settings,
     save: async (settings: Settings): Promise<Settings> =>

@@ -19,7 +19,11 @@
       "tv"
     ],
     "workingTag": true,
-    "lastWorkingVersion": "0.1.0"
+    "lastWorkingVersion": "0.1.0",
+    "kinds": [
+      "movie",
+      "tv"
+    ]
   },
   {
     "id": "vestra-kisskh",
@@ -42,7 +46,11 @@
       "asian-drama"
     ],
     "workingTag": true,
-    "lastWorkingVersion": "0.1.0"
+    "lastWorkingVersion": "0.1.0",
+    "kinds": [
+      "movie",
+      "tv"
+    ]
   },
   {
     "id": "vestra-internet-archive",
@@ -64,6 +72,9 @@
       "classics"
     ],
     "workingTag": true,
-    "lastWorkingVersion": "0.1.0"
+    "lastWorkingVersion": "0.1.0",
+    "kinds": [
+      "movie"
+    ]
   }
 ]

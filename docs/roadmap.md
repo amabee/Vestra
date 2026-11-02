@@ -224,6 +224,9 @@ feature has already been identified.
 
 ## Supporting records
 
+- [VixSrc native Movies/TV source and remaining release checks](vixsrc-source.md)
+- [API-only source decisions and optional Vyla connector](api-source-connectors.md)
+
 - [C# migration history and upstream inventory](csharp-migration.md)
 - [Vestra extension direction](extension-direction.md)
 - [Historical engine and host-API compatibility observations](goja-port-status.md)

@@ -1,0 +1,19 @@
+{
+  "id": "vestra-vixsrc",
+  "name": "VixSrc",
+  "version": "0.1.0",
+  "sdkVersion": "1.5.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": ["movie", "tv"],
+  "catalogueSource": "tmdb",
+  "permissions": ["network", "network:session"],
+  "hosts": ["vixsrc.to", "api.themoviedb.org", "image.tmdb.org"],
+  "author": "Vestra",
+  "description": "Native Movies/TV HLS playback with source availability matching. Uses Vestra's configured TMDb catalogue for search and aired episode metadata; playback availability is checked when playing.",
+  "homepage": "https://vixsrc.to/",
+  "icon": "https://vixsrc.to/favicon.ico",
+  "discovery": {
+    "categories": ["popular"]
+  }
+}
