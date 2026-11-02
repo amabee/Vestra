@@ -79,6 +79,18 @@ export function setTmdbCredentials(value: {
   env.TMDB_API_KEY = value.apiKey || undefined;
 }
 
+/** Host-owned desktop connection. Never exported through publicEnv. */
+export function setQbittorrentCredentials(value: {
+  url: string;
+  username: string;
+  password: string;
+}): void {
+  const env = getServerEnv();
+  env.QBITTORRENT_URL = value.url || undefined;
+  env.QBITTORRENT_USERNAME = value.username || undefined;
+  env.QBITTORRENT_PASSWORD = value.password || undefined;
+}
+
 /* -----------------------------------------------------------------------------
  * Host
  * -------------------------------------------------------------------------- */

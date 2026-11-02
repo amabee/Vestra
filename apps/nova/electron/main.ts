@@ -1,3 +1,7 @@
+import {
+  loadQbittorrentSettings,
+  registerTorrentIpc,
+} from "./qbittorrent-settings";
 import { initAutoUpdate } from "./auto-update";
 import { loadTmdbSettings } from "./tmdb-settings";
 import { join } from "node:path";
@@ -346,6 +350,8 @@ if (!gotLock) {
 
   void app.whenReady().then(async () => {
     await loadTmdbSettings();
+    await loadQbittorrentSettings();
+    registerTorrentIpc();
     registerIpc();
     registerMediaProtocolHandler();
     registerMangaIpc(fetchCSharpImage, getMangaBookmarks());

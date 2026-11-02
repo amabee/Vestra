@@ -70,7 +70,7 @@
   --color-success-content: oklch(16% 0.02 155);
   --color-warning: oklch(80% 0.14 85);
   --color-warning-content: oklch(18% 0.02 85);
-  --color-error: oklch(63% 0.20 25);
+  --color-error: oklch(63% 0.2 25);
   --color-error-content: oklch(97% 0.01 25);
 
   /* Editorial geometry: almost square. Rounded corners read as "consumer app";
@@ -150,7 +150,11 @@
     border-radius: 999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: color-mix(in oklch, var(--color-base-300), var(--color-base-content) 20%);
+    background: color-mix(
+      in oklch,
+      var(--color-base-300),
+      var(--color-base-content) 20%
+    );
   }
 }
 
@@ -191,6 +195,89 @@
 
   /* Hairline separators. A catalogue is ruled, not shadowed. */
   .rule {
-    border-color: color-mix(in oklch, var(--color-base-content), transparent 88%);
+    border-color: color-mix(
+      in oklch,
+      var(--color-base-content),
+      transparent 88%
+    );
+  }
+}
+
+/* Persisted appearance controls, applied in both Electron renderer windows. */
+:root[data-color-mode="light"] {
+  color-scheme: light;
+  --color-base-100: oklch(97% 0.008 75);
+  --color-base-200: oklch(93% 0.01 75);
+  --color-base-300: oklch(85% 0.015 75);
+  --color-base-content: oklch(23% 0.012 60);
+  --color-secondary: oklch(45% 0.07 205);
+  --color-success: oklch(45% 0.11 155);
+  --color-warning: oklch(48% 0.12 75);
+}
+:root[data-accent="violet"] {
+  --color-primary: oklch(64% 0.19 300);
+}
+:root[data-accent="electric"] {
+  --color-primary: oklch(64% 0.19 255);
+}
+:root[data-accent="emerald"] {
+  --color-primary: oklch(60% 0.14 155);
+}
+:root[data-accent="rose"] {
+  --color-primary: oklch(64% 0.19 15);
+}
+:root[data-accent="amber"] {
+  --color-primary: oklch(65% 0.15 75);
+}
+:root[data-accent="cyan"] {
+  --color-primary: oklch(60% 0.12 205);
+}
+:root[data-sidebar-labels="on"] .nova-nav-rail {
+  width: 10rem;
+  align-items: stretch;
+  padding-inline: 0.75rem;
+}
+:root[data-sidebar-labels="on"] .nova-nav-rail > div {
+  align-items: stretch;
+}
+:root[data-sidebar-labels="on"] .nova-nav-link {
+  display: flex;
+  width: 100%;
+  gap: 0.75rem;
+  padding-inline: 0.5rem;
+}
+:root[data-sidebar-labels="on"] .nova-nav-label {
+  position: static;
+  opacity: 1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+:root[data-glass="off"] [class*="backdrop-blur"] {
+  backdrop-filter: none !important;
+}
+:root[data-motion="reduced"] *,
+:root[data-motion="reduced"] *::before,
+:root[data-motion="reduced"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+.nova-nav-link:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-motion="system"] *,
+  :root[data-motion="system"] *::before,
+  :root[data-motion="system"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

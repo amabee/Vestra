@@ -1,3 +1,4 @@
+import { playbackDiagnostics } from "./playback-diagnostics";
 import type { StreamSourceProvider } from "@vestra/extension-host";
 import type { SourceAdapter } from "@vestra/provider-sdk";
 import {
@@ -29,21 +30,29 @@ export function registerSourceEpisode(
 ): string {
   const resolve = async (excludeServers: string[] = []) => {
     check();
-    const results = await source.getStreams(
-      episodeId,
-      {
-        signal: AbortSignal.timeout(15000),
-        timeoutMs: 15000,
-      },
-      excludeServers.length ? { excludeServers } : undefined,
-    );
-    check();
-    const variants = streamVariants(
-      results.filter((result) => !excludeServers.includes(result.server)),
-    );
-    if (!variants.length)
-      throw Error("This episode has no untried playable mirror.");
-    return variants;
+    const started = Date.now();
+    try {
+      const results = await source.getStreams(
+        episodeId,
+        {
+          signal: AbortSignal.timeout(15000),
+          timeoutMs: 15000,
+        },
+        excludeServers.length ? { excludeServers } : undefined,
+      );
+      check();
+      const variants = streamVariants(
+        results.filter((result) => !excludeServers.includes(result.server)),
+      );
+      if (!variants.length)
+        throw Error("This episode has no untried playable mirror.");
+      playbackDiagnostics.observe(source.id, started);
+      return variants;
+    } catch (error) {
+      playbackDiagnostics.observe(source.id, started, error);
+      playbackDiagnostics.failure("stream extraction", error, source.id);
+      throw error;
+    }
   };
   return registerDeferredVariants(
     () => resolve(),

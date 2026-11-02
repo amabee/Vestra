@@ -1,5 +1,6 @@
 import { NavLink } from "react-router";
 import {
+  Download,
   Blocks,
   Clapperboard,
   Compass,
@@ -39,6 +40,7 @@ const SECTIONS = [
   {
     label: "Yours",
     items: [
+      { to: "/downloads", label: "Downloads", icon: Download },
       { to: "/library", label: "Library", icon: HardDrive },
       { to: "/watchlist", label: "Watchlist", icon: Bookmark },
       { to: "/history", label: "History", icon: History },
@@ -55,7 +57,10 @@ const SECTIONS = [
 
 export function NavRail() {
   return (
-    <nav className="flex w-14 shrink-0 flex-col items-center gap-6 border-r rule py-4">
+    <nav
+      aria-label="Main navigation"
+      className="nova-nav-rail flex w-14 shrink-0 flex-col items-center gap-6 border-r rule py-4"
+    >
       {SECTIONS.map((section) => (
         <div key={section.label} className="flex flex-col items-center gap-1">
           {section.items.map((item) => (
@@ -83,7 +88,7 @@ function RailLink({
       title={label}
       className={({ isActive }) =>
         [
-          "group relative grid size-9 place-items-center rounded-field transition-colors",
+          "nova-nav-link group relative grid size-9 place-items-center rounded-field transition-colors",
           isActive
             ? "text-primary"
             : "text-base-content/45 hover:bg-base-200 hover:text-base-content",
@@ -103,7 +108,7 @@ function RailLink({
           <Icon className="size-[18px]" strokeWidth={1.75} />
 
           {/* Label on hover — the width saved by the rail, borrowed back. */}
-          <span className="pointer-events-none absolute left-full z-20 ml-2 whitespace-nowrap rounded-field border rule bg-base-200 px-2 py-1 text-xs opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+          <span className="nova-nav-label pointer-events-none absolute left-full z-20 ml-2 whitespace-nowrap rounded-field border rule bg-base-200 px-2 py-1 text-xs opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
             {label}
           </span>
         </>

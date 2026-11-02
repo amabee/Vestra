@@ -1,7 +1,10 @@
+import { AppearanceController } from "./appearance";
+import { useSettings, keys } from "@/lib/queries";
+import { bridge } from "@/lib/bridge";
 import { UpdateIndicator } from "@/components/updates/app-updates";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Outlet,
   useNavigate,
@@ -21,8 +24,32 @@ import { PlayerOverlay } from "@/components/player/player-overlay";
  * desktop app search is chrome — always reachable, never a destination.
  */
 export function AppShell() {
+  const { data: settings } = useSettings();
+  const cache = useQueryClient();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const firstPath = useRef(location.pathname);
+  const started = useRef(false);
+  useEffect(
+    () =>
+      bridge.settings.onChanged?.((value) =>
+        cache.setQueryData(keys.settings, value),
+      ),
+    [cache],
+  );
+  useEffect(() => {
+    if (!settings || started.current) return;
+    started.current = true;
+    if (
+      firstPath.current === "/" &&
+      location.pathname === "/" &&
+      settings.app.startupPage !== "/"
+    )
+      void navigate(settings.app.startupPage, { replace: true });
+  }, [settings, location.pathname, navigate]);
   return (
     <div className="flex h-full flex-col overflow-hidden">
+      <AppearanceController />
       <TitleBar>
         <CommandField />
       </TitleBar>
@@ -34,7 +61,7 @@ export function AppShell() {
         </main>
       </div>
 
-      <StatusBar />
+      {settings?.app.showStatusBar !== false && <StatusBar />}
       <PlayerOverlay />
     </div>
   );

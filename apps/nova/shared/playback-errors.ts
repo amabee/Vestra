@@ -45,14 +45,14 @@ export function playbackIssue(error: unknown): {
       (key) => messages[key].message === text,
     );
     if (known) code = known;
+    else if (/timed? out|timeout|deadline|time limit/i.test(text))
+      code = "timeout";
     else if (
       /worker.*(?:stopped|exited)|session stopped|provider.*disabled|shutting down|cancelled|aborted/i.test(
         text,
       )
     )
       code = "interrupted";
-    else if (/timed? out|timeout|deadline|time limit/i.test(text))
-      code = "timeout";
     else if (
       /network|fetch failed|ENOTFOUND|ECONN|internet|offline/i.test(text)
     )

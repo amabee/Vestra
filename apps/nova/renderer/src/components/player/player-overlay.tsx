@@ -103,6 +103,7 @@ export function PlayerOverlay() {
 
   const settings = useSettings();
   const queryClient = useQueryClient();
+  const seekStep = settings.data?.playback.seekStepSeconds ?? 10;
   const autoplayNext = settings.data?.playback.autoplayNext ?? true;
   const skipSegments = settings.data?.playback.skipSegments ?? true;
   const autoSkipSegments = settings.data?.playback.autoSkipSegments ?? false;
@@ -265,6 +266,7 @@ export function PlayerOverlay() {
             ? skips.map((skip) => ({ ...skip, skipId: skip.skipId ?? null }))
             : [],
         autoSkip: autoSkipSegments,
+        seekStepSeconds: seekStep,
         sessionId,
         streamSource: streamSourceLocator,
         activeStream: streamLocator ?? null,
@@ -282,6 +284,7 @@ export function PlayerOverlay() {
     skips,
     skipSegments,
     autoSkipSegments,
+    seekStep,
     sessionId,
     streamSourceLocator,
     streamLocator,
@@ -425,10 +428,10 @@ export function PlayerOverlay() {
           seekBy(-5);
           break;
         case "l":
-          seekBy(10);
+          seekBy(seekStep);
           break;
         case "j":
-          seekBy(-10);
+          seekBy(-seekStep);
           break;
 
         case "arrowup":
@@ -526,6 +529,7 @@ export function PlayerOverlay() {
     item,
     usingMpv,
     mpv.position,
+    seekStep,
     mpv.paused,
     mpv.muted,
     mpv.volume,
@@ -732,6 +736,10 @@ export function PlayerOverlay() {
               duration: event.currentTarget.duration,
             })
           }
+          onEnded={() => {
+            persist();
+            if (hasNext && autoplayNext) next();
+          }}
           onError={() => {
             if (decision.reasons.length > 0 && !decision.needsMpv) {
               setOverride("mpv");

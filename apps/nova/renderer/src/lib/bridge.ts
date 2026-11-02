@@ -1,3 +1,4 @@
+import type { PlaybackDiagnostic, SourceHealth } from "../../../shared/health";
 import { unwrapPlaybackReply } from "../../../shared/playback-errors";
 import type { AppUpdateState } from "../../../shared/updates";
 import type { AnimePlaylist, PlaylistCommand } from "../../../shared/playlists";
@@ -144,11 +145,25 @@ interface RawBridge {
     getVersion: () => Promise<unknown>;
     getDataDir: () => Promise<unknown>;
     diagnostics: () => Promise<unknown>;
+    playbackDiagnostics: () => Promise<unknown>;
+    copyPlaybackDiagnostics: () => Promise<unknown>;
+    sourceHealth: () => Promise<unknown>;
   };
   shell: {
     openExternal: (url: string) => Promise<unknown>;
   };
+  torrents: {
+    configuration: () => Promise<unknown>;
+    save: (value: unknown) => Promise<unknown>;
+    test: () => Promise<unknown>;
+    list: () => Promise<unknown>;
+    add: (urls: string[]) => Promise<unknown>;
+    pause: (hash: string) => Promise<unknown>;
+    resume: (hash: string) => Promise<unknown>;
+  };
   settings: {
+    patch: (value: unknown) => Promise<unknown>;
+    onChanged: (listener: (value: unknown) => void) => () => void;
     tmdbStatus: () => Promise<unknown>;
     saveTmdb: (value: unknown) => Promise<unknown>;
     get: () => Promise<unknown>;
@@ -414,6 +429,7 @@ export interface NowPlaying {
   }[];
   /** Jump past a range automatically instead of offering a button. */
   autoSkip: boolean;
+  seekStepSeconds?: number;
   /** Counts up per playback, so replaying one episode is not one session. */
   sessionId: number;
   /** The add-on stream this episode came from, when it offers qualities. */
@@ -636,6 +652,11 @@ export const bridge = {
       raw().updates.onChanged((state) => listener(state as AppUpdateState)),
   },
   app: {
+    playbackDiagnostics: async () =>
+      (await raw().app.playbackDiagnostics()) as PlaybackDiagnostic[],
+    copyPlaybackDiagnostics: () => raw().app.copyPlaybackDiagnostics(),
+    sourceHealth: async () =>
+      (await raw().app.sourceHealth()) as SourceHealth[],
     version: async (): Promise<string> => String(await raw().app.getVersion()),
     dataDir: async (): Promise<string> => String(await raw().app.getDataDir()),
     diagnostics: async (): Promise<Diagnostics> =>
@@ -648,7 +669,25 @@ export const bridge = {
     },
   },
 
+  torrents: {
+    configuration: async () =>
+      (await raw().torrents.configuration()) as TorrentConfiguration,
+    save: (value: { url: string; username: string; password: string } | null) =>
+      raw().torrents.save(value),
+    test: async () =>
+      (await raw().torrents.test()) as import("@vestra/types").QbittorrentStatus,
+    list: async () =>
+      (await raw().torrents.list()) as import("@vestra/types").Torrent[],
+    add: (urls: string[]) => raw().torrents.add(urls),
+    pause: (hash: string) => raw().torrents.pause(hash),
+    resume: (hash: string) => raw().torrents.resume(hash),
+  },
   settings: {
+    patch: async (value: SettingsPatch) =>
+      (await raw().settings.patch(value)) as Settings,
+    onChanged: (listener: (value: Settings) => void) =>
+      raw().settings.onChanged((value) => listener(value as Settings)),
+
     tmdbStatus: async () =>
       (await raw().settings.tmdbStatus()) as {
         configured: boolean;
@@ -1025,3 +1064,15 @@ export const bridge = {
       raw().player.onQuality(listener),
   },
 };
+
+export type SettingsPatch = import("@vestra/types").SettingsPatch;
+
+export interface TorrentConfiguration {
+  configured: boolean;
+  saved: boolean;
+  loadError: boolean;
+  encryptionAvailable: boolean;
+  url: string;
+  username: string;
+  source: string;
+}

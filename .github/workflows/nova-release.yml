@@ -37,6 +37,7 @@ jobs:
           if ('${{ github.ref_type }}' -eq 'tag' -and '${{ github.ref_name }}' -ne "v$version") { throw 'Tag must match the Nova app version.' }
       - run: pnpm --filter @vestra/nova typecheck
       - run: pnpm test:updater
+      - run: pnpm test:settings
       - run: pnpm test:updater:ui
       - run: pnpm test:extensions:install
       - name: Build Windows x64 NSIS installer
@@ -44,6 +45,7 @@ jobs:
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      - run: pnpm test:settings:ui
       - run: pnpm test:updater:ipc
       - name: Validate installer, hashes, blockmap and embedded feed
         shell: pwsh

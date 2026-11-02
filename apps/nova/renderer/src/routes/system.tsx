@@ -1,91 +1,648 @@
+import "./settings.css";
+import {
+  Activity,
+  Download,
+  FolderOpen,
+  Palette,
+  Play,
+  Plug,
+  Search,
+  SlidersHorizontal,
+} from "lucide-react";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { ACCENT_PRESETS, DEFAULT_SETTINGS, type Settings } from "@vestra/types";
+import type { ReactNode } from "react";
+import type { SettingsPatch } from "@/lib/bridge";
+import {
+  SourceHealthPanel,
+  PlaybackDiagnosticsPanel,
+} from "@/components/settings/source-health";
+import { TorrentConnection } from "@/components/settings/torrent-connection";
 import { AppUpdatesPanel } from "@/components/updates/app-updates";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FolderPlus, Loader2, RefreshCw, Trash2, Wand2 } from "lucide-react";
 import { useState } from "react";
 
-import {
-  Notice,
-  Page,
-  PageHeader,
-  SectionRule,
-} from "@/components/layout/page";
+import { Notice, Page, SectionRule } from "@/components/layout/page";
 import { bridge, type ScanSummary } from "@/lib/bridge";
 import { keys, useDiagnostics, useSettings } from "@/lib/queries";
 
+const SECTIONS = [
+  {
+    id: "interface",
+    label: "User Interface",
+    icon: Palette,
+    description: "Theme, color and navigation",
+    keywords: "appearance dark light motion text accent sidebar glass",
+  },
+  {
+    id: "app",
+    label: "App",
+    icon: SlidersHorizontal,
+    description: "Startup and workspace",
+    keywords: "start home status version storage",
+  },
+  {
+    id: "playback",
+    label: "Playback",
+    icon: Play,
+    description: "Player and episode behavior",
+    keywords: "video opening ending skip autoplay hardware subtitles audio",
+  },
+  {
+    id: "torrents",
+    label: "Torrents",
+    icon: Download,
+    description: "qBittorrent connection",
+    keywords: "downloads magnet client category polling",
+  },
+  {
+    id: "library",
+    label: "Library",
+    icon: FolderOpen,
+    description: "Folders and scanning",
+    keywords: "media files scan local match",
+  },
+  {
+    id: "connections",
+    label: "Connections",
+    icon: Plug,
+    description: "Catalogue credentials",
+    keywords: "tmdb api token movies series",
+  },
+  {
+    id: "diagnostics",
+    label: "Diagnostics",
+    icon: Activity,
+    description: "Source health and playback",
+    keywords: "extension health error logs copy report",
+  },
+  {
+    id: "updates",
+    label: "Updates",
+    icon: RefreshCw,
+    description: "App version and releases",
+    keywords: "download install release version",
+  },
+] as const;
+type SettingsSection = (typeof SECTIONS)[number]["id"];
 export function SettingsRoute() {
+  const { data: settings, error, isPending } = useSettings();
   const { data: diagnostics } = useDiagnostics();
-  const { data: settings } = useSettings();
-
+  const cache = useQueryClient();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const selected = (
+    location.hash === "#app-updates"
+      ? "updates"
+      : (params.get("section") ?? "interface")
+  ) as SettingsSection;
+  const active =
+    SECTIONS.find((section) => section.id === selected) ?? SECTIONS[0];
+  const [search, setSearch] = useState("");
+  const save = useMutation({
+    mutationFn: bridge.settings.patch,
+    onSuccess: (value) => {
+      cache.setQueryData(keys.settings, value);
+    },
+  });
+  const update = (patch: SettingsPatch) => save.mutate(patch);
   return (
     <Page>
-      <PageHeader
-        eyebrow="System"
-        title="Settings"
-        lead="Manage your media folders and catalogue connections."
-      />
-
-      <AppUpdatesPanel />
-      <TmdbConnection />
-      <MediaFolders />
-
-      <section className="mt-10">
-        <SectionRule label="Sources" count={diagnostics?.providers.length} />
+      <header className="settings-heading">
         <div>
-          {(diagnostics?.providers ?? []).map((provider) => (
-            <div
-              key={provider.id}
-              className="flex items-center justify-between gap-4 border-b rule px-2 py-3"
-            >
-              <div className="flex items-center gap-3">
-                <span
-                  className={[
-                    "size-1.5 rounded-full",
-                    provider.available ? "bg-success" : "bg-base-300",
-                  ].join(" ")}
-                />
-                <span className="text-sm">{provider.name}</span>
-              </div>
-              <span className="meta">
-                {provider.available ? "ready" : "not configured"}
-              </span>
+          <h1 className="font-serif text-display">Settings</h1>
+          <p className="mt-2 text-sm text-base-content/55">
+            Make Vestra feel like yours.
+          </p>
+        </div>
+        <span
+          className="text-xs text-base-content/50"
+          role="status"
+          aria-live="polite"
+        >
+          {save.isPending
+            ? "Saving changes…"
+            : save.isSuccess
+              ? "Changes saved"
+              : "Saved on this computer"}
+        </span>
+      </header>
+      <div className="settings-workspace">
+        <aside className="settings-navigation">
+          <label className="relative block">
+            <Search className="pointer-events-none absolute left-3 top-3 size-4 text-base-content/40" />
+            <input
+              className="input w-full pl-9"
+              type="search"
+              aria-label="Find a settings section"
+              placeholder="Find a section"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+          <nav aria-label="Settings sections" className="mt-4 grid gap-1">
+            {SECTIONS.filter((section) =>
+              `${section.label} ${section.keywords}`
+                .toLowerCase()
+                .includes(search.toLowerCase()),
+            ).map((section) => (
+              <button
+                type="button"
+                className="settings-nav-item"
+                key={section.id}
+                aria-current={active.id === section.id ? "page" : undefined}
+                onClick={() => {
+                  save.reset();
+                  void navigate(`/settings?section=${section.id}`);
+                }}
+              >
+                <section.icon className="size-4 shrink-0" />
+                <span>
+                  <span className="block text-sm font-medium">
+                    {section.label}
+                  </span>
+                  <span className="mt-1 block text-xs text-base-content/45">
+                    {section.description}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </nav>
+          {SECTIONS.every(
+            (section) =>
+              !`${section.label} ${section.keywords}`
+                .toLowerCase()
+                .includes(search.toLowerCase()),
+          ) && (
+            <p className="p-3 text-sm text-base-content/50">
+              No matching section.
+            </p>
+          )}
+        </aside>
+        <div className="settings-content" key={active.id}>
+          <div className="mb-6">
+            <h2 className="font-serif text-3xl">{active.label}</h2>
+            <p className="mt-2 text-sm text-base-content/50">
+              {active.description}
+            </p>
+          </div>
+          {isPending && (
+            <div role="status" className="space-y-4 py-6">
+              <div className="h-28 animate-pulse rounded-box bg-base-200" />
+              <p>Loading settings…</p>
             </div>
-          ))}
+          )}
+          {error && (
+            <p role="alert">
+              Could not load settings.{" "}
+              <button
+                className="underline"
+                onClick={() =>
+                  void cache.invalidateQueries({ queryKey: keys.settings })
+                }
+              >
+                Retry
+              </button>
+            </p>
+          )}
+          {save.error && (
+            <p
+              role="alert"
+              className="mb-5 rounded-field border border-error/30 p-3 text-sm text-error"
+            >
+              Your change could not be saved. Please try again.
+            </p>
+          )}
+          {settings && (
+            <fieldset
+              disabled={save.isPending}
+              className="min-w-0 disabled:opacity-65"
+            >
+              {active.id === "interface" && (
+                <InterfaceSettings settings={settings} update={update} />
+              )}
+              {active.id === "app" && (
+                <>
+                  <section className="settings-section">
+                    <Setting
+                      label="Start page"
+                      description="Where Vestra opens on the next launch."
+                    >
+                      <select
+                        aria-label="Start page"
+                        className="select"
+                        value={settings.app.startupPage}
+                        onChange={(e) =>
+                          update({
+                            app: {
+                              startupPage: e.target
+                                .value as Settings["app"]["startupPage"],
+                            },
+                          })
+                        }
+                      >
+                        {[
+                          ["/", "Home"],
+                          ["/discover", "Discover"],
+                          ["/anime", "Anime"],
+                          ["/manga", "Manga"],
+                          ["/films", "Films"],
+                          ["/series", "Series"],
+                          ["/library", "Library"],
+                        ].map(([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </Setting>
+                    <Switch
+                      label="Show status bar"
+                      description="Keep library counts and update notices along the bottom."
+                      checked={settings.app.showStatusBar}
+                      onChange={(v) => update({ app: { showStatusBar: v } })}
+                    />
+                  </section>
+                  <section className="settings-section">
+                    <h3 className="font-serif text-2xl">This workspace</h3>
+                    <Row
+                      label="Data directory"
+                      value={diagnostics?.dataDir ?? "Loading…"}
+                      mono
+                    />
+                    <Row
+                      label="Files indexed"
+                      value={String(diagnostics?.counts.localFiles ?? 0)}
+                    />
+                    <Row
+                      label="Media folders"
+                      value={String(settings.library.folders.length)}
+                    />
+                  </section>
+                </>
+              )}
+              {active.id === "playback" && (
+                <PlaybackSettings settings={settings} update={update} />
+              )}
+              {active.id === "torrents" && (
+                <>
+                  <section className="settings-section">
+                    <Switch
+                      label="Enable qBittorrent"
+                      description="Connect Vestra's Downloads page to your own torrent client."
+                      checked={settings.downloads.qbittorrentEnabled}
+                      onChange={(v) =>
+                        update({ downloads: { qbittorrentEnabled: v } })
+                      }
+                    />
+                    <Setting
+                      label="Download category"
+                      description="Vestra lists and controls transfers only in this category."
+                    >
+                      <CommitText
+                        label="Download category"
+                        value={settings.downloads.category}
+                        onCommit={(v) => update({ downloads: { category: v } })}
+                      />
+                    </Setting>
+                    <Setting
+                      label="Refresh transfers"
+                      description="Poll only while Downloads is open."
+                    >
+                      <select
+                        aria-label="Refresh transfers"
+                        className="select"
+                        value={settings.downloads.pollIntervalMs}
+                        onChange={(e) =>
+                          update({
+                            downloads: {
+                              pollIntervalMs: Number(e.target.value),
+                            },
+                          })
+                        }
+                      >
+                        {[3000, 5000, 10000, 30000].map((v) => (
+                          <option key={v} value={v}>
+                            {v / 1000} seconds
+                          </option>
+                        ))}
+                      </select>
+                    </Setting>
+                  </section>
+                  <TorrentConnection />
+                </>
+              )}
+              {active.id === "library" && <MediaFolders />}
+              {active.id === "connections" && <TmdbConnection />}
+              {active.id === "diagnostics" && (
+                <>
+                  <SourceHealthPanel />
+                  <PlaybackDiagnosticsPanel />
+                </>
+              )}
+              {active.id === "updates" && <AppUpdatesPanel />}
+            </fieldset>
+          )}
+        </div>
+      </div>
+    </Page>
+  );
+}
+function Setting({
+  label,
+  description,
+  children,
+}: {
+  label: string;
+  description?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="settings-row">
+      <div>
+        <h3 className="text-sm font-medium">{label}</h3>
+        {description && (
+          <p className="mt-1 max-w-md text-sm text-base-content/50">
+            {description}
+          </p>
+        )}
+      </div>
+      <div className="settings-control">{children}</div>
+    </div>
+  );
+}
+function Switch({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <Setting label={label} description={description}>
+      <input
+        className="toggle toggle-primary"
+        aria-label={label}
+        role="switch"
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+    </Setting>
+  );
+}
+function CommitText({
+  label,
+  value,
+  onCommit,
+}: {
+  label: string;
+  value: string;
+  onCommit: (value: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  return (
+    <form
+      className="flex gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (draft.trim() && draft.trim() !== value) onCommit(draft.trim());
+      }}
+    >
+      <input
+        aria-label={label}
+        required
+        maxLength={100}
+        className="input min-w-0 w-36"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+      />
+      <button
+        type="submit"
+        className="btn btn-sm"
+        disabled={!draft.trim() || draft === value}
+      >
+        Save
+      </button>
+    </form>
+  );
+}
+function InterfaceSettings({
+  settings,
+  update,
+}: {
+  settings: Settings;
+  update: (patch: SettingsPatch) => void;
+}) {
+  const value = settings.appearance;
+  return (
+    <>
+      <section className="settings-preview" aria-label="Interface preview">
+        <div className="settings-preview-rule" />
+        <p className="text-xs text-base-content/50">Your workspace, your way</p>
+        <p className="mt-3 font-serif text-4xl">A place for every story.</p>
+        <div className="mt-5 flex items-center gap-4">
+          <span className="rounded-field bg-primary px-4 py-2 text-sm text-primary-content">
+            Continue watching
+          </span>
+          <span className="text-sm text-base-content/45">
+            Live appearance preview
+          </span>
         </div>
       </section>
-
-      <section className="mt-10">
-        <SectionRule label="Storage" />
-        <Row label="Data directory" value={diagnostics?.dataDir ?? "—"} mono />
-        <Row
-          label="Files indexed"
-          value={String(diagnostics?.counts.localFiles ?? 0)}
+      <section className="settings-section">
+        <Setting
+          label="Theme"
+          description="Choose a look, or follow your computer."
+        >
+          <div className="join" role="group" aria-label="Theme">
+            {(["dark", "light", "system"] as const).map((theme) => (
+              <button
+                key={theme}
+                className={`btn btn-sm join-item ${value.theme === theme ? "btn-primary" : ""}`}
+                aria-pressed={value.theme === theme}
+                onClick={() => update({ appearance: { theme } })}
+              >
+                {theme[0]!.toUpperCase() + theme.slice(1)}
+              </button>
+            ))}
+          </div>
+        </Setting>
+        <Setting
+          label="Accent color"
+          description="Vestra's original vermillion, or your own accent."
+        >
+          <select
+            aria-label="Accent color"
+            className="select"
+            value={value.customizeAccent ? value.accent : "vestra"}
+            onChange={(e) =>
+              update({
+                appearance: {
+                  customizeAccent: true,
+                  accent: e.target.value as Settings["appearance"]["accent"],
+                  customAccent: null,
+                },
+              })
+            }
+          >
+            {ACCENT_PRESETS.map((accent) => (
+              <option key={accent} value={accent}>
+                {accent === "vestra"
+                  ? "Vestra vermillion"
+                  : accent[0]!.toUpperCase() + accent.slice(1)}
+              </option>
+            ))}
+          </select>
+        </Setting>
+        <Setting
+          label="Text size"
+          description="Scale the interface without changing your screen resolution."
+        >
+          <select
+            aria-label="Text size"
+            className="select"
+            value={value.textScale}
+            onChange={(e) =>
+              update({
+                appearance: {
+                  textScale: e.target
+                    .value as Settings["appearance"]["textScale"],
+                },
+              })
+            }
+          >
+            <option value="small">Small</option>
+            <option value="default">Default</option>
+            <option value="large">Large</option>
+          </select>
+        </Setting>
+        <Switch
+          label="Show navigation labels"
+          description="Expand the icon rail into a labeled sidebar."
+          checked={value.sidebarLabels}
+          onChange={(sidebarLabels) =>
+            update({ appearance: { sidebarLabels } })
+          }
         />
-        <Row
-          label="On watchlist"
-          value={String(diagnostics?.counts.watchlist ?? 0)}
+        <Switch
+          label="Glass effects"
+          description="Use blurred surfaces behind floating controls."
+          checked={value.glassEffects}
+          onChange={(glassEffects) => update({ appearance: { glassEffects } })}
         />
-        <Row
-          label="Media folders"
-          value={String(settings?.library.folders.length ?? 0)}
+        <Switch
+          label="Reduce motion"
+          description="Keep transitions and loading animations minimal."
+          checked={value.reducedMotion}
+          onChange={(reducedMotion) =>
+            update({ appearance: { reducedMotion } })
+          }
         />
       </section>
-
-      <section className="mt-10">
-        <SectionRule label="Playback" />
-        <Row
-          label="Mark watched at"
-          value={`${Math.round((settings?.playback.markWatchedAt ?? 0.9) * 100)}%`}
-        />
-        <Row
-          label="Autoplay next"
-          value={settings?.playback.autoplayNext ? "on" : "off"}
-        />
-        <Row
-          label="Seek step"
-          value={`${settings?.playback.seekStepSeconds ?? 10}s`}
-        />
-      </section>
-    </Page>
+      <div className="flex justify-end">
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={() => update({ appearance: DEFAULT_SETTINGS.appearance })}
+        >
+          Reset interface
+        </button>
+      </div>
+    </>
+  );
+}
+function PlaybackSettings({
+  settings,
+  update,
+}: {
+  settings: Settings;
+  update: (patch: SettingsPatch) => void;
+}) {
+  const value = settings.playback;
+  const toggle = (
+    key:
+      "autoplayNext" | "skipSegments" | "autoSkipSegments" | "rememberPosition",
+    label: string,
+    description: string,
+  ) => (
+    <Switch
+      key={key}
+      label={label}
+      description={description}
+      checked={value[key]}
+      onChange={(v) => update({ playback: { [key]: v } })}
+    />
+  );
+  return (
+    <section className="settings-section">
+      {toggle(
+        "autoplayNext",
+        "Play the next episode",
+        "Continue automatically when the current episode ends.",
+      )}
+      {toggle(
+        "rememberPosition",
+        "Remember playback position",
+        "Resume where you left off.",
+      )}
+      {toggle(
+        "skipSegments",
+        "Show opening and ending skips",
+        "Offer a skip control when timestamps are available.",
+      )}
+      {toggle(
+        "autoSkipSegments",
+        "Skip openings and endings automatically",
+        "Use the available timestamps without asking each time.",
+      )}
+      <Setting
+        label="Hardware decoding"
+        description="Choose automatic safe decoding or software playback. Restart Vestra to apply a decoder change."
+      >
+        <select
+          aria-label="Hardware decoding"
+          className="select"
+          value={value.hardwareDecoding}
+          onChange={(e) =>
+            update({
+              playback: {
+                hardwareDecoding: e.target
+                  .value as Settings["playback"]["hardwareDecoding"],
+              },
+            })
+          }
+        >
+          <option value="auto-safe">Automatic (safe)</option>
+          <option value="auto">Automatic</option>
+          <option value="no">Software</option>
+        </select>
+      </Setting>
+      <Setting
+        label="Seek step"
+        description="Seconds moved by the player's skip controls."
+      >
+        <select
+          aria-label="Seek step"
+          className="select"
+          value={value.seekStepSeconds}
+          onChange={(e) =>
+            update({ playback: { seekStepSeconds: Number(e.target.value) } })
+          }
+        >
+          {[5, 10, 15, 30, 60].map((v) => (
+            <option key={v} value={v}>
+              {v} seconds
+            </option>
+          ))}
+        </select>
+      </Setting>
+    </section>
   );
 }
 

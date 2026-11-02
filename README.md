@@ -194,23 +194,26 @@ Electron 43, .NET for the server.
 > TypeScript is pinned to 6.x. TypeScript 7 (the native rewrite) is released, but
 > `typescript-eslint@8` declares `typescript: <6.1.0`, so upgrading breaks lint.
 
-
 ### Configure TMDb in Nova
 
-Open **Settings → TMDb connection** and enter your own **API Read Access Token** (recommended) or **v3 API key** from [TMDb account settings](https://www.themoviedb.org/settings/api). Save the connection; catalogue configuration updates immediately, without restarting. Saving does not validate the credential against TMDb.
+Open **Settings → Connections → TMDb connection** and enter your own **API Read Access Token** (recommended) or **v3 API key** from [TMDb account settings](https://www.themoviedb.org/settings/api). Save the connection; catalogue configuration updates immediately, without restarting. Saving does not validate the credential against TMDb.
 
 Nova encrypts the saved credential using the operating system's secure storage, separately from ordinary settings. It is never returned by the settings status API or passed into extension isolates. Saved credentials override environment configuration. **Remove saved credentials** restores `TMDB_ACCESS_TOKEN` / `TMDB_API_KEY` from the environment, if present. Hosts without secure storage can keep using environment variables.
 
 New source research: [Nuvio provider review](docs/nuvio-provider-review.md).
 
-
 ### Bundled native source ports
 
 A rebuilt Nova lists MovieBox, KissKH, Internet Archive, VixSrc, StreamFlix, Vidlink and DesiFlix in **Extensions → Available**, including without a configured registry. Install/review is optional and uses the existing sandbox permissions. StreamFlix and Vidlink are **experimental**: their upstream playback endpoints currently fail live checks. StreamFlix installation is held pending verification and a sandbox cleanup fix. See the [port review and availability notes](docs/nuvio-provider-review.md). VixSrc and Vidlink use your TMDb connection from Settings; StreamFlix currently supports Movies only.
-
 
 [DesiFlix](extensions/desiflix/README.md) supports native Movies/Series playback with no extra key/server; movie and TV samples passed native-player verification. It currently offers title search, with availability checked on Play. Audio languages and embedded subtitle tracks vary by title.
 
 ### App updates
 
-Installed Windows builds check for stable app updates automatically. **Settings → App updates** provides manual checking, download progress, release notes and **Restart and install**. Source runs do not self-update. See the [release guide](docs/app-updates.md) for patch/minor/major version bumps, draft releases and validation.
+Installed Windows builds check for stable app updates automatically. **Settings → Updates** provides manual checking, download progress, release notes and **Restart and install**. Source runs do not self-update. See the [release guide](docs/app-updates.md) for patch/minor/major version bumps, draft releases and validation.
+
+### App and interface settings
+
+Settings opens to **User Interface**: theme, accent color, text size, navigation labels, glass effects and reduced motion. **App** controls the next launch destination and status bar. Changes persist on this computer.
+
+**Settings → Diagnostics** shows source runtime availability and recent playback failures, with a redacted copyable report. **Settings → Torrents** configures your own qBittorrent Web UI; **Downloads** lists and controls only the chosen category. This does not install a torrent client or provide an embedded torrent-streaming engine. See the [settings and torrent setup guide](docs/settings-and-source-health.md).

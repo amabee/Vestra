@@ -17,6 +17,7 @@ export interface ShortcutActions {
   togglePlay: () => void;
   /** Step by an offset in seconds. */
   seekBy: (delta: number) => void;
+  seekStepSeconds?: number;
   /** Jump to a fraction of the runtime, 0 to 1. */
   seekToFraction: (fraction: number) => void;
   adjustVolume: (delta: number) => void;
@@ -32,7 +33,10 @@ export interface ShortcutActions {
   escape: () => void;
 }
 
-export function usePlayerShortcuts(active: boolean, actions: ShortcutActions): void {
+export function usePlayerShortcuts(
+  active: boolean,
+  actions: ShortcutActions,
+): void {
   useEffect(() => {
     if (!active) return;
 
@@ -75,10 +79,10 @@ export function usePlayerShortcuts(active: boolean, actions: ShortcutActions): v
           actions.seekBy(-5);
           break;
         case "l":
-          actions.seekBy(10);
+          actions.seekBy(actions.seekStepSeconds ?? 10);
           break;
         case "j":
-          actions.seekBy(-10);
+          actions.seekBy(-(actions.seekStepSeconds ?? 10));
           break;
 
         case "arrowup":

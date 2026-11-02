@@ -1,3 +1,4 @@
+import { AppearanceController } from "../chrome/appearance";
 import { playbackIssue } from "../../../../shared/playback-errors";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -76,6 +77,7 @@ export function PlayerChrome() {
   const [fullscreen, setFullscreen] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
 
+  const seekStep = nowPlaying?.seekStepSeconds ?? 10;
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* ---------------------------------------------------------------------- *
@@ -251,6 +253,7 @@ export function PlayerChrome() {
   usePlayerShortcuts(true, {
     togglePlay,
     seekBy,
+    seekStepSeconds: seekStep,
     seekToFraction: (fraction) => {
       if (mpv.duration > 0) seek(fraction * mpv.duration);
     },
@@ -357,6 +360,7 @@ export function PlayerChrome() {
         void bridge.player.focus().catch(() => undefined);
       }}
     >
+      <AppearanceController />
       {loading && !playbackError && (
         <VideoLoader
           title={nowPlaying?.title}
@@ -488,11 +492,17 @@ export function PlayerChrome() {
               <NextIcon className="size-4" />
             </IconButton>
 
-            <IconButton label="Back 10 seconds" onClick={() => seekBy(-10)}>
+            <IconButton
+              label={`Back ${seekStep} seconds`}
+              onClick={() => seekBy(-seekStep)}
+            >
               <RewindIcon className="size-4" />
             </IconButton>
 
-            <IconButton label="Forward 10 seconds" onClick={() => seekBy(10)}>
+            <IconButton
+              label={`Forward ${seekStep} seconds`}
+              onClick={() => seekBy(seekStep)}
+            >
               <ForwardIcon className="size-4" />
             </IconButton>
 

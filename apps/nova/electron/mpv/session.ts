@@ -1,3 +1,4 @@
+import { playbackDiagnostics } from "../playback-diagnostics";
 import { RebufferTracker } from "./rebuffer-tracker";
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -364,6 +365,8 @@ export class MpvSession {
   }
 
   #emit(patch: Partial<MpvState>): void {
+    if (patch.error && patch.error !== this.#state.error)
+      playbackDiagnostics.failure("player", new Error(patch.error));
     this.#state = { ...this.#state, ...patch };
     for (const listener of this.#listeners) listener(this.#state);
   }
