@@ -71,6 +71,7 @@ interface RawBridge {
     mutate: (command: unknown) => Promise<unknown>;
   };
   anime: {
+    inventories: () => Promise<unknown>;
     snapshots: (ids: number[]) => Promise<unknown>;
     explore: (query: unknown) => Promise<unknown>;
     schedule: (query: unknown) => Promise<unknown>;
@@ -104,6 +105,8 @@ interface RawBridge {
     check: (id: string) => Promise<unknown>;
   };
   manga: {
+    unread: (p: string, b: string, c: boolean) => Promise<unknown>;
+    markChapters: (p: string, b: string, r: boolean) => Promise<unknown>;
     bookmarks: () => Promise<unknown>;
     bookmark: (
       kind: string,
@@ -161,7 +164,19 @@ interface RawBridge {
     pause: (hash: string) => Promise<unknown>;
     resume: (hash: string) => Promise<unknown>;
   };
+  anilistAccount: {
+    status: () => Promise<unknown>;
+    authorize: (id: string) => Promise<unknown>;
+    connect: (token: string) => Promise<unknown>;
+    disconnect: () => Promise<unknown>;
+    backup: () => Promise<unknown>;
+    exportLatest: () => Promise<unknown>;
+  };
   settings: {
+    pickImage: () => Promise<unknown>;
+    exportLocal: () => Promise<unknown>;
+    importLocal: () => Promise<unknown>;
+    folderStatus: () => Promise<unknown>;
     patch: (value: unknown) => Promise<unknown>;
     onChanged: (listener: (value: unknown) => void) => () => void;
     tmdbStatus: () => Promise<unknown>;
@@ -486,6 +501,11 @@ export const bridge = {
       raw().playlists.mutate(command) as Promise<AnimePlaylist[]>,
   },
   anime: {
+    inventories: async () =>
+      (await raw().anime.inventories()) as Record<
+        string,
+        import("../../../shared/media-counts").EpisodeInventory
+      >,
     snapshots: (ids: number[]) =>
       raw().anime.snapshots(ids) as Promise<MediaItem[]>,
     explore: (query: import("../../../shared/anime-hub").AnimeExploreQuery) =>
@@ -557,6 +577,12 @@ export const bridge = {
     check: (id: string) => raw().sources.check(id),
   },
   manga: {
+    unread: async (p: string, b: string, c = false) =>
+      (await raw().manga.unread(p, b, c)) as
+        import("../../../shared/media-counts").ChapterCount | null,
+    markChapters: async (p: string, b: string, r: boolean) =>
+      (await raw().manga.markChapters(p, b, r)) as
+        import("../../../shared/media-counts").ChapterCount | null,
     bookmarks: () =>
       raw().manga.bookmarks() as Promise<
         import("../../../shared/manga").MangaBookmark[]
@@ -682,7 +708,31 @@ export const bridge = {
     pause: (hash: string) => raw().torrents.pause(hash),
     resume: (hash: string) => raw().torrents.resume(hash),
   },
+  anilistAccount: {
+    status: async () =>
+      (await raw().anilistAccount.status()) as import("../../../shared/anilist-account").AniListAccountStatus,
+    authorize: (id: string) => raw().anilistAccount.authorize(id),
+    connect: async (token: string) =>
+      (await raw().anilistAccount.connect(
+        token,
+      )) as import("../../../shared/anilist-account").AniListAccountStatus,
+    disconnect: async () =>
+      (await raw().anilistAccount.disconnect()) as import("../../../shared/anilist-account").AniListAccountStatus,
+    backup: async () =>
+      (await raw().anilistAccount.backup()) as import("../../../shared/anilist-account").AniListAccountStatus,
+    exportLatest: async () =>
+      (await raw().anilistAccount.exportLatest()) as boolean,
+  },
   settings: {
+    pickImage: async () => (await raw().settings.pickImage()) as string | null,
+    exportLocal: async () => (await raw().settings.exportLocal()) as boolean,
+    importLocal: async () =>
+      (await raw().settings.importLocal()) as Settings | null,
+    folderStatus: async () =>
+      (await raw().settings.folderStatus()) as {
+        id: string;
+        available: boolean;
+      }[],
     patch: async (value: SettingsPatch) =>
       (await raw().settings.patch(value)) as Settings,
     onChanged: (listener: (value: Settings) => void) =>

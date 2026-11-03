@@ -1,3 +1,5 @@
+import { getSettings } from "@vestra/storage";
+import { getDriver } from "./services";
 import {
   assertMangaSourceMethods,
   assertDiscoveryMethods,
@@ -125,6 +127,15 @@ async function handleWorkerMessage(message: unknown): Promise<void> {
     const entry = loaded.get(extensionId);
 
     try {
+      if (
+        entry &&
+        (await getSettings(getDriver())).extensions.secureMode &&
+        entry.grant.granted.some((p) => p !== "network")
+      ) {
+        throw new Error(
+          "Secure Mode blocks extensions granted source sessions or personal library/progress access. Review this extension's permissions or turn Secure Mode off.",
+        );
+      }
       if (!entry?.fetcher) {
         throw new Error("This extension was not granted network access.");
       }
@@ -191,11 +202,19 @@ export async function loadExtension(input: {
   }
 }
 
-export function callExtension(
+export async function callExtension(
   extensionId: string,
   method: string,
   args: unknown[],
 ): Promise<unknown> {
+  const entry = loaded.get(extensionId);
+  if (
+    (await getSettings(getDriver())).extensions.secureMode &&
+    entry?.grant.granted.some((p) => p !== "network")
+  )
+    throw new Error(
+      "Secure Mode blocks this extension's elevated permissions.",
+    );
   return send({ kind: "call", extensionId, method, args });
 }
 

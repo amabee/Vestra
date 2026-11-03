@@ -13,6 +13,8 @@ export interface AnimeSourceTitle {
   title: string;
 }
 export interface AnimeSourceEpisodes {
+  episodesComplete?: boolean;
+  provider?: string;
   providerTitle?: string;
   item: MediaItem;
   queue: PlaybackSource[];

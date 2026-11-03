@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { ChevronLeft, ChevronRight, Radio, Search, Star } from "lucide-react";
 import { mediaKey } from "@vestra/types";
 import { bridge } from "@/lib/bridge";
-import { useWatchlist } from "@/lib/queries";
+import { useSettings, useWatchlist } from "@/lib/queries";
 import {
   AnimeHubHeader,
   useAnimeHub,
@@ -19,6 +19,7 @@ import {
 } from "@/components/media/anime-hub-cards";
 
 export function DiscoverRoute() {
+  const { data: settings } = useSettings();
   const hub = useAnimeHub(),
     controls = useAnimeHubActions(hub.provider),
     watchlist = useWatchlist();
@@ -111,12 +112,13 @@ export function DiscoverRoute() {
                 ))}
               </p>
               <div className="hub-feature-facts">
-                {hero.item.rating.score != null && (
-                  <span>
-                    <Star size={15} />
-                    {(hero.item.rating.score / 10).toFixed(1)}
-                  </span>
-                )}
+                {!settings?.privacy.hideAudienceScores &&
+                  hero.item.rating.score != null && (
+                    <span>
+                      <Star size={15} />
+                      {(hero.item.rating.score / 10).toFixed(1)}
+                    </span>
+                  )}
                 {hero.releasing && (
                   <span>
                     <Radio size={16} />
@@ -125,7 +127,7 @@ export function DiscoverRoute() {
                 )}
                 <EpisodeCount title={hero} />
               </div>
-              {hero.item.overview && (
+              {hero.item.overview && !settings?.privacy.hideAnimeSpoilers && (
                 <p className="hub-feature-overview">{hero.item.overview}</p>
               )}
               <div className="hub-feature-actions">
@@ -187,7 +189,7 @@ export function DiscoverRoute() {
         <button type="submit">Search</button>
       </form>
       <div className="hub-explore-filters" aria-label="Anime discovery filters">
-        <label>
+        <label className="genre-selector">
           Genre
           <select
             aria-label="Genre"

@@ -11,6 +11,7 @@ const rowSchema = z.object({
     native: z.string().nullish(),
   }),
   description: z.string().max(100_000).nullish(),
+  bannerImage: z.string().url().nullish(),
   coverImage: z
     .object({
       extraLarge: z.string().url().nullish(),
@@ -25,7 +26,7 @@ const rowSchema = z.object({
   volumes: z.number().int().nonnegative().nullable(),
   startDate: z.object({ year: z.number().nullable() }).nullish(),
 });
-const fields = `id title{english romaji native} description(asHtml:false) coverImage{extraLarge large} genres countryOfOrigin status averageScore chapters volumes startDate{year}`;
+const fields = `id title{english romaji native} description(asHtml:false) bannerImage coverImage{extraLarge large} genres countryOfOrigin status averageScore chapters volumes startDate{year}`;
 const byId = `query MangaInfo($id:Int!){Media(id:$id,type:MANGA,isAdult:false){${fields}}}`;
 const byTitle = `query MangaSourceInfo($search:String!){Page(perPage:10){media(type:MANGA,isAdult:false,search:$search){${fields}}}}`;
 const normalise = (value: string) =>
@@ -54,6 +55,7 @@ export class MangaDetails {
     private driver: StorageDriver,
     private cover: (id: number, url: string) => string,
     private request = fetchMangaGraphQL,
+    private banner?: (id: number, url: string) => string,
   ) {}
   private load() {
     return (this.loading ??= (async () => {
@@ -87,6 +89,13 @@ export class MangaDetails {
       titles,
       description: row.description ? text(row.description) : null,
       cover,
+      ...(row.bannerImage &&
+      this.banner &&
+      new URL(row.bannerImage).protocol === "https:" &&
+      !new URL(row.bannerImage).username &&
+      !new URL(row.bannerImage).password
+        ? { banner: this.banner(row.id, row.bannerImage) }
+        : {}),
       genres: row.genres,
       origin: row.countryOfOrigin,
       status: row.status,

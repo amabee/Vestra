@@ -25,6 +25,65 @@ export const accentPresetSchema = z.enum(ACCENT_PRESETS);
 export type AccentPreset = z.infer<typeof accentPresetSchema>;
 
 export const appearanceSettingsSchema = z.object({
+  backgroundColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .nullable()
+    .default(null),
+  backgroundImage: z.string().max(4096).default(""),
+  backgroundOpacity: z.number().min(0).max(1).default(0.15),
+  bannerImage: z.string().max(4096).default(""),
+  bannerPosition: z.enum(["top", "center", "bottom"]).default("center"),
+  bannerOpacity: z.number().min(0).max(1).default(0.65),
+  homeBanner: z.enum(["dynamic", "custom", "none"]).default("dynamic"),
+  mediaBannerAppearance: z
+    .enum([
+      "default",
+      "blur-available",
+      "dim-unavailable",
+      "hide-unavailable",
+      "dim",
+      "blur",
+      "hide",
+    ])
+    .default("default"),
+  mediaBannerSize: z.enum(["large", "medium", "small"]).default("large"),
+  expandSidebarOnHover: z.boolean().default(false),
+  opaqueSidebar: z.boolean().default(false),
+  hideTopNavbar: z.boolean().default(false),
+  unpinnedMenuItems: z
+    .array(
+      z.enum([
+        "/discover",
+        "/schedule",
+        "/anime",
+        "/manga",
+        "/films",
+        "/series",
+        "/downloads",
+        "/library",
+        "/watchlist",
+        "/history",
+        "/extensions",
+      ]),
+    )
+    .max(11)
+    .default([]),
+  removeGenreSelector: z.boolean().default(false),
+  mediaBlurredBackground: z.boolean().default(false),
+  mediaCardGlass: z.boolean().default(false),
+  episodeCards: z.boolean().default(true),
+  hideEpisodeSummary: z.boolean().default(false),
+  hideEpisodeFilename: z.boolean().default(false),
+  smallerEpisodeCards: z.boolean().default(false),
+  navigationPreloading: z
+    .enum(["disabled", "intent", "faster-intent", "viewport"])
+    .default("intent"),
+  continueWatchingSort: z.enum(["updated", "alphabetical"]).default("updated"),
+  animeLibrarySort: z
+    .enum(["added", "alphabetical", "release"])
+    .default("added"),
+  mangaLibrarySort: z.enum(["updated", "alphabetical"]).default("updated"),
   theme: themeModeSchema.default("dark"),
   accent: accentPresetSchema.default("violet"),
   /** Overrides `accent` when set. Hex, e.g. #7C3AED. */
@@ -47,6 +106,11 @@ export type AppearanceSettings = z.infer<typeof appearanceSettingsSchema>;
  * ========================================================================== */
 
 export const sourceSettingsSchema = z.object({
+  anilistClientId: z
+    .string()
+    .regex(/^(?:[1-9]\d{0,11})?$/)
+    .default(""),
+  anilistAutoBackup: z.boolean().default(false),
   enabled: z
     .array(mediaSourceSchema)
     .default(["tmdb", "anilist", "youtube", "local"]),
@@ -80,6 +144,8 @@ export const playbackEngineSchema = z.enum(["auto", "builtin", "mpv"]);
 export type PlaybackEngine = z.infer<typeof playbackEngineSchema>;
 
 export const playbackSettingsSchema = z.object({
+  autoUpdateProgress: z.boolean().default(true),
+  defaultEpisodeSource: z.string().max(200).nullable().default(null),
   autoplayNext: z.boolean().default(true),
   /** Begin playing as soon as a file is opened, rather than waiting. */
   autoPlay: z.boolean().default(true),
@@ -129,7 +195,26 @@ export type PlaybackSettings = z.infer<typeof playbackSettingsSchema>;
  * Library
  * ========================================================================== */
 
+export const scannerConfigSchema = z
+  .object({
+    maxDepth: z.number().int().min(1).max(20).default(8),
+    maxFiles: z.number().int().min(1).max(100000).default(20000),
+    excludedDirectories: z
+      .array(
+        z
+          .string()
+          .trim()
+          .min(1)
+          .max(100)
+          .refine((v) => !/[\\/]/.test(v), "Use directory names, not paths"),
+      )
+      .max(100)
+      .default([]),
+  })
+  .strict();
 export const librarySettingsSchema = z.object({
+  autoRefresh: z.boolean().default(false),
+  scanner: scannerConfigSchema.prefault({}),
   folders: z.array(localFolderSchema).default([]),
   /** Extensions treated as video, lowercase and without the leading dot. */
   videoExtensions: z
@@ -163,6 +248,10 @@ export type DownloadSettings = z.infer<typeof downloadSettingsSchema>;
  * ========================================================================== */
 
 export const privacySettingsSchema = z.object({
+  animeUnwatchedCount: z.boolean().default(false),
+  mangaUnreadCount: z.boolean().default(false),
+  hideAnimeSpoilers: z.boolean().default(false),
+  hideAudienceScores: z.boolean().default(false),
   trackHistory: z.boolean().default(true),
   /** 0 = keep forever. */
   historyRetentionDays: z.number().int().nonnegative().default(0),
@@ -178,6 +267,7 @@ export type PrivacySettings = z.infer<typeof privacySettingsSchema>;
  * ========================================================================== */
 
 export const extensionSettingsSchema = z.object({
+  secureMode: z.boolean().default(false),
   /**
    * Registry URLs the user has added.
    *
@@ -261,6 +351,55 @@ export const settingsPatchSchema = z
       .extend({ category: z.string().trim().min(1).max(100).optional() })
       .optional(),
     privacy: patchSection(privacySettingsSchema).optional(),
+    sources: patchSection(sourceSettingsSchema)
+      .pick({ anilistClientId: true, anilistAutoBackup: true })
+      .optional(),
+    library: patchSection(librarySettingsSchema)
+      .omit({ folders: true })
+      .optional(),
+    extensions: patchSection(extensionSettingsSchema)
+      .pick({ secureMode: true })
+      .optional(),
   })
   .strict();
 export type SettingsPatch = z.infer<typeof settingsPatchSchema>;
+
+/** Recover individual invalid fields while retaining every valid saved preference. */
+export function recoverSettings(raw: unknown): Settings {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw))
+    return settingsSchema.parse({});
+  const source = raw as Record<string, unknown>;
+  const recovered: Record<string, unknown> = { version: 1 };
+  for (const [section, schema] of Object.entries(settingsSchema.shape)) {
+    if (section === "version") continue;
+    const fallback = DEFAULT_SETTINGS[section as keyof Settings];
+    const sectionSchema =
+      schema instanceof z.ZodPrefault ? schema.unwrap() : schema;
+    if (!(sectionSchema instanceof z.ZodObject)) continue;
+    const value = source[section];
+    const fields =
+      value && typeof value === "object" && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : {};
+    recovered[section] = Object.fromEntries(
+      Object.entries(sectionSchema.shape).map(([key, validator]) => {
+        const parsed = (validator as z.ZodType).safeParse(fields[key]);
+        return [
+          key,
+          parsed.success
+            ? parsed.data
+            : (fallback as Record<string, unknown>)[key],
+        ];
+      }),
+    );
+  }
+  return settingsSchema.parse(recovered);
+}
+/** Portable local configuration deliberately excludes credentials, accounts and extension grants. */
+export const localConfigurationSchema = z
+  .object({
+    format: z.literal("vestra-local-config"),
+    version: z.literal(1),
+    library: librarySettingsSchema.omit({ folders: true }).strict(),
+  })
+  .strict();

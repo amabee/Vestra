@@ -49,6 +49,7 @@ export interface MangaDiscoveryPage {
   stale: boolean;
 }
 export interface MangaInformation extends MangaDiscoveryTitle {
+  banner?: string;
   description: string | null;
   chapters: number | null;
   volumes: number | null;

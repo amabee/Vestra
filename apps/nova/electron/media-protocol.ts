@@ -1,8 +1,8 @@
 import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { stat, readFile } from "node:fs/promises";
 import { Readable } from "node:stream";
 
-import { getLocalFiles } from "@vestra/storage";
+import { getLocalFiles, getSettings } from "@vestra/storage";
 import { protocol } from "electron";
 
 import { getDriver } from "./services";
@@ -97,6 +97,29 @@ function parseRange(
 
 export function registerMediaProtocolHandler(): void {
   protocol.handle(MEDIA_SCHEME, async (request) => {
+    const imageUrl = new URL(request.url);
+    if (imageUrl.hostname === "appearance") {
+      const key = imageUrl.pathname.slice(1);
+      if (key !== "backgroundImage" && key !== "bannerImage")
+        return new Response(null, { status: 404 });
+      const file = (await getSettings(getDriver())).appearance[key];
+      if (!file || !/\.(png|jpe?g|webp)$/i.test(file))
+        return new Response(null, { status: 404 });
+      try {
+        if ((await stat(file)).size > 20 * 1024 * 1024)
+          return new Response(null, { status: 413 });
+        const type = /\.png$/i.test(file)
+          ? "image/png"
+          : /\.webp$/i.test(file)
+            ? "image/webp"
+            : "image/jpeg";
+        return new Response(new Uint8Array(await readFile(file)), {
+          headers: { "Content-Type": type, "Cache-Control": "no-store" },
+        });
+      } catch {
+        return new Response(null, { status: 404 });
+      }
+    }
     const url = new URL(request.url);
 
     const fileId = decodeURIComponent(url.pathname.replace(/^\//, ""));
@@ -134,17 +157,23 @@ export function registerMediaProtocolHandler(): void {
     const range = parseRange(request.headers.get("range"), size);
 
     if (!range) {
-      return new Response(Readable.toWeb(createReadStream(file.path)) as ReadableStream, {
-        status: 200,
-        headers: {
-          "content-type": contentType,
-          "content-length": String(size),
-          "accept-ranges": "bytes",
+      return new Response(
+        Readable.toWeb(createReadStream(file.path)) as ReadableStream,
+        {
+          status: 200,
+          headers: {
+            "content-type": contentType,
+            "content-length": String(size),
+            "accept-ranges": "bytes",
+          },
         },
-      });
+      );
     }
 
-    const stream = createReadStream(file.path, { start: range.start, end: range.end });
+    const stream = createReadStream(file.path, {
+      start: range.start,
+      end: range.end,
+    });
 
     return new Response(Readable.toWeb(stream) as ReadableStream, {
       status: 206,

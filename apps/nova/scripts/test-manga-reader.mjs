@@ -102,7 +102,10 @@ test("progress survives C# worker/service restart, validates bounds and isolates
   await s.chapters("manga", "book");
   await s.pages("manga", "book", "chapter");
   await assert.rejects(s.save("manga", "book", "chapter", 2), /Invalid/);
+  await s.save("manga", "book", "chapter", 0);
+  assert.equal((await s.unread("manga", "book")).unread, 1);
   await s.save("manga", "book", "chapter", 1);
+  assert.equal((await s.unread("manga", "book")).unread, 0);
   backend.stop();
   const next = session(join(scratch, "csharp-restart"));
   const restarted = new MangaService(new NodeDriver(path));
@@ -111,6 +114,7 @@ test("progress survives C# worker/service restart, validates bounds and isolates
   await restarted.search("manga", "x");
   await restarted.search("other", "x");
   assert.equal((await restarted.progress("manga", "book")).page, 1);
+  assert.equal((await restarted.unread("manga", "book")).unread, 0);
   assert.equal(await restarted.progress("other", "book"), null);
   const recent = await restarted.recent("manga");
   assert.equal(recent.entries[0].book.title, "Fixture");

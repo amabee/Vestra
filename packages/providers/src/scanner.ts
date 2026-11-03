@@ -2,7 +2,11 @@ import { createHash } from "node:crypto";
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 
-import { getLocalFiles, saveLocalFiles, type StorageDriver } from "@vestra/storage";
+import {
+  getLocalFiles,
+  saveLocalFiles,
+  type StorageDriver,
+} from "@vestra/storage";
 import type { LibrarySettings, LocalMediaFile } from "@vestra/types";
 
 import { isVideoFile, parseMediaFilename } from "./filename";
@@ -17,10 +21,6 @@ import { isVideoFile, parseMediaFilename } from "./filename";
  * all, it just triggers a walk of the saved roots. Symlinks are not followed,
  * which prevents both loops and escapes outside the configured roots.
  */
-
-/** Stops a misconfigured root (say `C:\`) from walking the entire disk. */
-const MAX_DEPTH = 8;
-const MAX_FILES = 20_000;
 
 /** Directories that never contain user media and are expensive to walk. */
 const SKIP_DIRECTORIES = new Set([
@@ -58,8 +58,9 @@ async function walk(
   extensions: readonly string[],
   depth: number,
   state: WalkState,
+  config: LibrarySettings["scanner"],
 ): Promise<void> {
-  if (depth > MAX_DEPTH || state.found.length >= MAX_FILES) return;
+  if (depth > config.maxDepth || state.found.length >= config.maxFiles) return;
 
   let entries;
   try {
@@ -73,7 +74,7 @@ async function walk(
   }
 
   for (const entry of entries) {
-    if (state.found.length >= MAX_FILES) return;
+    if (state.found.length >= config.maxFiles) return;
 
     // Never follow symlinks: they can loop, and they can point outside the root.
     if (entry.isSymbolicLink()) continue;
@@ -82,8 +83,14 @@ async function walk(
 
     if (entry.isDirectory()) {
       if (entry.name.startsWith(".")) continue;
-      if (SKIP_DIRECTORIES.has(entry.name.toLowerCase())) continue;
-      await walk(full, extensions, depth + 1, state);
+      if (
+        SKIP_DIRECTORIES.has(entry.name.toLowerCase()) ||
+        config.excludedDirectories.some(
+          (name) => name.toLowerCase() === entry.name.toLowerCase(),
+        )
+      )
+        continue;
+      await walk(full, extensions, depth + 1, state, config);
       continue;
     }
 
@@ -97,10 +104,10 @@ async function walk(
  * Scan every enabled folder and rewrite the library index.
  *
  * Existing entries are merged rather than replaced, so `addedAt`, generated
- * thumbnails and any metadata match survive a re-scan. Files that disappeared
- * from disk are dropped.
+ * thumbnails and metadata survive a re-scan. Missing files are retained so an
+ * unavailable directory or bounded scan cannot erase existing library records.
  */
-export async function scanLibrary(
+async function performLibraryScan(
   driver: StorageDriver,
   settings: LibrarySettings,
 ): Promise<ScanResult> {
@@ -126,7 +133,7 @@ export async function scanLibrary(
       continue;
     }
 
-    await walk(root, extensions, 0, state);
+    await walk(root, extensions, 0, state, settings.scanner);
   }
 
   const now = Date.now();
@@ -175,13 +182,33 @@ export async function scanLibrary(
     });
   }
 
+  // A scan is discovery, never an implicit delete operation. Offline roots,
+  // changed directories and scan limits must not erase an existing library.
+  const foundIds = new Set(files.map((file) => file.id));
+  files.push(...existing.filter((file) => !foundIds.has(file.id)));
   const saved = await saveLocalFiles(driver, files);
 
   return {
     files: saved,
     scanned: state.found.length,
     added,
-    removed: Math.max(0, existing.length - (files.length - added)),
+    removed: 0,
     errors: state.errors,
   };
+}
+
+// The provider is also called by completed-download imports, outside Nova's
+// refresh service. Serialize here as well so every entry point retains files
+// discovered by the preceding scan, including requests with different roots.
+const scanQueues = new WeakMap<StorageDriver, Promise<ScanResult>>();
+export function scanLibrary(
+  driver: StorageDriver,
+  settings: LibrarySettings,
+): Promise<ScanResult> {
+  const previous = scanQueues.get(driver);
+  const result = (
+    previous ? previous.catch(() => undefined) : Promise.resolve()
+  ).then(() => performLibraryScan(driver, settings));
+  scanQueues.set(driver, result);
+  return result;
 }

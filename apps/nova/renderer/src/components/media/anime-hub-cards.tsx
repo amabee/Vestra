@@ -1,3 +1,5 @@
+import { AnimeUnwatchedBadge } from "./completion-badges";
+import { useSettings } from "@/lib/queries";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import {
@@ -24,10 +26,19 @@ export function AnimePoster({
   item: MediaItem;
   eager?: boolean;
 }) {
+  const { data: settings } = useSettings();
+  const adult = item.isAdult === true;
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [item.images.poster]);
-  return item.images.poster && !failed ? (
+  return item.images.poster &&
+    !failed &&
+    (!adult || settings?.privacy.showAdultContent === true) ? (
     <img
+      style={
+        adult && settings?.privacy.blurAdultContent !== false
+          ? { filter: "blur(18px)" }
+          : undefined
+      }
       src={item.images.poster}
       alt=""
       loading={eager ? "eager" : "lazy"}
@@ -81,6 +92,9 @@ export function AnimeHubCard({
   working?: boolean;
 }) {
   const { item } = title;
+  const { data: settings } = useSettings();
+  if (item.isAdult === true && settings?.privacy.showAdultContent !== true)
+    return null;
   return (
     <article className="hub-card" data-media-key={mediaKey(item)}>
       <Link
@@ -112,6 +126,14 @@ export function AnimeHubCard({
       </Link>
       <div className="hub-card-facts">
         <span>{item.year ?? "Year unannounced"}</span>
+        <AnimeUnwatchedBadge
+          provider={provider}
+          item={item}
+          aired={
+            title.airedEpisodes ??
+            (item.status === "released" ? title.totalEpisodes : null)
+          }
+        />
         {title.format ||
         title.totalEpisodes != null ||
         title.airedEpisodes != null ? (

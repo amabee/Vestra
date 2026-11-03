@@ -113,7 +113,9 @@ export function parseMediaKey(key: string): MediaRef | null {
 
 /** True when both refs point at the same item. */
 export function isSameMedia(a: MediaRef, b: MediaRef): boolean {
-  return a.source === b.source && a.kind === b.kind && a.sourceId === b.sourceId;
+  return (
+    a.source === b.source && a.kind === b.kind && a.sourceId === b.sourceId
+  );
 }
 
 /* =============================================================================
@@ -164,6 +166,7 @@ export type ReleaseStatus = z.infer<typeof releaseStatusSchema>;
  * ========================================================================== */
 
 export const mediaItemSchema = mediaRefSchema.extend({
+  isAdult: z.boolean().optional(),
   title: z.string(),
   /** Original-language or alternate title, when it differs from `title`. */
   originalTitle: z.string().nullable().default(null),

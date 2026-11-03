@@ -1,3 +1,4 @@
+import { MediaBanner, MediaPageBackground } from "./media-banner";
 import {
   preferredAnimeSource,
   rememberAnimeSource,
@@ -30,7 +31,13 @@ import {
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { bridge } from "@/lib/bridge";
-import { keys, useBookmarks, useProgress, useWatchlist } from "@/lib/queries";
+import {
+  keys,
+  useSettings,
+  useBookmarks,
+  useProgress,
+  useWatchlist,
+} from "@/lib/queries";
 import { usePlayer } from "@/lib/player-store";
 import "./anime-details.css";
 
@@ -55,6 +62,7 @@ export function AnimeDetails() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const cache = useQueryClient();
+  const { data: settings } = useSettings();
   const ref = parseMediaKey(`${source}:${kind}:${id}`);
   const identity = ref ? mediaKey(ref) : "";
   const extensions = useQuery({
@@ -78,7 +86,14 @@ export function AnimeDetails() {
   const hasLocal = localList.length > 0;
   const hasLinks = linkList.length > 0;
   const selected =
-    params.get("source") ?? preferredAnimeSource(extensions.data, hasLocal);
+    params.get("source") ??
+    (settings?.playback.defaultEpisodeSource &&
+    (extensions.data?.some(
+      (s) => s.id === settings.playback.defaultEpisodeSource,
+    ) ||
+      (settings.playback.defaultEpisodeSource === "local" && hasLocal))
+      ? settings.playback.defaultEpisodeSource
+      : preferredAnimeSource(extensions.data, hasLocal));
   const localMode = selected === LOCAL_SOURCE;
   const linkMode = selected === LINK_SOURCE;
   const available = extensions.data?.find((row) => row.id === selected);
@@ -121,6 +136,10 @@ export function AnimeDetails() {
     details.data ??
     (episodes.data?.item ? mediaDetailsSchema.parse(episodes.data.item) : null);
   const queue = localMode ? localList : (episodes.data?.queue ?? []);
+  useEffect(() => {
+    if (episodes.data || localFiles.data)
+      void cache.invalidateQueries({ queryKey: ["anime-episode-inventories"] });
+  }, [episodes.data, localFiles.data, cache]);
   const query = params.get("episode") ?? "";
   const filter = params.get("filter") ?? "all";
   const descending = params.get("order") === "newest";
@@ -288,6 +307,13 @@ export function AnimeDetails() {
     jumpTo(id);
   };
 
+  if (data?.isAdult && settings?.privacy.showAdultContent !== true)
+    return (
+      <div className="anime-details">
+        <p role="status">Adult content is disabled in Application settings.</p>
+        <Link to="/settings?section=app">Open settings</Link>
+      </div>
+    );
   if (!ref)
     return (
       <div className="anime-details">
@@ -297,7 +323,13 @@ export function AnimeDetails() {
     );
 
   return (
-    <article className="anime-details">
+    <article
+      className="anime-details"
+      data-adult-blurred={
+        data?.isAdult && settings?.privacy.blurAdultContent ? "true" : undefined
+      }
+    >
+      <MediaPageBackground image={backdrop ?? cover} />
       <nav className="anime-navigation" aria-label="Anime navigation">
         <button
           type="button"
@@ -320,19 +352,16 @@ export function AnimeDetails() {
         />
       )}
 
-      <header className={`anime-hero${backdrop ? " anime-hero-backdrop" : ""}`}>
-        <div className="anime-backdrop" aria-hidden="true">
-          {backdrop ? (
-            <img
-              key={backdrop}
-              src={backdrop}
-              alt=""
-              referrerPolicy="no-referrer"
-              decoding="async"
-              onError={() => setFailedCovers((values) => [...values, backdrop])}
-            />
-          ) : null}
-        </div>
+      <header
+        data-has-backdrop={!!backdrop}
+        className={`anime-hero${backdrop ? " anime-hero-backdrop" : ""}`}
+      >
+        <MediaBanner
+          className="anime-backdrop"
+          backdrop={backdrop}
+          fallback={cover}
+          onError={(url) => setFailedCovers((values) => [...values, url])}
+        />
 
         <div className="anime-hero-body">
           <div className="anime-poster-column">
@@ -401,12 +430,13 @@ export function AnimeDetails() {
 
             {data && (
               <div className="anime-meta">
-                {data.rating.score != null && (
-                  <span className="anime-score">
-                    <Star size={13} className="fill-current" />
-                    {data.rating.score}%
-                  </span>
-                )}
+                {!settings?.privacy.hideAudienceScores &&
+                  data.rating.score != null && (
+                    <span className="anime-score">
+                      <Star size={13} className="fill-current" />
+                      {data.rating.score}%
+                    </span>
+                  )}
                 {data.year && <span>{data.year}</span>}
                 {queue.length > 0 && <span>{queue.length} episodes</span>}
                 {data.certification && (
@@ -426,7 +456,7 @@ export function AnimeDetails() {
               </ul>
             )}
 
-            {data?.overview && (
+            {data?.overview && !settings?.privacy.hideAnimeSpoilers && (
               <div className="anime-synopsis" id="anime-overview">
                 <p className={expanded ? undefined : "anime-clamp"}>
                   {data.overview}
@@ -547,17 +577,18 @@ export function AnimeDetails() {
                   <dd>{data.languages.join(", ")}</dd>
                 </div>
               )}
-              {data.rating.score != null && (
-                <div>
-                  <dt>Score</dt>
-                  <dd>
-                    {data.rating.score}%
-                    <span className="anime-score-bar" aria-hidden="true">
-                      <i style={{ width: `${data.rating.score}%` }} />
-                    </span>
-                  </dd>
-                </div>
-              )}
+              {!settings?.privacy.hideAudienceScores &&
+                data.rating.score != null && (
+                  <div>
+                    <dt>Score</dt>
+                    <dd>
+                      {data.rating.score}%
+                      <span className="anime-score-bar" aria-hidden="true">
+                        <i style={{ width: `${data.rating.score}%` }} />
+                      </span>
+                    </dd>
+                  </div>
+                )}
             </dl>
           </div>
         )}
@@ -840,7 +871,9 @@ export function AnimeDetails() {
                       metadata?.still && !failedCovers.includes(metadata.still)
                         ? metadata.still
                         : null;
-                    const rowArtwork = still ?? backdrop;
+                    const rowArtwork = settings?.privacy.hideAnimeSpoilers
+                      ? null
+                      : (still ?? backdrop);
                     const duration =
                       metadata?.durationSeconds ?? saves?.durationSeconds;
                     const runtime = duration ? formatDuration(duration) : "";
@@ -907,8 +940,13 @@ export function AnimeDetails() {
                             )}
                           </span>
                           <h3>
-                            {metadata?.title ??
-                              entry.label ??
+                            {(settings?.privacy.hideAnimeSpoilers
+                              ? null
+                              : metadata?.title) ??
+                              (settings?.appearance.hideEpisodeFilename ||
+                              settings?.privacy.hideAnimeSpoilers
+                                ? null
+                                : entry.label) ??
                               `Episode ${number}`}
                           </h3>
                           <span>
@@ -920,11 +958,13 @@ export function AnimeDetails() {
                                   ? `In progress, ${percent}%`
                                   : "Not watched"}
                           </span>
-                          {metadata?.overview && (
-                            <p className="anime-episode-description">
-                              {metadata.overview}
-                            </p>
-                          )}
+                          {metadata?.overview &&
+                            !settings?.privacy.hideAnimeSpoilers &&
+                            !settings?.appearance.hideEpisodeSummary && (
+                              <p className="anime-episode-description">
+                                {metadata.overview}
+                              </p>
+                            )}
                         </div>
                         <span className="anime-episode-runtime">{runtime}</span>
                         <div className="anime-row-actions">

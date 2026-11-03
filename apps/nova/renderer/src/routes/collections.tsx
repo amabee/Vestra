@@ -2,13 +2,20 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { mediaKey } from "@vestra/types";
 import { useNavigate, useSearchParams } from "react-router";
 
-import { EntryList, Notice, Page, PageHeader, SectionRule } from "@/components/layout/page";
+import {
+  EntryList,
+  Notice,
+  Page,
+  PageHeader,
+  SectionRule,
+} from "@/components/layout/page";
 import { MediaCard, MediaGrid } from "@/components/media/media-card";
 import { bridge, type LibraryEntry } from "@/lib/bridge";
 import { usePlayer } from "@/lib/player-store";
 import {
   keys,
   useHistory,
+  useSettings,
   useLibrary,
   useLibraryEntries,
   useSearch,
@@ -24,7 +31,9 @@ export function WatchlistRoute() {
   const { data: files = [] } = useLibrary();
 
   const owned = new Set(
-    files.flatMap((file) => (file.matchedRef ? [mediaKey(file.matchedRef)] : [])),
+    files.flatMap((file) =>
+      file.matchedRef ? [mediaKey(file.matchedRef)] : [],
+    ),
   );
 
   // Grouped by intent rather than one long list — "watching" and "planned" are
@@ -133,7 +142,20 @@ export function LibraryRoute() {
 
   const { data: entries = [], isPending, error } = useLibraryEntries();
 
-  const matched = entries.filter((entry) => entry.matched);
+  const { data: settings } = useSettings();
+  const matched = entries
+    .filter((entry) => entry.matched)
+    .sort((a, b) => {
+      if (a.item.kind !== "anime" || b.item.kind !== "anime") return 0;
+      if (settings?.appearance.animeLibrarySort === "alphabetical")
+        return a.item.title.localeCompare(b.item.title);
+      if (settings?.appearance.animeLibrarySort === "release")
+        return (b.item.year ?? 0) - (a.item.year ?? 0);
+      return (
+        Math.max(...b.files.map((f) => f.addedAt), 0) -
+        Math.max(...a.files.map((f) => f.addedAt), 0)
+      );
+    });
   const unmatched = entries.filter((entry) => !entry.matched);
 
   const play = useMutation({
@@ -146,7 +168,9 @@ export function LibraryRoute() {
       }
 
       const sources = await bridge.media.resolvePlayback(entry.item);
-      const local = sources.find((source) => !source.locator.startsWith("http"));
+      const local = sources.find(
+        (source) => !source.locator.startsWith("http"),
+      );
       if (!local) throw new Error("No local source resolved for this entry.");
       openPlayer(entry.item, [local]);
     },
@@ -172,7 +196,10 @@ export function LibraryRoute() {
         </section>
       ) : error ? (
         <section className="mt-10">
-          <Notice title="Could not read the library" body={(error as Error).message} />
+          <Notice
+            title="Could not read the library"
+            body={(error as Error).message}
+          />
         </section>
       ) : entries.length === 0 ? (
         <section className="mt-10">
@@ -228,7 +255,9 @@ export function LibraryRoute() {
       )}
 
       {play.error ? (
-        <p className="mt-6 text-xs text-error">{(play.error as Error).message}</p>
+        <p className="mt-6 text-xs text-error">
+          {(play.error as Error).message}
+        </p>
       ) : null}
     </Page>
   );
@@ -277,7 +306,9 @@ export function SearchRoute() {
   const { data: files = [] } = useLibrary();
 
   const owned = new Set(
-    files.flatMap((file) => (file.matchedRef ? [mediaKey(file.matchedRef)] : [])),
+    files.flatMap((file) =>
+      file.matchedRef ? [mediaKey(file.matchedRef)] : [],
+    ),
   );
 
   const groups = data?.groups ?? [];
@@ -288,7 +319,11 @@ export function SearchRoute() {
       <PageHeader
         eyebrow={total > 0 ? `${total} results` : "Search"}
         title={query ? `“${query}”` : "Search"}
-        lead={query ? undefined : "Type in the bar above to search every configured source at once."}
+        lead={
+          query
+            ? undefined
+            : "Type in the bar above to search every configured source at once."
+        }
       />
 
       {!query ? null : isPending ? (
@@ -301,7 +336,10 @@ export function SearchRoute() {
         </section>
       ) : total === 0 ? (
         <section className="mt-10">
-          <Notice title="Nothing found" body="No configured source returned a match." />
+          <Notice
+            title="Nothing found"
+            body="No configured source returned a match."
+          />
         </section>
       ) : (
         groups.map((group) => (
@@ -310,7 +348,9 @@ export function SearchRoute() {
               label={group.source}
               count={group.items.length}
               trailing={
-                group.error ? <span className="meta text-error">unavailable</span> : null
+                group.error ? (
+                  <span className="meta text-error">unavailable</span>
+                ) : null
               }
             />
             <EntryList items={group.items} ownedKeys={owned} />

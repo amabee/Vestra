@@ -77,6 +77,7 @@ export function useAnimeActions() {
           staleTime: 0,
         }),
       ]);
+      void cache.invalidateQueries({ queryKey: ["anime-episode-inventories"] });
       if (request !== revision.current) return;
       if (!result?.queue.length)
         throw Error(

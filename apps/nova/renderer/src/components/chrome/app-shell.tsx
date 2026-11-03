@@ -48,10 +48,17 @@ export function AppShell() {
       void navigate(settings.app.startupPage, { replace: true });
   }, [settings, location.pathname, navigate]);
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="nova-shell relative isolate flex h-full flex-col overflow-hidden">
+      {settings?.appearance.backgroundImage && (
+        <img
+          className="workspace-background"
+          src={`vestra-media://appearance/backgroundImage?v=${encodeURIComponent(settings.appearance.backgroundImage)}`}
+          alt=""
+        />
+      )}
       <AppearanceController />
       <TitleBar>
-        <CommandField />
+        {settings?.appearance.hideTopNavbar !== true && <CommandField />}
       </TitleBar>
 
       <div className="flex min-h-0 flex-1">

@@ -23,8 +23,11 @@ export function registerMangaIpc(
   const api = getMangaService();
   api.registerCatalogueImages(image);
   api.registerBookmarks(bookmarks);
-  const details = new MangaDetails(getDriver(), (id, url) =>
-    api.catalogueCover(id, url),
+  const details = new MangaDetails(
+    getDriver(),
+    (id, url) => api.catalogueCover(id, url),
+    undefined,
+    (id, url) => api.catalogueBanner(id, url),
   );
   const resolver = new MangaTitleResolver(getDriver(), api, (id) =>
     details.get(id),
@@ -49,6 +52,21 @@ export function registerMangaIpc(
       ? resolver.catalogue(provider, input.id)
       : resolver.source(provider, input.source, input.id, input.title);
   });
+  ipcMain.handle("manga:unread", async (_e, p, b, catalogue) => {
+    const provider = z.string().min(1).max(120).parse(p);
+    const book = text.parse(b);
+    const isCatalogue = z.boolean().parse(catalogue);
+    const resolved = isCatalogue
+      ? await resolver.knownCatalogueBook(
+          provider,
+          z.coerce.number().int().positive().parse(book),
+        )
+      : book;
+    return resolved ? api.unread(provider, resolved) : null;
+  });
+  ipcMain.handle("manga:mark-chapters", (_e, p, b, read) =>
+    api.markChapters(text.parse(p), text.parse(b), z.boolean().parse(read)),
+  );
   const discovery = new MangaDiscovery(getDriver(), (id, url) =>
     api.catalogueCover(id, url),
   );

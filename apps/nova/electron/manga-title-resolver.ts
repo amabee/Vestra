@@ -39,6 +39,17 @@ export class MangaTitleResolver {
       }
     })());
   }
+  async knownCatalogueBook(provider: string, id: number) {
+    await this.load();
+    return (
+      this.rows.find(
+        (row) =>
+          row.provider === provider &&
+          row.key === `anilist:${id}` &&
+          row.expires > Date.now(),
+      )?.book.id ?? null
+    );
+  }
   catalogue(provider: string, id: number) {
     z.number().int().positive().parse(id);
     return this.resolve(provider, `anilist:${id}`, async () => {

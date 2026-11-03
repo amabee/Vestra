@@ -575,6 +575,7 @@ function useReadingProgress(
           page,
           updatedAt: new Date().toISOString(),
         });
+        void cache.invalidateQueries({ queryKey: ["manga-unread"] });
         void cache.invalidateQueries({
           queryKey: ["manga", provider, "recent"],
         });
