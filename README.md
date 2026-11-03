@@ -217,3 +217,9 @@ Installed Windows builds check for stable app updates automatically. **Settings 
 Settings opens to **User Interface**: theme, accent color, text size, navigation labels, glass effects and reduced motion. **App** controls the next launch destination and status bar. Changes persist on this computer.
 
 **Settings → Diagnostics** shows source runtime availability and recent playback failures, with a redacted copyable report. **Settings → Torrents** configures your own qBittorrent Web UI; **Downloads** lists and controls only the chosen category. This does not install a torrent client or provide an embedded torrent-streaming engine. See the [settings and torrent setup guide](docs/settings-and-source-health.md).
+
+## Extension development
+
+[**Vestra Foundry**](https://github.com/amabee/Foundry) owns the native extension sources and registry. The SDK and sandbox remain here. New profiles use `https://raw.githubusercontent.com/amabee/Foundry/main/extensions/registry.json`; the former Vestra registry path remains a compatibility mirror for older clients. Updated clients fetch Foundry for that saved official URL while retaining its stored origin; custom URLs and empty registry lists are unchanged.
+
+`extensions/` is a pinned offline snapshot, verified against SHA-256 entries in `extensions.snapshot.json`. Do source development in Foundry. After reviewing a Foundry commit, run `pnpm extensions:update <full-commit-sha>`, review the source/lock diff, and run `pnpm test:foundry` and SDK tests. `pnpm extensions:verify` works offline; `pnpm extensions:sync` restores the already-pinned upstream files when the snapshot is clean. Packaging refuses unreviewed snapshot drift. Existing installed extension IDs, permission grants and custom registries are retained.

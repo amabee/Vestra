@@ -8,7 +8,7 @@ const scratch = await mkdtemp(join(tmpdir(), "vestra-settings-expansion-"));
 try {
   await build({
     stdin: {
-      contents: `export * from './packages/types/src/settings'; export * from './packages/storage/src/repositories'; export {NodeDriver} from './packages/storage/src/node-driver'; export {scanLibrary} from './packages/providers/src/scanner'; export {createSettingsPatcher} from './apps/nova/electron/settings-service'; export {STORAGE_KEYS} from './packages/config/src/constants';`,
+      contents: `export * from './packages/types/src/settings'; export {registryFetchUrl} from './apps/nova/electron/extension-registry'; export * from './packages/storage/src/repositories'; export {NodeDriver} from './packages/storage/src/node-driver'; export {scanLibrary} from './packages/providers/src/scanner'; export {createSettingsPatcher} from './apps/nova/electron/settings-service'; export {STORAGE_KEYS} from './packages/config/src/constants';`,
       resolveDir: resolve("."),
     },
     bundle: true,
@@ -18,7 +18,35 @@ try {
   });
   const m = createRequire(import.meta.url)(join(scratch, "test.cjs"));
   const driver = new m.NodeDriver(join(scratch, "data"));
+  assert.equal(
+    m.registryFetchUrl(m.LEGACY_VESTRA_REGISTRY_URL),
+    m.FOUNDRY_REGISTRY_URL,
+  );
+  assert.equal(
+    m.registryFetchUrl(m.FOUNDRY_REGISTRY_URL),
+    m.FOUNDRY_REGISTRY_URL,
+  );
+  for (const url of [
+    "https://example.com/custom-registry.json",
+    m.LEGACY_VESTRA_REGISTRY_URL + "?custom=1",
+  ])
+    assert.equal(m.registryFetchUrl(url), url);
   const defaults = await m.getSettings(driver);
+  assert.deepEqual(defaults.extensions.registries, [
+    "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/registry.json",
+  ]);
+  for (const registries of [
+    [],
+    ["https://example.com/custom-registry.json"],
+    [
+      "https://raw.githubusercontent.com/amabee/Vestra/main/extensions/registry.json",
+    ],
+  ]) {
+    assert.deepEqual(
+      m.extensionSettingsSchema.parse({ registries }).registries,
+      registries,
+    );
+  }
   assert.equal(defaults.playback.autoUpdateProgress, true);
   assert.equal(defaults.privacy.showAdultContent, false);
   await driver.write(m.STORAGE_KEYS.settings, {

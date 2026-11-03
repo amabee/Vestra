@@ -42,5 +42,5 @@ pnpm test:kisskh:live
 ```
 
 Live checks passed for Goblin episode 1 and Train to Busan, including actual media
-signatures and subtitle text. See [the report](../../docs/kisskh-source.md).
+signatures and subtitle text. See [the report](https://github.com/amabee/Vestra/blob/main/docs/kisskh-source.md).
 Sustained playback and all-title coverage still need personal testing.

@@ -80,7 +80,11 @@
     "test:vyla": "node apps/nova/scripts/test-vyla-service.mjs",
     "test:archive": "pnpm --filter @vestra/extension-host exec vitest run src/examples/internet-archive.test.ts",
     "test:archive:live": "node apps/nova/scripts/test-archive-live.mjs --live",
-    "test:security": "vitest run apps/nova/electron/security.test.ts packages/core/src/net-guard.test.ts && node apps/nova/scripts/test-security-ipc.mjs"
+    "test:security": "vitest run apps/nova/electron/security.test.ts packages/core/src/net-guard.test.ts && node apps/nova/scripts/test-security-ipc.mjs",
+    "extensions:verify": "node apps/nova/scripts/foundry-snapshot.mjs --check",
+    "extensions:sync": "node apps/nova/scripts/foundry-snapshot.mjs --sync",
+    "extensions:update": "node apps/nova/scripts/foundry-snapshot.mjs --update",
+    "test:foundry": "node --test apps/nova/scripts/test-foundry-snapshot.mjs && node apps/nova/scripts/test-bundled-extensions.mjs"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",

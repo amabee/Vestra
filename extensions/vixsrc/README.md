@@ -42,4 +42,4 @@ pnpm test:vixsrc:live --mpv
 ```
 
 Live checks use the real isolate/broker and bounded samples without installing
-the extension into a user profile. See [implementation notes](../../docs/vixsrc-source.md).
+the extension into a user profile. See [implementation notes](https://github.com/amabee/Vestra/blob/main/docs/vixsrc-source.md).

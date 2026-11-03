@@ -2,6 +2,8 @@ const { readFile, stat } = require("node:fs/promises");
 const { join } = require("node:path");
 
 module.exports = async function beforePack(context) {
+  const { verifySnapshot } = await import("./foundry-snapshot.mjs");
+  await verifySnapshot();
   if (context.electronPlatformName !== "win32" || context.arch !== 1)
     throw new Error(
       "The bundled provider worker currently supports Windows x64 packages only.",

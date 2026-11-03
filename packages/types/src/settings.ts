@@ -266,6 +266,11 @@ export type PrivacySettings = z.infer<typeof privacySettingsSchema>;
  * Extensions
  * ========================================================================== */
 
+export const FOUNDRY_REGISTRY_URL =
+  "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/registry.json";
+export const LEGACY_VESTRA_REGISTRY_URL =
+  "https://raw.githubusercontent.com/amabee/Vestra/main/extensions/registry.json";
+
 export const extensionSettingsSchema = z.object({
   secureMode: z.boolean().default(false),
   /**
@@ -274,11 +279,7 @@ export const extensionSettingsSchema = z.object({
    * New profiles start with Vestra's published catalogue. Saved custom lists,
    * including an explicitly empty list, remain the user's choice.
    */
-  registries: z
-    .array(z.string().url())
-    .default([
-      "https://raw.githubusercontent.com/amabee/Vestra/main/extensions/registry.json",
-    ]),
+  registries: z.array(z.string().url()).default([FOUNDRY_REGISTRY_URL]),
   /** Extension ids the user has enabled. */
   enabled: z.array(z.string()).default([]),
 });

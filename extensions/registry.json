@@ -4,21 +4,21 @@
     "name": "MovieBox",
     "version": "0.1.0",
     "author": "Vestra",
-    "description": "Native Movies/TV source with Popular, Latest, seasons and subtitles. Guest quality and availability depend on MovieBox; locked renditions are excluded.",
+    "description": "Movies and TV from MovieBox. Available quality and access depend on the source; premium-locked renditions are excluded.",
     "type": "custom-source",
     "language": "javascript",
     "lang": "multi",
     "icon": "https://h5.inmoviebox.com/favicon.ico",
-    "manifestURI": "https://raw.githubusercontent.com/amabee/Vestra/d84273671c613d0d55a1042caabc071f387b80b8/extensions/moviebox/manifest.json",
-    "payloadURI": "https://raw.githubusercontent.com/amabee/Vestra/d84273671c613d0d55a1042caabc071f387b80b8/extensions/moviebox/index.js",
-    "website": "https://github.com/amabee/Vestra/tree/d84273671c613d0d55a1042caabc071f387b80b8/extensions/moviebox",
+    "manifestURI": "https://raw.githubusercontent.com/amabee/Foundry/a4bffec70ea436eddc1258933a6a84141f482ceb/extensions/moviebox/manifest.json",
+    "payloadURI": "https://raw.githubusercontent.com/amabee/Foundry/a4bffec70ea436eddc1258933a6a84141f482ceb/extensions/moviebox/index.js",
+    "website": "https://github.com/amabee/Foundry/tree/a4bffec70ea436eddc1258933a6a84141f482ceb/extensions/moviebox",
     "tags": [
       "vestra",
-      "native",
-      "movies",
-      "tv"
+      "foundry",
+      "native"
     ],
     "workingTag": true,
+    "brokenTag": false,
     "lastWorkingVersion": "0.1.0",
     "kinds": [
       "movie",
@@ -30,22 +30,21 @@
     "name": "KissKH",
     "version": "0.1.0",
     "author": "Vestra",
-    "description": "Native Asian Movies/TV source with Popular, Latest, Ongoing and Upcoming feeds, direct MP4/HLS and plain subtitles. Source quality is Auto.",
+    "description": "Native Asian Movies/TV source with source-owned collections, available episodes, direct video and plain SRT/VTT subtitles. Quality is chosen by the source.",
     "type": "custom-source",
     "language": "javascript",
     "lang": "multi",
     "icon": "https://kisskh.co/favicon.ico",
-    "manifestURI": "https://raw.githubusercontent.com/amabee/Vestra/08f69c7f19b23065115989e24bb16f03c1ff4163/extensions/kisskh/manifest.json",
-    "payloadURI": "https://raw.githubusercontent.com/amabee/Vestra/08f69c7f19b23065115989e24bb16f03c1ff4163/extensions/kisskh/index.js",
-    "website": "https://github.com/amabee/Vestra/tree/08f69c7f19b23065115989e24bb16f03c1ff4163/extensions/kisskh",
+    "manifestURI": "https://raw.githubusercontent.com/amabee/Foundry/a4bffec70ea436eddc1258933a6a84141f482ceb/extensions/kisskh/manifest.json",
+    "payloadURI": "https://raw.githubusercontent.com/amabee/Foundry/a4bffec70ea436eddc1258933a6a84141f482ceb/extensions/kisskh/index.js",
+    "website": "https://github.com/amabee/Foundry/tree/a4bffec70ea436eddc1258933a6a84141f482ceb/extensions/kisskh",
     "tags": [
       "vestra",
-      "native",
-      "movies",
-      "tv",
-      "asian-drama"
+      "foundry",
+      "native"
     ],
     "workingTag": true,
+    "brokenTag": false,
     "lastWorkingVersion": "0.1.0",
     "kinds": [
       "movie",
@@ -62,19 +61,98 @@
     "language": "javascript",
     "lang": "multi",
     "icon": "https://archive.org/favicon.ico",
-    "manifestURI": "https://raw.githubusercontent.com/amabee/Vestra/ebf291131649421c71838111be6b476eb9eead48/extensions/internet-archive/manifest.json",
-    "payloadURI": "https://raw.githubusercontent.com/amabee/Vestra/ebf291131649421c71838111be6b476eb9eead48/extensions/internet-archive/index.js",
-    "website": "https://github.com/amabee/Vestra/tree/ebf291131649421c71838111be6b476eb9eead48/extensions/internet-archive",
+    "manifestURI": "https://raw.githubusercontent.com/amabee/Foundry/a4bffec70ea436eddc1258933a6a84141f482ceb/extensions/internet-archive/manifest.json",
+    "payloadURI": "https://raw.githubusercontent.com/amabee/Foundry/a4bffec70ea436eddc1258933a6a84141f482ceb/extensions/internet-archive/index.js",
+    "website": "https://github.com/amabee/Foundry/tree/a4bffec70ea436eddc1258933a6a84141f482ceb/extensions/internet-archive",
     "tags": [
       "vestra",
-      "native",
-      "movies",
-      "classics"
+      "foundry",
+      "native"
     ],
     "workingTag": true,
+    "brokenTag": false,
     "lastWorkingVersion": "0.1.0",
     "kinds": [
       "movie"
+    ]
+  },
+  {
+    "id": "vestra-vixsrc",
+    "name": "VixSrc",
+    "version": "0.1.0",
+    "author": "Vestra",
+    "description": "Native Movies/TV HLS playback with source availability matching. Uses Vestra's configured TMDb catalogue for search and aired episode metadata; playback availability is checked when playing.",
+    "type": "custom-source",
+    "language": "javascript",
+    "lang": "multi",
+    "icon": "https://vixsrc.to/favicon.ico",
+    "manifestURI": "https://raw.githubusercontent.com/amabee/Foundry/a4bffec70ea436eddc1258933a6a84141f482ceb/extensions/vixsrc/manifest.json",
+    "payloadURI": "https://raw.githubusercontent.com/amabee/Foundry/a4bffec70ea436eddc1258933a6a84141f482ceb/extensions/vixsrc/index.js",
+    "website": "https://github.com/amabee/Foundry/tree/a4bffec70ea436eddc1258933a6a84141f482ceb/extensions/vixsrc",
+    "tags": [
+      "vestra",
+      "foundry",
+      "native"
+    ],
+    "workingTag": false,
+    "brokenTag": false,
+    "lastWorkingVersion": null,
+    "kinds": [
+      "movie",
+      "tv"
+    ]
+  },
+  {
+    "id": "vestra-desiflix",
+    "name": "DesiFlix",
+    "version": "0.1.0",
+    "author": "Vestra",
+    "description": "Native Movies/Series source using public IMDb metadata and DesiFlix direct-file APIs. No key or additional server. Language and availability vary by title; uses the native player for MKV.",
+    "type": "custom-source",
+    "language": "javascript",
+    "lang": "multi",
+    "icon": "",
+    "manifestURI": "https://raw.githubusercontent.com/amabee/Foundry/a4bffec70ea436eddc1258933a6a84141f482ceb/extensions/desiflix/manifest.json",
+    "payloadURI": "https://raw.githubusercontent.com/amabee/Foundry/a4bffec70ea436eddc1258933a6a84141f482ceb/extensions/desiflix/index.js",
+    "website": "https://github.com/amabee/Foundry/tree/a4bffec70ea436eddc1258933a6a84141f482ceb/extensions/desiflix",
+    "tags": [
+      "vestra",
+      "foundry",
+      "native"
+    ],
+    "workingTag": false,
+    "brokenTag": false,
+    "lastWorkingVersion": null,
+    "kinds": [
+      "movie",
+      "tv"
+    ]
+  },
+  {
+    "id": "vestra-vidlink",
+    "name": "Vidlink · Experimental",
+    "version": "0.1.0",
+    "author": "Vestra",
+    "description": "Experimental: upstream playback checks have failed. Experimental native Movies/TV resolver using Vestra TMDb metadata. Upstream encoding helper currently returns HTTP 403; playback is unverified and may be unavailable.",
+    "type": "custom-source",
+    "language": "javascript",
+    "lang": "multi",
+    "icon": "https://vidlink.pro/favicon.ico",
+    "manifestURI": "https://raw.githubusercontent.com/amabee/Foundry/a4bffec70ea436eddc1258933a6a84141f482ceb/extensions/vidlink/manifest.json",
+    "payloadURI": "https://raw.githubusercontent.com/amabee/Foundry/a4bffec70ea436eddc1258933a6a84141f482ceb/extensions/vidlink/index.js",
+    "website": "https://github.com/amabee/Foundry/tree/a4bffec70ea436eddc1258933a6a84141f482ceb/extensions/vidlink",
+    "tags": [
+      "vestra",
+      "foundry",
+      "native",
+      "experimental"
+    ],
+    "workingTag": false,
+    "brokenTag": true,
+    "lastWorkingVersion": null,
+    "kinds": [
+      "movie",
+      "tv"
     ]
   }
 ]
