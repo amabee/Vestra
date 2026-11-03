@@ -9,7 +9,7 @@ const root = resolve(".");
 try {
   await build({
     stdin: {
-      contents: `export * from './apps/nova/electron/qbittorrent-settings'; export {getServerEnv,setQbittorrentCredentials} from './packages/config/src/env';export {getQbittorrentStatus,resetQbittorrentSession} from './packages/api/src/qbittorrent/client';export {DEFAULT_SETTINGS} from './packages/types/src/settings';export {getDriver} from './apps/nova/electron/services';`,
+      contents: `export * from './apps/nova/electron/qbittorrent-settings'; export {getServerEnv,setQbittorrentCredentials} from './packages/config/src/env';export {getQbittorrentStatus,resetQbittorrentSession} from './packages/api/src/qbittorrent/client';export {DEFAULT_SETTINGS} from './packages/types/src/settings';export {getDriver} from './apps/nova/electron/services';export {secureWindow} from './apps/nova/electron/ipc-security';`,
       resolveDir: root,
     },
     bundle: true,
@@ -32,7 +32,7 @@ try {
             contents:
               args.path === "services"
                 ? `const store=new Map();const driver={read:async key=>store.get(key)??null,write:async(key,value)=>{store.set(key,value);}};export const getDriver=()=>driver;export const resolveDataDir=()=>${JSON.stringify(scratch)};`
-                : `import {createCipheriv,createDecipheriv} from 'node:crypto';const key=Buffer.alloc(32,8),iv=Buffer.alloc(16,3);export const ipcMain={handle:(name,handler)=>globalThis.handlers.set(name,handler)};export const safeStorage={isEncryptionAvailable:()=>globalThis.encryption!==false,getSelectedStorageBackend:()=> 'secret_service',encryptString:value=>{const cipher=createCipheriv('aes-256-cbc',key,iv);return Buffer.concat([cipher.update(value),cipher.final()]);},decryptString:value=>{const cipher=createDecipheriv('aes-256-cbc',key,iv);return Buffer.concat([cipher.update(value),cipher.final()]).toString();}};`,
+                : `import {createCipheriv,createDecipheriv} from 'node:crypto';const key=Buffer.alloc(32,8),iv=Buffer.alloc(16,3);export const shell={openExternal:async()=>{}};export const ipcMain={handle:(name,handler)=>globalThis.handlers.set(name,handler)};export const safeStorage={isEncryptionAvailable:()=>globalThis.encryption!==false,getSelectedStorageBackend:()=> 'secret_service',encryptString:value=>{const cipher=createCipheriv('aes-256-cbc',key,iv);return Buffer.concat([cipher.update(value),cipher.final()]);},decryptString:value=>{const cipher=createDecipheriv('aes-256-cbc',key,iv);return Buffer.concat([cipher.update(value),cipher.final()]).toString();}};`,
           }));
         },
       },
@@ -145,7 +145,26 @@ try {
     assert.equal(requests.at(-1).cookie, "SID=8082");
     globalThis.handlers = new Map();
     api.registerTorrentIpc();
-    const invoke = (name, value) => handlers.get(name)({}, value);
+    const document = "file:///fixture/index.html";
+    const frame = { url: document };
+    const sender = {
+      mainFrame: frame,
+      isDestroyed: () => false,
+      on() {},
+      once() {},
+      setWindowOpenHandler() {},
+      session: {
+        setPermissionRequestHandler() {},
+        setPermissionCheckHandler() {},
+      },
+    };
+    api.secureWindow({ webContents: sender }, "main", document);
+    const invoke = (name, value) =>
+      handlers.get(name)({ sender, senderFrame: frame }, value);
+    assert.throws(
+      () => handlers.get("torrents:list")({}, null),
+      /not permitted/,
+    );
     await assert.rejects(invoke("torrents:list"), /Enable/);
     await api.getDriver().write("settings", {
       ...api.DEFAULT_SETTINGS,
