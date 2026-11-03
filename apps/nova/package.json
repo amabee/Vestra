@@ -1,8 +1,8 @@
 {
   "name": "@vestra/nova",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
-  "description": "Vestra Nova \u2014 the Vestra desktop application (Electron).",
+  "description": "Vestra Nova — the Vestra desktop application (Electron).",
   "main": "dist-electron/main.js",
   "scripts": {
     "build:renderer": "vite build --config renderer/vite.config.ts",
