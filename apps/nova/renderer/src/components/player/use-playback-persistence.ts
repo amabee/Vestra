@@ -84,7 +84,7 @@ export function usePlaybackPersistence(input: {
               list.find((row) => mediaKey(row.ref) === mediaKey(current))
                 ?.status === "planned"
             ) {
-              await bridge.watchlist.add(current, "watching");
+              await bridge.watchlist.add(current, "watching", true);
               void cache.invalidateQueries({ queryKey: keys.watchlist });
             }
             snapshot.checkedList = true;

@@ -15,4 +15,12 @@ export interface AniListAccountStatus {
   lastBackupError: string | null;
   nextBackupAttemptAt: number | null;
   backupCount: number;
+  sync?: {
+    pending: number;
+    syncing: boolean;
+    lastSyncAt: number | null;
+    lastError: string | null;
+    retryAt: number | null;
+    unmatched: number;
+  };
 }

@@ -23,6 +23,7 @@ async function runner(config) {
     handleIpc("extensions:updates", () => []);
     handleIpc("app:version", () => "fixture");
     handleIpc("anilist-account:status", () => ({ connected: false }));
+    handleIpc("anilist-account:change", () => ({ queued: true }));
     handleIpc("settings:get", () => ({ appearance: {} }));
     handleIpc("mpv:pause", () => ++pauses);
     const page = join(config.scratch, "index.html");
@@ -61,6 +62,12 @@ async function runner(config) {
     );
     const rogue = create(config.preload);
     await rogue.loadFile(page);
+    assert.equal(
+      await rogue.webContents.executeJavaScript(
+        "vestra.anilistAccount.change({}).then(()=>false,()=>true)",
+      ),
+      true,
+    );
     assert.equal(
       await rogue.webContents.executeJavaScript(
         "vestra.anilistAccount.status().then(()=>false,()=>true)",

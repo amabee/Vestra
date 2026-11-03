@@ -9,8 +9,20 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import type { AniListAccountStatus } from "../shared/anilist-account";
+import {
+  listChangeSchema,
+  syncStateSchema,
+  type AniListChange,
+} from "../shared/anilist-sync";
+import {
+  appendListChange,
+  applyListChange,
+  changeKey,
+  fetchListMirror,
+} from "./anilist-sync";
 
 const tokenSchema = z
   .string()
@@ -31,6 +43,7 @@ const stateSchema = z.object({
   lastBackupAt: z.number().nullable().default(null),
   lastBackupError: z.string().nullable().default(null),
   nextBackupAttemptAt: z.number().nullable().default(null),
+  sync: syncStateSchema,
 });
 const groupSchema = z.object({
   name: z.string().nullable(),
@@ -90,11 +103,16 @@ export class AniListAccount {
   private backingUp = false;
   private backupCount = 0;
   private backupWork: Promise<AniListAccountStatus> | null = null;
+  private syncWork: Promise<AniListAccountStatus> | null = null;
+  private queuedChanges = new Map<string, AniListChange>();
+  private queueError: string | null = null;
   constructor(
     private directory: string,
     private vault: AccountVault,
     private request: typeof fetch = fetch,
     private now: () => number = Date.now,
+    private pace: (signal: AbortSignal) => Promise<unknown> = (signal) =>
+      delay(2100, undefined, { signal }),
   ) {}
   private file() {
     return join(this.directory, "anilist-account.enc");
@@ -144,6 +162,14 @@ export class AniListAccount {
       lastBackupError: state?.lastBackupError ?? null,
       nextBackupAttemptAt: state?.nextBackupAttemptAt ?? null,
       backupCount: this.backupCount,
+      sync: {
+        pending: this.listSyncState().pending.length,
+        syncing: !!this.syncWork,
+        lastSyncAt: state?.sync.lastSyncAt ?? null,
+        lastError: this.queueError ?? state?.sync.lastError ?? null,
+        retryAt: state?.sync.retryAt ?? null,
+        unmatched: state?.sync.unmatched ?? 0,
+      },
     };
   }
   private async query(
@@ -178,7 +204,7 @@ export class AniListAccount {
       );
     if (response.status === 429)
       throw new AccountError(
-        "AniList is rate limiting requests. Backups will retry later.",
+        "AniList is rate limiting requests. Pending work will retry later.",
         429,
         Math.min(
           3600000,
@@ -225,6 +251,8 @@ export class AniListAccount {
       throw new Error("Enter a valid AniList access token without spaces.");
     const token = parsedToken.data;
     const generation = ++this.generation;
+    this.queuedChanges.clear();
+    this.queueError = null;
     this.controller.abort();
     this.controller = new AbortController();
     return this.enqueue(async () => {
@@ -259,7 +287,7 @@ export class AniListAccount {
           url: `https://anilist.co/user/${data.Viewer.id}`,
         },
         ...(this.state?.user.id === data.Viewer.id
-          ? { lastBackupAt: this.state.lastBackupAt }
+          ? { lastBackupAt: this.state.lastBackupAt, sync: this.state.sync }
           : {}),
       });
       const existingBackups = await this.backupFiles(next.user.id);
@@ -294,6 +322,8 @@ export class AniListAccount {
   }
   disconnect() {
     ++this.generation;
+    this.queuedChanges.clear();
+    this.queueError = null;
     this.controller.abort();
     this.controller = new AbortController();
     return this.enqueue(async () => {
@@ -437,6 +467,257 @@ export class AniListAccount {
     )
       return;
     await this.backup();
+  }
+  listMirror() {
+    return this.state?.sync.entries ?? [];
+  }
+  listSyncState() {
+    let sync = this.state?.sync ?? syncStateSchema.parse({});
+    for (const change of this.queuedChanges.values()) {
+      try {
+        sync = appendListChange(sync, change);
+      } catch {
+        break;
+      }
+    }
+    return sync;
+  }
+  queueListChange(raw: AniListChange) {
+    if (!this.state) return Promise.resolve();
+    const change = listChangeSchema.parse(raw);
+    change.mediaId ??= this.state.sync.links.find(
+      (row) => row.key === changeKey(change),
+    )?.mediaId;
+    const key = changeKey(change);
+    this.queuedChanges.set(key, change);
+    const generation = this.generation;
+    return this.enqueue(async () => {
+      if (generation !== this.generation || !this.state) return;
+      const mediaId =
+        change.mediaId ??
+        this.state.sync.links.find((row) => row.key === changeKey(change))
+          ?.mediaId;
+      const next = {
+        ...this.state,
+        sync: appendListChange(this.state.sync, {
+          ...change,
+          ...(mediaId ? { mediaId } : {}),
+        }),
+      };
+      await this.atomic(this.file(), next);
+      this.state = next;
+      this.queueError = null;
+    })
+      .catch((error) => {
+        this.queueError =
+          "A list change could not be queued. Your local edit was kept. Sync pending changes, then retry the edit.";
+        throw error;
+      })
+      .finally(() => {
+        if (this.queuedChanges.get(key) === change)
+          this.queuedChanges.delete(key);
+      });
+  }
+  bindListIdentity(
+    type: "ANIME" | "MANGA",
+    source: string,
+    sourceId: string,
+    mediaId: number,
+  ) {
+    const generation = this.generation;
+    return this.enqueue(async () => {
+      if (!this.state || generation !== this.generation) return;
+      const key = changeKey({ type, source, sourceId });
+      const sync = {
+        ...this.state.sync,
+        links: [
+          ...this.state.sync.links.filter((row) => row.key !== key),
+          { key, mediaId },
+        ].slice(-2000),
+        pending: this.state.sync.pending.map((row) =>
+          changeKey(row) === key ? { ...row, mediaId } : row,
+        ),
+        retryAt: null,
+      };
+      const next = { ...this.state, sync };
+      await this.atomic(this.file(), next);
+      this.state = next;
+    });
+  }
+  /** Network work stays outside the disk lane so new local edits persist immediately. */
+  syncLists(force = false) {
+    if (this.syncWork) return this.syncWork;
+    const generation = this.generation;
+    this.syncWork = Promise.resolve()
+      .then(async () => {
+        await this.queue;
+        const state = this.state;
+        if (
+          !state?.token ||
+          state.needsReconnect ||
+          generation !== this.generation
+        )
+          return this.status();
+        if ((state.sync.retryAt ?? 0) > this.now()) return this.status();
+        if (
+          !force &&
+          !state.sync.pending.length &&
+          this.now() - (state.sync.lastSyncAt ?? 0) < 300000
+        )
+          return this.status();
+        let sync = state.sync;
+        const acknowledged = new Map<string, string>();
+        const deferred = new Set<string>();
+        const current = () => {
+          if (generation !== this.generation)
+            throw Error("Sync canceled because the account changed.");
+        };
+        const persist = (expired = false) =>
+          this.enqueue(async () => {
+            current();
+            const live = this.state!;
+            const pending = live.sync.pending.filter(
+              (row) => acknowledged.get(changeKey(row)) !== JSON.stringify(row),
+            );
+            // Unmatched titles rotate behind ready work instead of blocking the queue.
+            pending.sort(
+              (a, b) =>
+                Number(deferred.has(changeKey(a))) -
+                Number(deferred.has(changeKey(b))),
+            );
+            const links = new Map(live.sync.links.map((row) => [row.key, row]));
+            for (const row of sync.links)
+              if (!links.has(row.key)) links.set(row.key, row);
+            sync = {
+              ...sync,
+              pending,
+              links: [...links.values()].slice(-2000),
+              managed: [
+                ...new Set([...sync.managed, ...live.sync.managed]),
+              ].slice(-50000),
+            };
+            const next = {
+              ...live,
+              sync,
+              ...(expired ? { token: null, needsReconnect: true } : {}),
+            };
+            await this.atomic(this.file(), next);
+            current();
+            this.state = next;
+          });
+        const query = async (
+          document: string,
+          variables?: Record<string, unknown>,
+        ) => {
+          current();
+          await this.pace(this.controller.signal);
+          current();
+          const data = await this.query(state.token!, document, variables);
+          current();
+          return data;
+        };
+        try {
+          let unmatched = 0;
+          const batch = [...sync.pending]
+            .sort(
+              (a, b) =>
+                Number(
+                  !!(
+                    b.mediaId ||
+                    sync.links.some((row) => row.key === changeKey(b))
+                  ),
+                ) -
+                Number(
+                  !!(
+                    a.mediaId ||
+                    sync.links.some((row) => row.key === changeKey(a))
+                  ),
+                ),
+            )
+            .slice(0, 20);
+          for (const change of batch) {
+            const mediaId =
+              change.mediaId ??
+              sync.links.find((row) => row.key === changeKey(change))?.mediaId;
+            const applied = await applyListChange(
+              { ...change, ...(mediaId ? { mediaId } : {}) },
+              query,
+            );
+            if (!applied) {
+              unmatched++;
+              deferred.add(changeKey(change));
+              sync = {
+                ...sync,
+                pending: [
+                  ...sync.pending.filter(
+                    (row) => changeKey(row) !== changeKey(change),
+                  ),
+                  change,
+                ],
+              };
+              await persist();
+              continue;
+            }
+            const key = `${change.type}:${applied.mediaId}`;
+            acknowledged.set(changeKey(change), JSON.stringify(change));
+            sync = {
+              ...sync,
+              pending: sync.pending.filter(
+                (row) => changeKey(row) !== changeKey(change),
+              ),
+              entries: sync.entries
+                .filter((row) => row.mediaId !== applied.mediaId)
+                .concat(applied.entry ? [applied.entry] : []),
+              managed: [...new Set([...sync.managed, key])].slice(-50000),
+              links: [
+                ...sync.links.filter((row) => row.key !== changeKey(change)),
+                { key: changeKey(change), mediaId: applied.mediaId },
+              ].slice(-2000),
+            };
+            // Persist each acknowledgement, so a later failure cannot lose remaining work.
+            await persist();
+          }
+          const entries = await fetchListMirror(query, state.user.id);
+          sync = {
+            ...sync,
+            entries,
+            managed: [
+              ...new Set([
+                ...sync.managed,
+                ...entries.map((row) => `${row.media.type}:${row.mediaId}`),
+              ]),
+            ].slice(-50000),
+            lastSyncAt: this.now(),
+            lastError: null,
+            retryAt: sync.pending.length
+              ? this.now() + (unmatched ? 300000 : 60000)
+              : null,
+            unmatched,
+          };
+          await persist();
+        } catch (error) {
+          current();
+          const expired =
+            error instanceof AccountError && [401, 403].includes(error.status);
+          sync = {
+            ...sync,
+            lastError:
+              error instanceof AccountError
+                ? error.message
+                : "AniList sync could not finish. Your local changes and pending updates were kept.",
+            retryAt: expired
+              ? null
+              : this.now() +
+                (error instanceof AccountError ? error.retryMs : 60000),
+          };
+          await persist(expired);
+        }
+        return this.status();
+      })
+      .finally(() => {
+        this.syncWork = null;
+      });
+    return this.syncWork;
   }
   exportLatest() {
     return this.enqueue(async () => {

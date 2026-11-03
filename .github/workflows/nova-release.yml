@@ -43,6 +43,7 @@ jobs:
       - run: pnpm test:settings:expansion
       - run: pnpm test:settings:integrations
       - run: pnpm test:anilist:login
+      - run: pnpm test:anilist:sync
       - run: pnpm test:updater:ui
       - run: pnpm test:extensions:install
       - run: pnpm test:extensions:updates
@@ -76,6 +77,7 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
       - run: pnpm test:settings:ui
       - run: pnpm test:settings:integrations:ui
+      - run: node apps/nova/scripts/test-anilist-sync-ui.mjs
       - name: Smoke-test packaged worker and compiler
         run: node apps/nova/scripts/test-packaged-worker.mjs --resources apps/nova/release/win-unpacked/resources
       - run: node apps/nova/scripts/test-packaged-security.mjs
