@@ -1,7 +1,8 @@
+import { handleIpc } from "./ipc-security";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { safeStorage, ipcMain } from "electron";
+import { safeStorage } from "electron";
 import { getServerEnv, setQbittorrentCredentials } from "@vestra/config";
 import { qbittorrent } from "@vestra/api";
 import { getSettings } from "@vestra/storage";
@@ -105,11 +106,9 @@ export async function saveQbittorrentSettings(raw: unknown) {
   }
 }
 export function registerTorrentIpc() {
-  ipcMain.handle("torrents:configuration", () => qbittorrentSettingsStatus());
-  ipcMain.handle("torrents:save", (_event, value) =>
-    saveQbittorrentSettings(value),
-  );
-  ipcMain.handle("torrents:test", () => qbittorrent.getQbittorrentStatus());
+  handleIpc("torrents:configuration", () => qbittorrentSettingsStatus());
+  handleIpc("torrents:save", (_event, value) => saveQbittorrentSettings(value));
+  handleIpc("torrents:test", () => qbittorrent.getQbittorrentStatus());
   const settings = async () => {
     const settings = await getSettings(getDriver());
     if (!settings.downloads.qbittorrentEnabled)
@@ -118,13 +117,13 @@ export function registerTorrentIpc() {
       throw Error("Set a download category in Settings first.");
     return settings.downloads;
   };
-  ipcMain.handle("torrents:list", async () => {
+  handleIpc("torrents:list", async () => {
     const value = await settings();
     return (
       await qbittorrent.listTorrents({ category: value.category })
     ).filter((row) => row.category === value.category);
   });
-  ipcMain.handle("torrents:add", async (_event, raw) => {
+  handleIpc("torrents:add", async (_event, raw) => {
     const urls = z
       .array(z.string().trim().min(1).max(8192))
       .min(1)
@@ -138,7 +137,7 @@ export function registerTorrentIpc() {
     });
   });
   for (const action of ["pause", "resume"] as const)
-    ipcMain.handle(`torrents:${action}`, async (_event, raw) => {
+    handleIpc(`torrents:${action}`, async (_event, raw) => {
       const hash = z
         .string()
         .regex(/^[a-fA-F0-9]{40,64}$/)

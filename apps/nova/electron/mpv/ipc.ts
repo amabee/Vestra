@@ -1,10 +1,11 @@
+import { handleIpc } from "../ipc-security";
 import { playbackDiagnostics } from "../playback-diagnostics";
 import {
   playbackFailureReply,
   playbackIssue,
 } from "../../shared/playback-errors";
 import { MpvStatePublisher } from "./state-publisher";
-import { BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow } from "electron";
 import { getLocalFiles, getSettings } from "@vestra/storage";
 import { z } from "zod";
 
@@ -129,7 +130,7 @@ function handle<TResult>(
     ...args: unknown[]
   ) => Promise<TResult> | TResult,
 ): void {
-  ipcMain.handle(channel, async (event, ...args: unknown[]) => {
+  handleIpc(channel, async (event, ...args: unknown[]) => {
     try {
       const result = await handler(event, ...args);
       return JSON.parse(JSON.stringify(result ?? null)) as TResult;
@@ -149,7 +150,8 @@ function handle<TResult>(
   });
 }
 
-const isDev = (): boolean => process.env.NODE_ENV === "development";
+const isDev = (): boolean =>
+  !app.isPackaged && process.env.NODE_ENV === "development";
 
 /** Resolve a library file id to its path, refusing anything not indexed. */
 async function pathForFileId(fileId: string): Promise<string> {

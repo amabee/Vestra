@@ -1,3 +1,4 @@
+import { handleIpc } from "./ipc-security";
 import { getAnimeInventories } from "./anime-inventories";
 import { constants as fsConstants } from "node:fs";
 import { refreshLocalLibrary } from "./library-refresh";
@@ -68,14 +69,7 @@ import {
   type MediaItem,
 } from "@vestra/types";
 import { getSkipTimes, matchLibrary, reportSkipTime } from "@vestra/providers";
-import {
-  app,
-  ipcMain,
-  shell,
-  dialog,
-  clipboard,
-  BrowserWindow,
-} from "electron";
+import { app, shell, dialog, clipboard, BrowserWindow } from "electron";
 import { z } from "zod";
 
 import {
@@ -140,7 +134,7 @@ function handle<TArgs extends unknown[], TResult>(
   channel: string,
   handler: (...args: TArgs) => Promise<TResult> | TResult,
 ): void {
-  ipcMain.handle(channel, async (_event, ...args: unknown[]) => {
+  handleIpc(channel, async (_event, ...args: unknown[]) => {
     try {
       return plain(await handler(...(args as TArgs)));
     } catch (error) {
@@ -332,12 +326,18 @@ export function registerDataIpc(): void {
    * custom scheme, which turns a link in provider metadata into arbitrary
    * local execution.
    */
+  handle("shell:copy-text", (raw: unknown) => {
+    clipboard.writeText(parse(z.string().max(10000), raw, "clipboard text"));
+    return null;
+  });
+
   handle("shell:open-external", async (raw: unknown) => {
     const url = parse(z.string().url().max(2048), raw, "URL");
-    if (!url.startsWith("https://")) {
+    const target = new URL(url);
+    if (target.protocol !== "https:" || target.username || target.password) {
       throw new Error("Only https links can be opened.");
     }
-    await shell.openExternal(url);
+    await shell.openExternal(target.href);
     return null;
   });
 

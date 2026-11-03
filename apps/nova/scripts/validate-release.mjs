@@ -16,6 +16,7 @@ export async function validateRelease(
   folder = join(nova, "release"),
   version,
   tag,
+  expectedPublisher,
 ) {
   const manifest = JSON.parse(
     await readFile(join(nova, "package.json"), "utf8"),
@@ -62,6 +63,18 @@ export async function validateRelease(
     config.repo !== "Vestra"
   )
     throw Error("Packaged app update feed is incorrect.");
+  if (expectedPublisher) {
+    const publishers = Array.isArray(config.publisherName)
+      ? config.publisherName
+      : [config.publisherName];
+    if (
+      config.verifyUpdateCodeSignature === false ||
+      !publishers.includes(expectedPublisher)
+    )
+      throw Error(
+        "The packaged updater must verify the configured Windows publisher.",
+      );
+  }
   return {
     version,
     installer: expected,
@@ -77,7 +90,12 @@ if (
 ) {
   console.log(
     JSON.stringify(
-      await validateRelease(undefined, undefined, process.env.GITHUB_REF_NAME),
+      await validateRelease(
+        undefined,
+        undefined,
+        process.env.GITHUB_REF_NAME,
+        process.env.VESTRA_WINDOWS_PUBLISHER,
+      ),
       null,
       2,
     ),

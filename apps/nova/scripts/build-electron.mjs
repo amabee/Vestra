@@ -80,7 +80,7 @@ await build({
  */
 await build({
   ...shared,
-  entryPoints: ["electron/preload.ts"],
+  entryPoints: ["electron/preload.ts", "electron/preload-overlay.ts"],
   platform: "node",
   format: "cjs",
   target: "node22",

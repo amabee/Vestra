@@ -11,7 +11,7 @@ try {
   await build({
     stdin: {
       contents:
-        "export {initAutoUpdate} from './electron/auto-update';export {autoUpdater} from 'electron-updater';",
+        "export {initAutoUpdate} from './electron/auto-update';export {autoUpdater} from 'electron-updater';export {secureWindow} from './electron/ipc-security';",
       resolveDir: nova,
     },
     bundle: true,
@@ -31,7 +31,7 @@ try {
   app.whenReady().then(async()=>{let win,rogue,server;try{Object.defineProperty(app,'isPackaged',{value:true});app.getVersion=()=> '0.1.2';
     server=createServer((req,res)=>{assert.equal(new URL(req.url,'http://localhost').pathname,'/latest.yml');res.setHeader('Content-Type','application/yaml');res.end(JSON.stringify({version:'1.0.0',files:[{url:'test-installer.exe',sha512:Buffer.alloc(64).toString('base64'),size:100}],path:'test-installer.exe',sha512:Buffer.alloc(64).toString('base64'),releaseDate:new Date().toISOString(),releaseNotes:'Test feed only'}));});await new Promise(r=>server.listen(0,'127.0.0.1',r));
     const options={show:false,webPreferences:{preload:${JSON.stringify(join(nova, "dist-electron/preload.js"))},contextIsolation:true,nodeIntegration:false}};
-    win=new BrowserWindow(options);const updates=require('./updates.cjs');updates.initAutoUpdate(()=>win);updates.autoUpdater.logger=null;updates.autoUpdater.setFeedURL({provider:'generic',url:'http://127.0.0.1:'+server.address().port});
+    win=new BrowserWindow(options);const updates=require('./updates.cjs');updates.secureWindow(win,'main',require('node:url').pathToFileURL(${JSON.stringify(join(scratch, "index.html"))}).href);updates.initAutoUpdate(()=>win);updates.autoUpdater.logger=null;updates.autoUpdater.setFeedURL({provider:'generic',url:'http://127.0.0.1:'+server.address().port});
     await win.loadFile(${JSON.stringify(join(scratch, "index.html"))});
     const initial=await win.webContents.executeJavaScript('vestra.updates.state()');assert.equal(initial.currentVersion,'0.1.2');assert.equal(initial.phase,'idle');
     const checked=await win.webContents.executeJavaScript('vestra.updates.check()');assert.equal(checked.phase,'available');assert.equal(checked.version,'1.0.0');assert.equal(updates.autoUpdater.autoDownload,false);

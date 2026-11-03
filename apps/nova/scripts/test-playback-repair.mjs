@@ -22,6 +22,14 @@ await build({
     {
       name: "controlled-dns",
       setup(b) {
+        b.onResolve({ filter: /^undici$/ }, () => ({
+          path: "undici",
+          namespace: "network-fixture",
+        }));
+        b.onLoad({ filter: /.*/, namespace: "network-fixture" }, () => ({
+          contents:
+            "export class Agent {};export const fetch=(...args)=>globalThis.fetch(...args);",
+        }));
         b.onResolve({ filter: /^node:dns\/promises$/ }, () => ({
           path: "dns",
           namespace: "fixture",
@@ -264,7 +272,7 @@ test("cancelled manifest HTTP work aborts DNS/body waits and never retries", asy
     return {
       headers: new Headers(),
       status: 200,
-      text: () => new Promise(() => {}),
+      body: new ReadableStream({ pull: () => new Promise(() => {}) }),
     };
   });
   const controller = new AbortController();

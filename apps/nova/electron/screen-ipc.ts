@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { handleIpc } from "./ipc-security";
 import { getHistory, getWatchlist } from "@vestra/storage";
 import { mediaDetailsSchema, type MediaRef } from "@vestra/types";
 import { ScreenService } from "./screen-service";
@@ -33,8 +33,6 @@ export async function screenSnapshot(ref: MediaRef) {
   return saved ? mediaDetailsSchema.parse(saved) : null;
 }
 export function registerScreenIpc() {
-  ipcMain.handle("screen:sources", (_e, kind) => getScreenService().list(kind));
-  ipcMain.handle("screen:browse", (_e, query) =>
-    getScreenService().load(query),
-  );
+  handleIpc("screen:sources", (_e, kind) => getScreenService().list(kind));
+  handleIpc("screen:browse", (_e, query) => getScreenService().load(query));
 }

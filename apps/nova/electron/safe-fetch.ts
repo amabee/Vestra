@@ -1,6 +1,8 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { fetch as guardedFetch } from "undici";
+import { publicDispatcher } from "./public-network";
 
 import { isBlockedAddress } from "@vestra/core/net-guard";
 
@@ -18,11 +20,8 @@ import { isBlockedAddress } from "@vestra/core/net-guard";
  * it needed. This is that. Which addresses count as off limits lives in
  * `@vestra/core/net-guard`, where it is tested.
  *
- * What this is not: DNS rebinding remains possible in principle, because the
- * name is resolved for the check and resolved again by fetch. Closing that
- * needs an agent that dials the address already validated. The addresses are
- * checked here because it removes the whole class of accidents and most of the
- * deliberate ones, not because it is airtight.
+ * The dispatcher validates DNS again inside the socket's lookup callback and
+ * connects directly to that checked result, retaining TLS hostname validation.
  */
 
 /** Generous for a JSON index, small enough that nothing is streamed into memory. */
@@ -88,6 +87,7 @@ function codeOf(error: unknown): string {
  * and one loopback address is not half safe.
  */
 export async function assertPublicHost(hostname: string): Promise<void> {
+  hostname = hostname.replace(/^\[|\]$/g, "");
   // A literal address needs no lookup, and passing one to the resolver would
   // let a blocked literal through on some platforms.
   if (isIP(hostname) !== 0) {
@@ -154,8 +154,13 @@ function failureCode(error: unknown): string {
  * query or headers, since those can carry credentials.
  */
 async function fetchOrExplain(url: URL, init: RequestInit): Promise<Response> {
+  if (url.username || url.password)
+    throw new BlockedAddressError("Credentials in URLs are not allowed.");
   try {
-    return await fetch(url.toString(), init);
+    return (await guardedFetch(url.toString(), {
+      ...init,
+      dispatcher: publicDispatcher,
+    })) as unknown as Response;
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       throw new NetworkError(
@@ -342,9 +347,9 @@ async function attemptOnce(
       throw new Error("The response is larger than allowed.");
     }
 
-    const text = await response.text();
-    if (text.length > maxBytes)
-      throw new Error("The response is larger than allowed.");
+    const text = new TextDecoder().decode(
+      await readBoundedBody(response, maxBytes),
+    );
 
     return {
       status: response.status,
@@ -358,6 +363,36 @@ async function attemptOnce(
     clearTimeout(timer!);
     removeAbort();
     controller.abort();
+  }
+}
+
+/** Enforce the limit while consuming decoded bytes, including chunked and compressed bodies. */
+async function readBoundedBody(
+  response: Response,
+  maxBytes: number,
+): Promise<Uint8Array> {
+  if (!response.body) return new Uint8Array();
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes)
+        throw new Error("The response is larger than allowed.");
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return bytes;
+  } finally {
+    void reader.cancel().catch(() => undefined);
   }
 }
 

@@ -1,3 +1,5 @@
+import { secureWindow } from "../ipc-security";
+import { pathToFileURL } from "node:url";
 import { BrowserWindow } from "electron";
 import { join } from "node:path";
 
@@ -26,7 +28,11 @@ export class MpvOverlay {
   #hidden = true;
 
   /** Create (or return) the overlay stacked above the given video surface. */
-  acquire(parent: BrowserWindow, surface: BrowserWindow, isDev: boolean): BrowserWindow {
+  acquire(
+    parent: BrowserWindow,
+    surface: BrowserWindow,
+    isDev: boolean,
+  ): BrowserWindow {
     if (this.#window && !this.#window.isDestroyed()) return this.#window;
 
     const overlay = new BrowserWindow({
@@ -46,7 +52,7 @@ export class MpvOverlay {
       skipTaskbar: true,
       hasShadow: false,
       webPreferences: {
-        preload: join(__dirname, "preload.js"),
+        preload: join(__dirname, "preload-overlay.js"),
         nodeIntegration: false,
         contextIsolation: true,
         sandbox: true,
@@ -68,6 +74,14 @@ export class MpvOverlay {
      * understands the same shortcuts as the catalogue window.
      */
     overlay.setMenuBarVisibility(false);
+
+    secureWindow(
+      overlay,
+      "player",
+      isDev
+        ? DEV_SERVER
+        : pathToFileURL(join(__dirname, "../dist-renderer/overlay.html")).href,
+    );
 
     void (isDev
       ? overlay.loadURL(DEV_SERVER)
@@ -129,7 +143,13 @@ export class MpvOverlay {
     const parent = this.#parent;
     const rect = this.#rect;
 
-    if (!overlay || overlay.isDestroyed() || !parent || parent.isDestroyed() || !rect) {
+    if (
+      !overlay ||
+      overlay.isDestroyed() ||
+      !parent ||
+      parent.isDestroyed() ||
+      !rect
+    ) {
       return;
     }
 

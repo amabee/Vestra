@@ -1,8 +1,8 @@
+import { handleIpc } from "./ipc-security";
 import { getAnimeInventories } from "./anime-inventories";
 import type { AnimeSourceEpisodes } from "../shared/anime";
 import { getWatchlist, getHistory, getAllProgress } from "@vestra/storage";
 import { mediaRefSchema, mediaItemSchema } from "@vestra/types";
-import { ipcMain } from "electron";
 import { z } from "zod";
 import { resolveCataloguePlayback } from "./catalogue-playback";
 import { getAdapterRegistry } from "./services";
@@ -22,13 +22,13 @@ export function registerAnimeIpc() {
     if (value) await inventories.remember(value).catch(() => undefined);
     return value;
   };
-  ipcMain.handle("anime:inventories", () => inventories.list());
+  handleIpc("anime:inventories", () => inventories.list());
   const explore = new AnimeExplore();
-  ipcMain.handle("anime:snapshots", (_e, ids) => explore.snapshots(ids));
-  ipcMain.handle("anime:explore", (_e, query) => explore.load(query));
+  handleIpc("anime:snapshots", (_e, ids) => explore.snapshots(ids));
+  handleIpc("anime:explore", (_e, query) => explore.load(query));
   const service = new AnimeService(getStreamSourceRegistry());
   const discovery = new AnimeDiscovery(getStreamSourceRegistry(), service);
-  ipcMain.handle("anime:browse", (_e, id, query) =>
+  handleIpc("anime:browse", (_e, id, query) =>
     discovery.browse(z.string().min(1).max(120).parse(id), query),
   );
   const playlists = new AnimePlaylists(getDriver);
@@ -41,12 +41,12 @@ export function registerAnimeIpc() {
     ]);
     return { watchlist, history, progress, playlists: lists };
   });
-  ipcMain.handle("anime:schedule", (_e, query) => schedule.load(query));
-  ipcMain.handle("anime:playlists", () => playlists.list());
-  ipcMain.handle("anime:playlist-command", (_e, command) =>
+  handleIpc("anime:schedule", (_e, query) => schedule.load(query));
+  handleIpc("anime:playlists", () => playlists.list());
+  handleIpc("anime:playlist-command", (_e, command) =>
     playlists.mutate(command),
   );
-  ipcMain.handle("anime:open", async (_e, rawId, rawItem) => {
+  handleIpc("anime:open", async (_e, rawId, rawItem) => {
     const id = z.string().min(1).max(120).parse(rawId);
     const item = mediaItemSchema.parse(rawItem);
     if (item.kind !== "anime") throw Error("Choose an anime title.");
@@ -75,14 +75,14 @@ export function registerAnimeIpc() {
       throw Error("Anime information could not be loaded. Try again.");
     return remember(service.resolve(id, details));
   });
-  ipcMain.handle("anime:sources", () => service.list());
-  ipcMain.handle("anime:search", (_e, id, query) =>
+  handleIpc("anime:sources", () => service.list());
+  handleIpc("anime:search", (_e, id, query) =>
     service.search(
       z.string().min(1).max(120).parse(id),
       z.string().trim().min(1).max(500).parse(query),
     ),
   );
-  ipcMain.handle("anime:resolve", async (_e, id, rawRef) => {
+  handleIpc("anime:resolve", async (_e, id, rawRef) => {
     const ref = mediaRefSchema.parse(rawRef);
     if (ref.kind !== "anime") throw new Error("Choose an anime title.");
     if (
@@ -132,10 +132,10 @@ export function registerAnimeIpc() {
       service.resolve(z.string().min(1).max(120).parse(id), item),
     );
   });
-  ipcMain.handle("anime:title", (_e, handle) =>
+  handleIpc("anime:title", (_e, handle) =>
     service.title(z.string().uuid().parse(handle)),
   );
-  ipcMain.handle("anime:episodes", (_e, handle) =>
+  handleIpc("anime:episodes", (_e, handle) =>
     remember(service.episodes(z.string().uuid().parse(handle))),
   );
 }

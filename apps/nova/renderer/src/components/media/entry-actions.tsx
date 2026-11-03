@@ -157,7 +157,7 @@ function MoreMenu({ item }: { item: MediaItem }) {
         <li>
           <button
             type="button"
-            onClick={() => void navigator.clipboard.writeText(item.title)}
+            onClick={() => void bridge.shell.copyText(item.title)}
           >
             Copy title
           </button>
