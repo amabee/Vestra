@@ -67,7 +67,16 @@ export class MangaTitleResolver {
           row.kind === "source" && row.source === origin && row.book.id === id,
       );
       let book = saved?.book;
-      if (!book) book = await this.service.resolveBook(origin, id, title);
+      if (!book) {
+        try {
+          book = await this.service.resolveBook(origin, id, title);
+        } catch (error) {
+          // The original provider may be disabled or offline. The chosen provider
+          // still requires a unique exact match; the title is never used as a URL.
+          if (!title?.trim()) throw error;
+          return [title.trim()];
+        }
+      }
       return [book.title];
     });
   }

@@ -120,6 +120,32 @@ test("bounded LRU evicts old data and failed requests can retry immediately", as
   assert.equal(await retry.load("x"), "ok");
   retry.dispose();
 });
+test("decode-failure retry discards cached bytes instead of replaying the broken image", async () => {
+  let calls = 0;
+  const images = new ReaderImages(async () =>
+    ++calls === 1 ? "broken-data" : "fresh-data",
+  );
+  assert.equal(await images.load("page"), "broken-data");
+  images.invalidate("page");
+  assert.equal(await images.load("page"), "fresh-data");
+  assert.equal(calls, 2);
+  assert.equal(await images.load("page"), "fresh-data");
+  images.dispose();
+});
+test("closing a chapter rejects its active foreground request and ignores late data", async () => {
+  let finish;
+  const images = new ReaderImages(
+    () => new Promise((resolve) => (finish = resolve)),
+  );
+  const work = images.load("page");
+  const rejected = assert.rejects(work, /Chapter closed/);
+  await tick();
+  images.dispose();
+  await rejected;
+  finish("old-page");
+  await tick();
+  await assert.rejects(images.load("page"), /Chapter closed/);
+});
 test("changing position drops obsolete pending preloads and closing the chapter stops queued work", async () => {
   const started = [],
     complete = [];

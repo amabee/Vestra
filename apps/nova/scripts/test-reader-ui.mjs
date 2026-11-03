@@ -139,9 +139,9 @@ try {
       search: async (provider,query) => { const f=window.readerFixture; f.searches??=[]; f.searches.push({provider,query});if(f.failedSource===provider)throw Error('Fixture source unavailable');if(f.slowSource===provider)await new Promise(resolve=>f.releaseSearch=resolve); if(query==='none')return []; return Array.from({length:9},(_,index)=>({id:'result-'+index,title:['A Quiet Journey','The Last Horizon','City of Lanterns','After the Rain','Moonlit Garden','A New Beginning','Paper Worlds','Beyond the Clouds','Small Adventures'][index],...(index===2?{}:{cover:provider+'-cover-'+index})})); },
       recent: async () => ({entries:[{book:{id:'recent-a',title:'A Quiet Journey',cover:'cover-recent'},progress:{chapterId:'one',page:13,updatedAt:'2026-10-29T16:00:00Z'}},{book:{id:'recent-b',title:'City of Lanterns'},progress:{chapterId:'one',page:3,updatedAt:'2026-10-29T12:00:00Z'}},{book:{id:'recent-c',title:'After the Rain',cover:'cover-broken'},progress:{chapterId:'one',page:0,updatedAt:'2026-10-28T16:00:00Z'}}],unreadable:0,truncated:false}),
       chapters: async (provider,book) => {const f=window.readerFixture;f.chapterCalls??=[];f.chapterCalls.push({provider,book}); if(f.chapterFailure)throw new Error("Chapter failure"); if(f.chapterEmpty)return [];return [{id:'one',title:'Chapter 1',chapter:'1',index:0},{id:'two',title:'Chapter 2',chapter:'2',index:1}];},
-      progress: async () => null,
-      pages: async (_p,_b,c) => Array.from({length:40},(_,index)=>({handle:c+'-'+index,index})),
-      image: async (handle) => { const f=window.readerFixture; f.calls.push(handle); if(handle==='cover-broken'||handle==='fixture-cover-3')return 'data:image/png;base64,AAE='; if(f.slow===handle) await new Promise(resolve=>{f.releaseSlow=resolve;}); if(f.fail && handle==='one-5') throw new Error('Fixture image failure'); return ${JSON.stringify("data:image/png;base64," + png.toString("base64"))}; },
+      progress: async (_p,b) => readerFixture.progressFailure ? Promise.reject(new Error('Saved progress unavailable')) : readerFixture.progressOverride ?? (b==='recent-a'?{chapterId:'one',page:13,updatedAt:'2026-10-29T16:00:00Z'}:null),
+      pages: async (_p,_b,c) => {const f=readerFixture;f.pageLoads=(f.pageLoads??0)+1;const prefix=f.expirePages?((f.pageGeneration=(f.pageGeneration??0)+1)===1?'expired-':'fresh-'):'';return Array.from({length:40},(_,index)=>({handle:prefix+c+'-'+index,index}));},
+      image: async (handle) => { const f=window.readerFixture; f.calls.push(handle);if(handle.startsWith('expired-'))throw new Error('Page image HTTP 403.'); if(handle==='cover-broken'||handle==='fixture-cover-3')return 'data:image/png;base64,AAE='; if(f.slow===handle) await new Promise(resolve=>{f.releaseSlow=resolve;}); if(f.fail && handle==='one-5') throw new Error('Fixture image failure'); return ${JSON.stringify("data:image/png;base64," + png.toString("base64"))}; },
       save: async (_p,b,c,page) => { window.readerFixture.saves.push({provider:_p,book:b,chapter:c,page}); },
     }}};
   </script><script src="fixture.js"></script></body></html>`,
@@ -150,6 +150,7 @@ try {
     join(scratch, "runner.cjs"),
     `
     const {app,BrowserWindow}=require('electron');
+    app.setPath('userData',${JSON.stringify(join(scratch, "profile"))});
     const assert=require('node:assert/strict');
     app.disableHardwareAcceleration();
     app.whenReady().then(async()=>{
@@ -158,7 +159,7 @@ try {
       win.webContents.on('console-message',(event)=>{if(event.level==='error') console.error(event.message);});
       const run=(source)=>win.webContents.executeJavaScript(source).catch(error=>{console.error('Eval failed:',source);throw error;});
       const pause=(ms)=>new Promise(resolve=>setTimeout(resolve,ms));
-      const until=async(source)=>{for(let n=0;n<160;n++){if(await run(source))return;await pause(50);}throw new Error('Timed out: '+source);};
+      const until=async(source)=>{for(let n=0;n<160;n++){if(await run(source))return;await pause(50);}throw new Error('Timed out: '+source+'; '+(await run('document.body.innerText')).slice(0,1800));};
       const key=(value)=>run('window.dispatchEvent(new KeyboardEvent("keydown",{key:'+JSON.stringify(value)+',bubbles:true,cancelable:true}))');
       const jump=(page)=>run('(()=>{const e=document.querySelector("input[aria-label^=Reading]");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(e,'+page+');e.dispatchEvent(new Event("input",{bubbles:true}));e.dispatchEvent(new Event("change",{bubbles:true}));})()');
       try {
@@ -187,9 +188,9 @@ try {
         await key(' ');
         await until('document.querySelector("[aria-label^=Vertical]").scrollTop > '+beforeSpace);
         await run('document.querySelector("[aria-label^=Vertical]").dispatchEvent(new WheelEvent("wheel",{deltaY:-100,ctrlKey:true,bubbles:true,cancelable:true}))');
-        await until('Object.values(localStorage).some(value=>JSON.parse(value).zoom===105)');
+        await until('Object.entries(localStorage).filter(([key])=>key.startsWith("vestra-manga-reader-v1")).some(([,value])=>JSON.parse(value).zoom===105)');
         await run('document.querySelector("[aria-label^=Vertical]").dispatchEvent(new MouseEvent("dblclick",{bubbles:true}))');
-        await until('Object.values(localStorage).every(value=>JSON.parse(value).zoom===100)');
+        await until('Object.entries(localStorage).filter(([key])=>key.startsWith("vestra-manga-reader-v1")).every(([,value])=>JSON.parse(value).zoom===100)');
         console.log('PASS Space scrolls the vertical canvas and wheel zoom/reset persists per series');
         await run('window.readerFixture.slow="one-29"');
         await jump(30);
@@ -248,13 +249,23 @@ try {
         await run('window.readerFixture.choose("__library__")');
         await until('document.querySelector("[data-manga-library]")');
         await until('[...document.querySelectorAll("img")].some(e=>e.alt==="Cover of A Quiet Journey" && e.complete && e.naturalWidth>0)');
-        assert.equal(await run('[...document.querySelectorAll("section[aria-label^=Continue] button")].filter(e=>e.getAttribute("aria-label")?.startsWith("Details for ")).length'),6);
-        await until('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Details for After the Rain").textContent.includes("Cover could not load")');
+        assert.equal(await run('[...document.querySelectorAll("section[aria-label^=Continue] button")].filter(e=>e.getAttribute("aria-label")?.startsWith("Continue reading ")).length'),6);
+        await until('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Continue reading After the Rain").textContent.includes("Cover could not load")');
         await until('[...document.querySelectorAll("img")].some(e=>e.alt==="Cover of City of Lanterns" && e.complete && e.naturalWidth>0)');
         await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Retry cover for After the Rain").click()');
         await until('[...document.querySelectorAll("img")].some(e=>e.alt==="Cover of After the Rain" && e.complete && e.naturalWidth>0)');
         assert.equal(await run('!!document.querySelector("[data-reader-title]")'),false);
         console.log('PASS legacy shelf covers backfill automatically and failed covers retry without opening the reader');
+        await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Continue reading A Quiet Journey").click()');
+        await until('document.querySelector("[data-reader-title]")?.textContent==="A Quiet Journey"');
+        await until('document.querySelector("input[aria-label^=Reading]")?.value==="14"');
+        assert.equal(await run('!!document.querySelector("[data-manga-details]")'),false);
+        const pageLoads=await run('readerFixture.pageLoads');
+        await run('[...document.querySelectorAll("button")].find(e=>e.textContent==="Refresh chapter").click()');
+        await until('readerFixture.pageLoads>'+pageLoads+' && document.querySelector("input[aria-label^=Reading]")?.value==="14"');
+        await run('[...document.querySelectorAll("button")].find(e=>e.textContent.includes("Library")).click()');
+        await until('document.querySelector("section[aria-label^=Continue]")');
+        console.log('PASS one-click Continue Reading resumes the saved page, chapter refresh retains it and Back returns to the shelf');
         await run('(()=>{const e=document.querySelector("input[placeholder^=Search]");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(e,"quiet");e.dispatchEvent(new Event("input",{bubbles:true}));})()');
         await run('document.querySelector("input[placeholder^=Search]").closest("form").dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}))');
         await until('document.body.textContent.includes("Results for")');
@@ -329,6 +340,8 @@ try {
         await until('[...document.querySelectorAll("button")].some(e=>e.textContent==="Read with Manga source")');
         await run('[...document.querySelectorAll("button")].find(e=>e.textContent==="Read with Manga source").click()');
         await until('window.readerFixture.chapterCalls.some(c=>c.provider==="fixture"&&c.book==="fixture-catalogue-102")');
+        await until('document.querySelector("[data-reader-title]")');
+        await run('[...document.querySelectorAll("button")].find(e=>e.textContent.includes("Details")).click()');
         await until('document.querySelector(".manga-info__chapter")');
         assert.equal(await run('!!document.querySelector("[data-reader-title]")'),false);
         assert.equal(await run('[...document.querySelectorAll("button")].some(e=>e.textContent.trim().startsWith("Find in "))'),false);
@@ -352,6 +365,8 @@ try {
         await until('[...document.querySelectorAll("button")].some(e=>e.textContent==="Read with Second source")');
         await run('[...document.querySelectorAll("button")].find(e=>e.textContent==="Read with Second source").click()');
         await until('window.readerFixture.chapterCalls.some(c=>c.provider==="second"&&c.book==="second-catalogue-101")');
+        await until('document.querySelector("[data-reader-title]")');
+        await run('[...document.querySelectorAll("button")].find(e=>e.textContent.includes("Details")).click()');
         await until('document.querySelector(".manga-info__chapter")');
         assert.equal(await run('document.querySelector(".manga-info__provider").textContent'),'Second source');
         assert.equal(await run('document.querySelector("[data-manga-details] select[aria-label$=source]")'),null);
@@ -427,6 +442,33 @@ try {
         await run('readerFixture.settingsFail=false;Array.from(document.querySelectorAll("button")).find(b=>b.textContent==="Retry settings").click()');
         await until('Array.from(document.querySelectorAll("button")).some(b=>b.getAttribute("aria-label")==="Details for Popular Adventure")');
         console.log('PASS manga discovery loads while Chromium is offline and settings errors have a visible retry');
+        await run('readerFixture.progressFailure=true;readerFixture.navigate("/?source=fixture&book=progress-error&title=Saved%20progress&read=1")');
+        await until('document.body.textContent.includes("Could not read saved progress")');
+        const beforeProgressRetry=await run('readerFixture.saves.length');
+        assert.equal(await run('!!document.querySelector("input[aria-label^=Reading]")'),false);
+        await pause(100);assert.equal(await run('readerFixture.saves.length'),beforeProgressRetry);
+        await run('readerFixture.progressFailure=false;[...document.querySelectorAll("button")].find(b=>b.textContent==="Retry saved progress").click()');
+        await until('document.querySelector("input[aria-label^=Reading]")');
+        await run('readerFixture.progressOverride={chapterId:"removed-chapter",page:8};readerFixture.navigate("/?source=fixture&book=removed-progress&title=Saved%20chapter&read=1")');
+        await until('document.body.textContent.includes("saved chapter is no longer available")');
+        const missingSaved=await run('readerFixture.saves.length');await pause(100);assert.equal(await run('readerFixture.saves.length'),missingSaved);
+        await run('[...document.querySelectorAll("button")].find(b=>b.textContent==="Choose chapter").click()');
+        await run('[...document.querySelectorAll("nav[aria-label=Chapters] button")].find(b=>b.textContent.includes("Chapter 2")).click()');
+        await until('readerFixture.saves.some(row=>row.book==="removed-progress"&&row.chapter==="two")');
+        console.log('PASS unreadable saved progress and removed chapters cannot silently reset the reader');
+        await run('delete readerFixture.progressOverride;readerFixture.expirePages=true;readerFixture.pageGeneration=0;readerFixture.navigate("/?source=fixture&book=recent-a&bookSource=fixture&title=A%20Quiet%20Journey&read=1&resume=1")');
+        await until('document.body.textContent.includes("HTTP 403")');
+        await until('[...document.querySelectorAll("[role=alert] button")].some(b=>b.textContent.trim()==="Refresh chapter")');
+        await run('[...document.querySelectorAll("[role=alert] button")].find(b=>b.textContent.trim()==="Refresh chapter").click()');
+        await until('readerFixture.pageGeneration===2 && document.querySelector("input[aria-label^=Reading]")?.value==="14" && readerFixture.calls.includes("fresh-one-13")');
+        await run('[...document.querySelectorAll("button")].find(b=>b.textContent==="Change source").click()');
+        await until('[...document.querySelectorAll("button")].some(b=>b.textContent==="Read with Second source")');
+        await run('[...document.querySelectorAll("button")].find(b=>b.textContent==="Read with Second source").click()');
+        await until('readerFixture.saves.some(row=>row.provider==="second"&&row.book==="second-cross-source")');
+        await run('readerFixture.expirePages=false;readerFixture.navigate("/?catalogue=102")');
+        await until('document.querySelector(".manga-info__provider")?.textContent==="Manga source" && document.querySelector(".manga-info__chapter")');
+        assert.equal(await run('!!document.querySelector("section[aria-label^=Reading]")'),false);
+        console.log('PASS expired image links refresh in place, failed sources can be changed inside the reader, and saved source choices skip the picker');
         win.destroy(); app.exit(0);
       } catch(error) {console.error(error);win.destroy();app.exit(1);}
     });
@@ -455,5 +497,10 @@ try {
   });
   if (exit !== 0) throw new Error("Reader UI fixture failed (" + exit + ")");
 } finally {
-  await rm(scratch, { recursive: true, force: true });
+  await rm(scratch, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 100,
+  });
 }

@@ -282,6 +282,24 @@ test("automatic matching rejects ambiguous/fuzzy titles, retries misses, and use
   }));
   assert.equal((await resolver.catalogue("one", 42)).id, "one:alias");
 });
+test("reader source recovery can match the displayed title after its original provider is removed", async () => {
+  const driver = new MemoryDriver(),
+    calls = [],
+    service = sourceService(driver, calls);
+  const resolver = new MangaTitleResolver(driver, service, async () => null);
+  const result = await resolver.source(
+    "two",
+    "removed-source",
+    "old-id",
+    "A Quiet Journey",
+  );
+  assert.equal(result.id, "two:provider-id");
+  assert.ok(calls.every((row) => row.provider === "two"));
+  await assert.rejects(
+    resolver.source("one", "removed-source", "another-old-id"),
+    /unavailable/,
+  );
+});
 test("stale mappings recover by title and cross-source saved manga uses the library provider", async () => {
   const driver = new MemoryDriver(),
     calls = [];

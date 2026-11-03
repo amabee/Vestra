@@ -33,7 +33,11 @@ import {
 import { editableTarget, type useReaderChrome } from "@/lib/use-reader-chrome";
 import type { MangaPage } from "../../../../shared/manga";
 
-const ImagesContext = createContext<ReaderImages | null>(null);
+const ImagesContext = createContext<{
+  images: ReaderImages;
+  reload?: () => void;
+  changeSource?: () => void;
+} | null>(null);
 type Chrome = ReturnType<typeof useReaderChrome>;
 type Dimensions = { width: number; height: number };
 type PositionedPage = MangaPage & { ordinal: number };
@@ -51,6 +55,9 @@ export function PageReader({
   onSettingsChange,
   settingsOpen,
   chapterControl,
+  onReloadChapter,
+  onPosition,
+  onChangeSource,
 }: {
   provider: string;
   book: string;
@@ -62,6 +69,9 @@ export function PageReader({
   onSettingsChange: (open: boolean) => void;
   settingsOpen: boolean;
   chapterControl: ReactNode;
+  onReloadChapter?: () => void;
+  onPosition?: (page: number) => void;
+  onChangeSource?: () => void;
 }) {
   const [page, setPage] = useState(
     Math.max(0, Math.min(start, pages.length - 1)),
@@ -98,6 +108,9 @@ export function PageReader({
   const pointerStart = useRef({ x: 0, y: 0 });
   useEffect(() => () => clearTimeout(clickTimer.current), []);
   const [decoded, setDecoded] = useState<Set<number>>(() => new Set());
+  useEffect(() => {
+    onPosition?.(page);
+  }, [page, onPosition]);
   const [recommendation, setRecommendation] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const content = useRef<HTMLDivElement>(null);
@@ -233,7 +246,9 @@ export function PageReader({
   }, [page, pages, images]);
   const positioned = pages.map((value, ordinal) => ({ ...value, ordinal }));
   return (
-    <ImagesContext.Provider value={images}>
+    <ImagesContext.Provider
+      value={{ images, reload: onReloadChapter, changeSource: onChangeSource }}
+    >
       <div
         ref={content}
         className="relative flex min-h-0 flex-1 flex-col bg-neutral-950 text-neutral-200"
@@ -294,7 +309,9 @@ export function PageReader({
                   className="select select-bordered select-sm w-full"
                   value={options.layout}
                   onChange={(e) =>
-                    patch({ layout: e.target.value as ReaderOptions["layout"] })
+                    patch({
+                      layout: e.target.value as ReaderOptions["layout"],
+                    })
                   }
                 >
                   <option value="single">Single page</option>
@@ -873,7 +890,11 @@ function PageImage({
   height: number;
   onDecoded: (size: Dimensions) => void;
 }) {
-  const images = useContext(ImagesContext)!;
+  const {
+    images,
+    reload: reloadChapter,
+    changeSource,
+  } = useContext(ImagesContext)!;
   const image = useQuery({
     queryKey: ["manga-image", page.handle],
     queryFn: () => images.load(page.handle),
@@ -900,6 +921,7 @@ function PageImage({
         <button
           className="btn btn-sm mt-3"
           onClick={() => {
+            images.invalidate(page.handle);
             setDecodeError(false);
             setAttempt((old) => old + 1);
             void image.refetch();
@@ -907,6 +929,16 @@ function PageImage({
         >
           Retry image
         </button>
+        {reloadChapter && (
+          <button className="btn btn-sm mt-3 ml-2" onClick={reloadChapter}>
+            Refresh chapter
+          </button>
+        )}
+        {changeSource && (
+          <button className="btn btn-sm mt-3 ml-2" onClick={changeSource}>
+            Change source
+          </button>
+        )}
       </div>
     );
   const maxHeight = height

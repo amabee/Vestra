@@ -1,4 +1,8 @@
 import { MangaSearchResults } from "./manga-search-results";
+import {
+  preferredMangaSource,
+  rememberMangaSource,
+} from "@/lib/manga-source-preference";
 import type { InfiniteData } from "@tanstack/react-query";
 import type { MangaSearchPage } from "../../../../shared/manga";
 import { MangaUnreadBadge } from "../media/completion-badges";
@@ -45,6 +49,8 @@ type OpenReader = (
   book: MangaBook,
   onBack: () => void,
   chapter?: string,
+  backLabel?: string,
+  onChangeSource?: () => void,
 ) => ReactNode;
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -123,12 +129,17 @@ function MangaShelf({
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
   const [revision, setRevision] = useState(0);
+  const [choosingSource, setChoosingSource] = useState(false);
   const toolbar = useRef<HTMLDivElement>(null);
   const [params, setParams] = useSearchParams();
   const [book, setBook] = useState<(MangaBook & { source: string }) | null>(
     null,
   );
   const cache = useQueryClient();
+  const chooseSource = () => {
+    setChoosingSource(true);
+    void cache.invalidateQueries({ queryKey: ["manga", "sources"] });
+  };
   const bookId = params.get("book"),
     catalogueId = Number(params.get("catalogue") || 0);
   const reading = params.get("read") === "1";
@@ -140,7 +151,8 @@ function MangaShelf({
       else next.set(key, value);
     setParams(next, { replace });
   };
-  const openBook = (value: MangaBook, origin = provider) => {
+  const openBook = (value: MangaBook, origin = provider, resume = false) => {
+    setChoosingSource(false);
     setBook({ ...value, source: origin });
     change({
       source: origin,
@@ -148,20 +160,24 @@ function MangaShelf({
       book: value.id,
       title: value.title.slice(0, 500),
       catalogue: null,
-      read: null,
+      read: resume ? "1" : null,
+      resume: resume ? "1" : null,
       chapter: null,
     });
   };
-  const openCatalogue = (value: MangaDiscoveryTitle) =>
+  const openCatalogue = (value: MangaDiscoveryTitle) => {
+    setChoosingSource(false);
     change({
-      source: null,
+      source: preferredMangaSource(value.id, sources) || null,
       bookSource: null,
       catalogue: String(value.id),
       book: null,
       title: null,
       read: null,
+      resume: null,
       chapter: null,
     });
+  };
   const { data: settings } = useSettings();
   const saved = useQuery({
     queryKey: ["manga-bookmarks"],
@@ -245,6 +261,20 @@ function MangaShelf({
     staleTime: 5 * 60_000,
     retry: false,
   });
+  const preferred = catalogueId
+    ? preferredMangaSource(catalogueId, sources)
+    : "";
+  useEffect(() => {
+    if (catalogueId && !provider && !choosingSource && preferred)
+      change({ source: preferred }, true);
+  }, [catalogueId, provider, choosingSource, preferred]);
+  const showSourceChoices =
+    (!!catalogueId || !!bookId) &&
+    (choosingSource ||
+      !provider ||
+      !sources.some((source) => source.id === provider) ||
+      activeBook.isError ||
+      (activeBook.isFetched && !activeBook.data));
   const [images] = useState(
     () => new ReaderImages((handle) => bridge.manga.image(handle)),
   );
@@ -304,27 +334,34 @@ function MangaShelf({
         "manga",
         source.id,
         "resolved-book",
-        catalogueId,
-        source.id,
-        null,
+        catalogueId || null,
+        bookId ? originProvider : source.id,
+        bookId,
         settings?.privacy.showAdultContent ?? false,
       ],
       queryFn: ({ signal }) =>
         matchesLane.run(
           () =>
-            bridge.manga.resolve(source.id, {
-              kind: "catalogue",
-              id: catalogueId,
-            }),
+            bridge.manga.resolve(
+              source.id,
+              catalogueId
+                ? { kind: "catalogue", id: catalogueId }
+                : {
+                    kind: "source",
+                    source: originProvider,
+                    id: bookId!,
+                    title: params.get("title") || undefined,
+                  },
+            ),
           signal,
         ),
-      enabled: !!settings && !!catalogueId && !provider,
+      enabled: !!settings && showSourceChoices,
       retry: false,
       staleTime: 5 * 60_000,
     })),
   });
   const sourceChoices =
-    !!catalogueId && !provider && sources.length > 0 ? (
+    showSourceChoices && sources.length > 0 ? (
       <section
         aria-label="Reading sources"
         className="space-y-3 rounded-xl border border-base-content/10 p-4"
@@ -342,7 +379,12 @@ function MangaShelf({
             {result.data ? (
               <button
                 className="btn btn-sm btn-primary"
-                onClick={() => change({ source: sources[index]!.id })}
+                onClick={() => {
+                  const source = sources[index]!.id;
+                  if (catalogueId) rememberMangaSource(catalogueId, source);
+                  setChoosingSource(false);
+                  change({ source, read: "1", resume: null, chapter: null });
+                }}
               >
                 Read with {sources[index]!.name}
               </button>
@@ -375,15 +417,23 @@ function MangaShelf({
           title: null,
           read: null,
           chapter: null,
+          resume: null,
         },
         true,
       );
-    if (reading && activeBook.data)
+    if (reading && activeBook.data && !choosingSource)
       return renderReader(
         provider,
         activeBook.data,
-        () => change({ read: null, chapter: null }, true),
+        params.get("resume") === "1"
+          ? back
+          : () => change({ read: null, chapter: null }, true),
         params.get("chapter") || undefined,
+        params.get("resume") === "1" ? "Library" : "Details",
+        () => {
+          chooseSource();
+          change({ read: null, chapter: null, resume: null }, true);
+        },
       );
     const kind = bookId ? "source" : "catalogue",
       origin = bookId ? originProvider : "anilist",
@@ -394,6 +444,7 @@ function MangaShelf({
           key={`${provider}:${id}`}
           provider={provider}
           sourceChoices={sourceChoices}
+          onChooseSource={sources.length > 1 ? chooseSource : undefined}
           sourceName={sourceName}
           images={images}
           book={activeBook.data ?? undefined}
@@ -415,7 +466,11 @@ function MangaShelf({
             })
           }
           onBack={back}
-          onRead={(chapter) => change({ read: "1", chapter: chapter || null })}
+          onRead={(chapter) => {
+            setChoosingSource(false);
+            if (catalogueId) rememberMangaSource(catalogueId, provider);
+            change({ read: "1", chapter: chapter || null, resume: null });
+          }}
           onSearch={(title) => {
             setInput(title);
             setQuery(title);
@@ -647,7 +702,7 @@ function MangaShelf({
                     provider={entry.source}
                     lookups={lookups}
 
-                    onOpen={() => openBook(entry.book, entry.source)}
+                    onOpen={() => openBook(entry.book, entry.source, true)}
                     bookmarkControl={saveButton(
                       "source",
                       entry.source,
@@ -716,7 +771,7 @@ function MangaCard({
     <div className="group relative min-w-0">
       <button
         className="group block w-full min-w-0 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4 focus-visible:ring-offset-base-100 disabled:opacity-60"
-        aria-label={`Details for ${book.title}`}
+        aria-label={`${progress ? "Continue reading" : "Details for"} ${book.title}`}
         disabled={disabled}
         onClick={onOpen}
       >

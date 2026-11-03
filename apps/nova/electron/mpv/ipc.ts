@@ -501,6 +501,7 @@ const commandSchema = z.enum([
   "close",
   "toggle-fullscreen",
   "open-settings",
+  "change-source",
 ]);
 
 const qualitySchema = z.object({
