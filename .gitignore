@@ -76,3 +76,6 @@ coverage/
 
 # Hallmark
 .hallmark
+
+# Local documentation notes. Existing tracked Astro content remains tracked.
+/docs/
