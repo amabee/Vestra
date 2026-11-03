@@ -21,6 +21,7 @@ const cataloguePayload = z.object({
     media: z
       .array(
         z.object({
+          isAdult: z.boolean().nullish(),
           id: z.number().int().positive(),
           title: z.object({
             english: z.string().max(500).nullish(),
@@ -39,10 +40,10 @@ const cataloguePayload = z.object({
       .max(24),
   }),
 });
-export const animeDiscoveryGraphQL = `query AnimeDiscovery($page:Int,$sort:[MediaSort],$status:MediaStatus,$exclude:MediaStatus) {
+export const animeDiscoveryGraphQL = `query AnimeDiscovery($isAdult:Boolean,$page:Int,$sort:[MediaSort],$status:MediaStatus,$exclude:MediaStatus) {
   Page(page:$page,perPage:24) { pageInfo { hasNextPage }
-    media(type:ANIME,isAdult:false,sort:$sort,status:$status,status_not:$exclude) {
-      id title { english romaji native } coverImage { extraLarge large } seasonYear
+    media(type:ANIME,isAdult:$isAdult,sort:$sort,status:$status,status_not:$exclude) {
+      id isAdult title { english romaji native } coverImage { extraLarge large } seasonYear
     }
   }
 }`;
@@ -61,6 +62,7 @@ export class AnimeDiscovery {
     private registry: StreamSourceRegistry,
     private titles: AnimeService,
     private fetchCatalogue = fetchCatalogueGraphQL,
+    private includeAdult: () => Promise<boolean> = async () => false,
   ) {}
   async browse(id: string, raw: unknown): Promise<AnimeDiscoveryPage> {
     const query = animeDiscoveryQuery.parse(raw);
@@ -106,7 +108,9 @@ export class AnimeDiscovery {
         items: this.titles.remember(source, page.items),
       };
     }
+    const allowAdult = await this.includeAdult();
     const variables: Record<string, unknown> = {
+      ...(allowAdult ? {} : { isAdult: false }),
       page: query.page,
       sort: ["TRENDING_DESC"],
     };
@@ -120,7 +124,7 @@ export class AnimeDiscovery {
       variables.status = "NOT_YET_RELEASED";
       variables.sort = ["POPULARITY_DESC"];
     }
-    const data = await this.catalogue.run(JSON.stringify(query), async () =>
+    const data = await this.catalogue.run(JSON.stringify(variables), async () =>
       cataloguePayload.parse(
         await this.fetchCatalogue(animeDiscoveryGraphQL, variables),
       ),
@@ -132,24 +136,28 @@ export class AnimeDiscovery {
       category: query.category,
       page: query.page,
       hasMore: data.Page.pageInfo.hasNextPage,
-      items: data.Page.media.map((row) =>
-        mediaItemSchema.parse({
-          source: "anilist",
-          sourceId: String(row.id),
-          kind: "anime",
-          title:
-            row.title.english ||
-            row.title.romaji ||
-            row.title.native ||
-            `AniList ${row.id}`,
-          year: row.seasonYear ?? null,
-          images: {
-            poster: row.coverImage?.extraLarge ?? row.coverImage?.large ?? null,
-          },
-          rating: {},
-          isSeries: true,
-        }),
-      ),
+      items: data.Page.media
+        .filter((row) => allowAdult || !row.isAdult)
+        .map((row) =>
+          mediaItemSchema.parse({
+            source: "anilist",
+            isAdult: row.isAdult ?? false,
+            sourceId: String(row.id),
+            kind: "anime",
+            title:
+              row.title.english ||
+              row.title.romaji ||
+              row.title.native ||
+              `AniList ${row.id}`,
+            year: row.seasonYear ?? null,
+            images: {
+              poster:
+                row.coverImage?.extraLarge ?? row.coverImage?.large ?? null,
+            },
+            rating: {},
+            isSeries: true,
+          }),
+        ),
     };
   }
 }

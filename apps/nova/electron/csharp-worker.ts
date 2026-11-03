@@ -83,6 +83,7 @@ export class CSharpProviderWorker {
   request(
     command: Record<string, unknown>,
     signal?: AbortSignal,
+    timeoutMs = 15_000,
   ): Promise<unknown> {
     const result = this.queue.then(async () => {
       await this.ready;
@@ -99,7 +100,7 @@ export class CSharpProviderWorker {
             this.stop(
               new Error("C# provider operation exceeded its deadline."),
             ),
-          15_000,
+          timeoutMs,
         );
         const cleanup = () => {
           clearTimeout(timer);
@@ -209,7 +210,15 @@ export class CSharpProviderSession {
           throw error;
         }
       }
-      const value = await this.worker.request(command, signal);
+      const mangaCall =
+        command.kind === "call" &&
+        typeof command.providerId === "string" &&
+        this.definitions.get(command.providerId)?.type === "manga-provider";
+      const value = await this.worker.request(
+        command,
+        signal,
+        mangaCall ? 35_000 : 15_000,
+      );
       if (
         command.kind === "load" &&
         command.provider &&

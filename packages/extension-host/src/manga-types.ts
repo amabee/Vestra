@@ -40,6 +40,10 @@ export const mangaPageSchema = mangaAssetSchema.extend({
   index: z.number().int().nonnegative(),
 });
 export const mangaSearchResultsSchema = z.array(mangaTitleSchema).max(400);
+export const mangaSearchPageSchema = z.object({
+  items: mangaSearchResultsSchema,
+  hasMore: z.boolean(),
+});
 export const mangaChaptersSchema = z
   .array(mangaChapterSchema)
   .max(10000)
@@ -81,6 +85,12 @@ export interface MangaSourceExtension {
     query: string,
     options: { limit: number },
   ): MangaSourceTitle[] | Promise<MangaSourceTitle[]>;
+  searchPage?(
+    query: string,
+    options: { page: number; limit: number },
+  ):
+    | { items: MangaSourceTitle[]; hasMore: boolean }
+    | Promise<{ items: MangaSourceTitle[]; hasMore: boolean }>;
   getChapters(
     bookId: string,
   ): MangaSourceChapter[] | Promise<MangaSourceChapter[]>;

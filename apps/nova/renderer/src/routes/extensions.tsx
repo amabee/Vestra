@@ -1,3 +1,4 @@
+import type { ExtensionUpdateReview } from "../../../shared/extension-updates";
 import { SourceHealthPanel } from "@/components/settings/source-health";
 import {
   extensionKinds,
@@ -15,7 +16,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PERMISSION_DESCRIPTORS } from "@vestra/extension-host/permissions";
 import {
   EXTENSION_TYPE_LABEL,
-  EXTENSION_TYPE_SUPPORT,
+  extensionTypeSchema,
+  extensionSupport,
   healthOf,
   isPinnedRef,
 } from "@vestra/provider-sdk/marketplace";
@@ -117,6 +119,8 @@ export function ExtensionsRoute() {
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState("all");
   const [installedMessage, setInstalledMessage] = useState("");
+  const [updateReview, setUpdateReview] =
+    useState<ExtensionUpdateReview | null>(null);
   const [reviewing, setReviewing] = useState<InstallPlan | null>(null);
   const [providerReview, setProviderReview] = useState<RemoteSourcePlan | null>(
     null,
@@ -241,6 +245,28 @@ export function ExtensionsRoute() {
     },
   });
 
+  const checkUpdates = useMutation({
+    mutationFn: bridge.extensions.checkUpdates,
+  });
+  const prepareUpdate = useMutation({
+    mutationFn: bridge.extensions.prepareUpdate,
+    onSuccess: (review) => {
+      applyUpdate.reset();
+      if (review.changed) setUpdateReview(review);
+      else setInstalledMessage("This extension is already up to date.");
+    },
+  });
+  const applyUpdate = useMutation({
+    mutationFn: (input: { token: string; granted: string[] }) =>
+      bridge.extensions.applyUpdate(input.token, input.granted),
+    onSettled: refresh,
+    onSuccess: () => {
+      setUpdateReview(null);
+      setInstalledMessage("Extension updated.");
+      checkUpdates.reset();
+    },
+  });
+
   const toggle = useMutation({
     mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
       bridge.extensions.setEnabled(id, enabled),
@@ -281,6 +307,73 @@ export function ExtensionsRoute() {
         title="Extensions"
         lead="Find a source, review its permissions, and install. Your sources appear in the matching anime, manga, movie or series library."
       />
+
+      <section
+        aria-label="Extension updates"
+        className="mt-6 rounded-box border rule p-4"
+      >
+        <button
+          className="btn btn-sm"
+          disabled={checkUpdates.isPending || applyUpdate.isPending}
+          onClick={() => checkUpdates.mutate()}
+        >
+          <RefreshCw
+            className={
+              checkUpdates.isPending ? "size-4 animate-spin" : "size-4"
+            }
+          />
+          {checkUpdates.isPending ? "Checking updates…" : "Check for updates"}
+        </button>
+        <p className="meta mt-2">
+          Checks installed extensions and compatibility sources. Each update
+          needs review before it is applied.
+        </p>
+        {checkUpdates.error && (
+          <p role="alert" className="mt-2 text-sm text-error">
+            {checkUpdates.error.message}
+          </p>
+        )}
+        {prepareUpdate.error && (
+          <p role="alert" className="mt-2 text-sm text-error">
+            {prepareUpdate.error.message}
+          </p>
+        )}
+        {checkUpdates.data?.length === 0 && (
+          <p className="meta mt-2">No extensions installed.</p>
+        )}
+        {checkUpdates.data?.map((row) => (
+          <div
+            key={`${row.kind}:${row.id}`}
+            className="mt-3 flex flex-wrap items-center gap-3 border-t rule pt-3 text-sm"
+          >
+            <span className="font-medium">{row.name}</span>
+            <span>
+              v{row.currentVersion}
+              {row.status === "available" ? ` → v${row.version}` : ""}
+            </span>
+            <span
+              className={
+                row.status === "error" ? "text-error" : "text-base-content/60"
+              }
+            >
+              {row.message}
+            </span>
+            {row.status === "available" && (
+              <button
+                className="btn btn-sm"
+                disabled={prepareUpdate.isPending || applyUpdate.isPending}
+                onClick={() =>
+                  row.kind === "sdk"
+                    ? prepareUpdate.mutate(row.id)
+                    : setTab("providers")
+                }
+              >
+                {row.kind === "sdk" ? "Review update" : "Open Compatibility"}
+              </button>
+            )}
+          </div>
+        ))}
+      </section>
 
       <details className="mt-6 rounded-box border rule p-4">
         <summary className="cursor-pointer text-sm font-medium">
@@ -539,6 +632,16 @@ export function ExtensionsRoute() {
                         </button>
                         <button
                           type="button"
+                          className="btn btn-sm"
+                          disabled={
+                            prepareUpdate.isPending || applyUpdate.isPending
+                          }
+                          onClick={() => prepareUpdate.mutate(entry.id)}
+                        >
+                          Check for updates
+                        </button>
+                        <button
+                          type="button"
                           aria-label={`Uninstall ${entry.name}`}
                           disabled={uninstall.isPending}
                           onClick={() => uninstall.mutate(entry.id)}
@@ -648,7 +751,7 @@ export function ExtensionsRoute() {
                             id: entry.id,
                             name: entry.name,
                             version: entry.version,
-                            type: entry.type,
+                            type: extensionTypeSchema.parse(entry.type),
                             manifestURI: entry.manifestURI,
                             payloadURI: entry.payloadURI,
                             registryUrl: entry.registryUrl,
@@ -697,6 +800,20 @@ export function ExtensionsRoute() {
         />
       </div>
 
+      {updateReview && (
+        <ReviewDialog
+          key={updateReview.token}
+          plan={updateReview.plan}
+          heading="Update"
+          initialGranted={updateReview.retainedPermissions}
+          busy={applyUpdate.isPending}
+          error={applyUpdate.error}
+          onCancel={() => setUpdateReview(null)}
+          onInstall={(granted) =>
+            applyUpdate.mutate({ token: updateReview.token, granted })
+          }
+        />
+      )}
       {reviewing ? (
         <ReviewDialog
           plan={reviewing}
@@ -917,7 +1034,7 @@ function AvailableRow({
   busy: boolean;
   onReview: () => void;
 }) {
-  const support = EXTENSION_TYPE_SUPPORT[entry.type];
+  const support = extensionSupport(entry);
   const health = healthOf(entry);
   const installable =
     support.supported &&
@@ -928,7 +1045,9 @@ function AvailableRow({
       <div className="flex items-start justify-between gap-3">
         <ExtensionArtwork name={entry.name} icon={entry.icon} />
         <span className="meta rounded-selector border rule px-2 py-1">
-          {EXTENSION_TYPE_LABEL[entry.type]}
+          {EXTENSION_TYPE_LABEL[
+            entry.type as keyof typeof EXTENSION_TYPE_LABEL
+          ] ?? entry.type}
         </span>
       </div>
       <h3 className="mt-4 break-words text-lg font-semibold">{entry.name}</h3>
@@ -990,25 +1109,27 @@ function AvailableRow({
 /**
  * The consent step.
  *
- * Every permission starts unchecked. A prompt that arrives pre-agreed is not a
- * prompt, and an extension that genuinely needs a capability will not work
- * until it is given one — which is a better way to find out what it actually
- * uses than taking the manifest's word for it.
+ * New installations start unchecked. Updates retain previously granted
+ * permissions; newly requested permissions still need explicit consent.
  */
 function ReviewDialog({
   plan,
+  heading = "Install",
+  initialGranted = [],
   busy,
   error,
   onCancel,
   onInstall,
 }: {
   plan: InstallPlan;
+  heading?: string;
+  initialGranted?: string[];
   busy: boolean;
   error: Error | null;
   onCancel: () => void;
   onInstall: (granted: string[]) => void;
 }) {
-  const [granted, setGranted] = useState<string[]>([]);
+  const [granted, setGranted] = useState<string[]>(initialGranted);
 
   const toggle = (permission: string) =>
     setGranted((current) =>
@@ -1022,10 +1143,10 @@ function ReviewDialog({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`Install ${plan.manifest.name}`}
+        aria-label={`${heading} ${plan.manifest.name}`}
         className="max-h-full w-full max-w-xl overflow-y-auto rounded-box border rule bg-base-100 p-6 shadow-2xl"
       >
-        <p className="meta">Install</p>
+        <p className="meta">{heading}</p>
         <h2 className="mt-1 font-serif text-display-sm">
           {plan.manifest.name}
         </h2>
@@ -1133,8 +1254,8 @@ function ReviewDialog({
           >
             {busy ? <Loader2 className="size-3.5 animate-spin" /> : null}
             {granted.length === 0 && plan.requested.length > 0
-              ? "Install with no permissions"
-              : "Install"}
+              ? `${heading} with no permissions`
+              : heading}
           </button>
         </div>
       </div>

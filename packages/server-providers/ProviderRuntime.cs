@@ -21,7 +21,7 @@ public interface IProviderTransport
 }
 
 public sealed record ProviderLimits(int TimeoutMs = 10_000, int MaxStatements = 1_000_000,
-    long MemoryBytes = 64 * 1024 * 1024, int MaxFetches = 32);
+    long MemoryBytes = 64 * 1024 * 1024, int MaxFetches = 32, int? MangaTimeoutMs = null);
 
 /// <summary>
 /// Initial Seanime online-stream provider contract. Each call gets its own engine
@@ -99,7 +99,7 @@ public sealed class ProviderRuntime(IProviderTransport transport, ProviderLimits
         JsonElement[] args, CancellationToken ct)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        deadline.CancelAfter(limits.TimeoutMs);
+        deadline.CancelAfter(TimeoutFor(definition));
         await lane.WaitAsync(deadline.Token);
         try
         {
@@ -110,6 +110,8 @@ public sealed class ProviderRuntime(IProviderTransport transport, ProviderLimits
         finally { lane.Release(); }
     }
 
+    private int TimeoutFor(ProviderDefinition definition) => definition.Type == "manga-provider" ? limits.MangaTimeoutMs ?? limits.TimeoutMs : limits.TimeoutMs;
+
     private JsonElement Execute(ProviderDefinition definition, string? method,
         JsonElement[] args, CancellationToken ct)
     {
@@ -117,7 +119,7 @@ public sealed class ProviderRuntime(IProviderTransport transport, ProviderLimits
             .LimitMemory(limits.MemoryBytes)
             .MaxStatements(limits.MaxStatements)
             .LimitRecursion(128)
-            .TimeoutInterval(TimeSpan.FromMilliseconds(limits.TimeoutMs))
+            .TimeoutInterval(TimeSpan.FromMilliseconds(TimeoutFor(definition)))
             .CancellationToken(ct));
         var fetches = 0;
         using var dom = new DocumentBinding(ct);

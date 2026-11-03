@@ -2,7 +2,7 @@ import { MediaBanner, MediaPageBackground } from "../media/media-banner";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { MangaUnreadBadge } from "../media/completion-badges";
 import { useSettings } from "@/lib/queries";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   BookOpen,
@@ -21,6 +21,7 @@ import "./manga-details.css";
 
 type Shared = {
   provider: string;
+  sourceChoices?: ReactNode;
   sourceName: string;
   images: ReaderImages;
   saved: boolean;
@@ -48,13 +49,18 @@ export function MangaDetailsPage({
   });
   const info = useQuery({
     queryKey: catalogueId
-      ? ["manga-info", catalogueId]
-      : ["manga-info", props.provider, book?.id],
+      ? ["manga-info", catalogueId, settings?.privacy.showAdultContent ?? false]
+      : [
+          "manga-info",
+          props.provider,
+          book?.id,
+          settings?.privacy.showAdultContent ?? false,
+        ],
     queryFn: () =>
       catalogueId
         ? bridge.manga.details(catalogueId)
         : bridge.manga.info(props.provider, book!.id),
-    enabled: !!catalogueId || !!book,
+    enabled: !!settings && (!!catalogueId || !!book),
     staleTime: 60 * 60_000,
     retry: false,
   });
@@ -232,7 +238,7 @@ export function MangaDetailsPage({
                   <BookOpen className="size-4" />
                   {progress.data ? "Continue reading" : "Start reading"}
                 </button>
-              ) : (
+              ) : props.sourceChoices ? null : (
                 <Link className="btn btn-primary" to="/extensions">
                   Add a reading source
                 </Link>
@@ -323,6 +329,16 @@ export function MangaDetailsPage({
                   Retry matching
                 </button>
               </div>
+            ) : props.sourceChoices ? (
+              <div>
+                {props.sourceChoices}
+                <button
+                  className="btn btn-ghost mt-3"
+                  onClick={() => props.onSearch(title)}
+                >
+                  Search all sources
+                </button>
+              </div>
             ) : !props.provider ? (
               <div className="manga-info__state">
                 <h3>Add a source to see chapters</h3>
@@ -345,7 +361,7 @@ export function MangaDetailsPage({
                   className="btn btn-ghost"
                   onClick={() => props.onSearch(title)}
                 >
-                  Search this source
+                  Search all sources
                 </button>
               </div>
             ) : chapters.error ? (

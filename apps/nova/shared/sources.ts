@@ -26,6 +26,7 @@ export interface RemoteSourcePlan {
   currentVersion?: string;
   manifestUrl: string;
   payloadUrl: string;
+  inlinePayload?: boolean;
   sha256: string;
   checksumVerified: boolean;
   hosts: string[];

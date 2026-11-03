@@ -1,6 +1,7 @@
 import {
   assertMangaSourceMethods,
   mangaSearchResultsSchema,
+  mangaSearchPageSchema,
   mangaChaptersSchema,
   mangaPagesSchema,
   mangaAssetSchema,
@@ -54,8 +55,18 @@ export class MangaExtensionRegistry {
       record.name,
       async (method, args) => {
         current();
-        const guestMethod =
-          method === "search"
+        const options = args[0] as {
+          query?: string;
+          page?: number;
+          paginated?: boolean;
+        };
+        const paged =
+          method === "search" &&
+          options.paginated &&
+          methods.includes("searchPage");
+        const guestMethod = paged
+          ? "searchPage"
+          : method === "search"
             ? "search"
             : method === "findChapters"
               ? "getChapters"
@@ -66,18 +77,29 @@ export class MangaExtensionRegistry {
           throw new Error("Unsupported manga extension method.");
         const guestArgs =
           method === "search"
-            ? [String((args[0] as { query: string }).query), { limit: 100 }]
+            ? [
+                String(options.query),
+                { limit: 100, ...(paged ? { page: options.page ?? 1 } : {}) },
+              ]
             : args;
         const raw = await this.call(record.id, guestMethod, guestArgs);
         current();
-        if (method === "search")
-          return mangaSearchResultsSchema.parse(raw).map((row) => ({
+        if (method === "search") {
+          const toBook = (
+            row: import("@vestra/extension-host").MangaSourceTitle,
+          ) => ({
             id: row.id,
             title: row.title,
             ...(row.cover
               ? { image: asset(row.cover).url, imageHeaders: row.cover.headers }
               : {}),
-          }));
+          });
+          if (paged) {
+            const page = mangaSearchPageSchema.parse(raw);
+            return { items: page.items.map(toBook), hasMore: page.hasMore };
+          }
+          return mangaSearchResultsSchema.parse(raw).map(toBook);
+        }
         if (method === "findChapters")
           return mangaChaptersSchema
             .parse(raw)

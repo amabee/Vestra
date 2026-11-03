@@ -170,7 +170,7 @@ export function ApplicationPreferences({ settings: s, update }: Props) {
         {privacy(
           "showAdultContent",
           "Enable adult content",
-          "Allow titles identified as 18+ on supported catalogue surfaces. Public discovery feeds remain filtered by their provider.",
+          "Include titles identified as 18+ in anime catalogue search and discovery. Source feeds may apply their own filters.",
         )}
         {privacy(
           "blurAdultContent",

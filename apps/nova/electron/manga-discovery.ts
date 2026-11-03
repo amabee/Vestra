@@ -1,4 +1,7 @@
-import { fetchCatalogueGraphQL as fetchMangaGraphQL, RateLimited } from "./catalogue-graphql";
+import {
+  fetchCatalogueGraphQL as fetchMangaGraphQL,
+  RateLimited,
+} from "./catalogue-graphql";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { StorageDriver } from "@vestra/storage";
@@ -18,6 +21,7 @@ const payload = z.object({
     media: z
       .array(
         z.object({
+          isAdult: z.boolean().nullish(),
           id: z.number().int().positive(),
           title: z.object({
             english: z.string().max(500).nullish(),
@@ -42,12 +46,12 @@ const payload = z.object({
 });
 type Data = z.infer<typeof payload>;
 type CacheEntry = { key: string; expires: number; data: Data };
-export const mangaCatalogueQuery = `query MangaDiscovery($page:Int,$sort:[MediaSort],$country:CountryCode,$genres:[String],$status:MediaStatus) {
+export const mangaCatalogueQuery = `query MangaDiscovery($isAdult:Boolean,$page:Int,$sort:[MediaSort],$country:CountryCode,$genres:[String],$status:MediaStatus) {
   GenreCollection
   Page(page:$page,perPage:24) {
     pageInfo { hasNextPage }
-    media(type:MANGA,format_in:[MANGA,ONE_SHOT],isAdult:false,sort:$sort,countryOfOrigin:$country,genre_in:$genres,status:$status) {
-      id title { english romaji native } coverImage { extraLarge large medium }
+    media(type:MANGA,format_in:[MANGA,ONE_SHOT],isAdult:$isAdult,sort:$sort,countryOfOrigin:$country,genre_in:$genres,status:$status) {
+      id isAdult title { english romaji native } coverImage { extraLarge large medium }
       genres countryOfOrigin status averageScore
     }
   }
@@ -68,6 +72,7 @@ export class MangaDiscovery {
     private cover: (id: number, url: string) => string,
     private request = fetchMangaCatalogue,
     private now = Date.now,
+    private includeAdult: () => Promise<boolean> = async () => false,
   ) {}
   private load() {
     return (this.loading ??= (async () => {
@@ -84,7 +89,7 @@ export class MangaDiscovery {
               )
               .max(32),
           })
-          .parse(await this.driver.read("manga-discovery-v2"));
+          .parse(await this.driver.read("manga-discovery-v3"));
         for (const entry of stored.entries) this.cache.set(entry.key, entry);
       } catch {
         /* Metadata cache is optional. */
@@ -95,55 +100,61 @@ export class MangaDiscovery {
     entry: CacheEntry,
     page: number,
     stale = false,
+    includeAdult = false,
   ): MangaDiscoveryPage {
     return {
       page,
       stale,
       hasNextPage: entry.data.Page.pageInfo.hasNextPage,
-      genres: entry.data.GenreCollection,
-      items: entry.data.Page.media.map((row) => {
-        const title =
-          row.title.english ||
-          row.title.romaji ||
-          row.title.native ||
-          "Untitled";
-        const url =
-          row.coverImage?.extraLarge ||
-          row.coverImage?.large ||
-          row.coverImage?.medium;
-        let cover: string | undefined;
-        if (url) {
-          try {
-            const uri = new URL(url);
-            if (uri.protocol === "https:" && !uri.username && !uri.password)
-              cover = this.cover(row.id, url);
-          } catch {
-            /* Keep a usable title when art is missing. */
+      genres: entry.data.GenreCollection.filter(
+        (genre) => includeAdult || genre.toLowerCase() !== "hentai",
+      ),
+      items: entry.data.Page.media
+        .filter((row) => includeAdult || !row.isAdult)
+        .map((row) => {
+          const title =
+            row.title.english ||
+            row.title.romaji ||
+            row.title.native ||
+            "Untitled";
+          const url =
+            row.coverImage?.extraLarge ||
+            row.coverImage?.large ||
+            row.coverImage?.medium;
+          let cover: string | undefined;
+          if (url) {
+            try {
+              const uri = new URL(url);
+              if (uri.protocol === "https:" && !uri.username && !uri.password)
+                cover = this.cover(row.id, url);
+            } catch {
+              /* Keep a usable title when art is missing. */
+            }
           }
-        }
-        return {
-          id: row.id,
-          title,
-          cover,
-          genres: row.genres,
-          origin: row.countryOfOrigin,
-          status: row.status,
-          score: row.averageScore,
-        };
-      }),
+          return {
+            id: row.id,
+            title,
+            cover,
+            genres: row.genres,
+            origin: row.countryOfOrigin,
+            status: row.status,
+            score: row.averageScore,
+          };
+        }),
     };
   }
   async browse(raw: unknown): Promise<MangaDiscoveryPage> {
     const query = discoveryQuery.parse(raw);
+    const includeAdult = await this.includeAdult();
     const key = createHash("sha256")
-      .update(JSON.stringify(query))
+      .update(JSON.stringify({ ...query, includeAdult }))
       .digest("hex");
     await this.load();
     const stored = this.cache.get(key);
     if (stored && stored.expires > this.now()) {
       this.cache.delete(key);
       this.cache.set(key, stored);
-      return this.page(stored, query.page);
+      return this.page(stored, query.page, false, includeAdult);
     }
     const existing = this.pending.get(key);
     if (existing) return existing;
@@ -163,6 +174,7 @@ export class MangaDiscovery {
         }[query.sort];
         const data = payload.parse(
           await this.request({
+            ...(includeAdult ? {} : { isAdult: false }),
             page: query.page,
             sort,
             ...(query.origin !== "all" ? { country: query.origin } : {}),
@@ -181,15 +193,15 @@ export class MangaDiscovery {
           this.cache.delete(this.cache.keys().next().value!);
         const snapshot = { entries: [...this.cache.values()] };
         this.writes = this.writes
-          .then(() => this.driver.write("manga-discovery-v2", snapshot))
+          .then(() => this.driver.write("manga-discovery-v3", snapshot))
           .catch(() => undefined);
         await this.writes;
-        return this.page(entry, query.page);
+        return this.page(entry, query.page, false, includeAdult);
       } catch (error) {
         if (error instanceof RateLimited)
           this.retryAt = this.now() + error.seconds * 1000;
         if (stored && stored.expires > this.now() - 7 * 24 * 60 * 60_000)
-          return this.page(stored, query.page, true);
+          return this.page(stored, query.page, true, includeAdult);
         throw error;
       }
     })();

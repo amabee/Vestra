@@ -15,7 +15,7 @@ export function MangaRoute() {
     <MangaLibrary
       renderReader={(provider, book, onBack, chapter) => (
         <BookReader
-          key={book.id}
+          key={`${provider}:${book.id}`}
           provider={provider}
           book={book}
           onBack={onBack}

@@ -1,3 +1,4 @@
+import { getSettings } from "@vestra/storage";
 import { join } from "node:path";
 
 import { StreamSourceRegistry } from "@vestra/extension-host";
@@ -44,6 +45,8 @@ export function getDriver(): StorageDriver {
 export function getRegistries(): Registries {
   registries ??= createRegistries({
     driver: getDriver(),
+    includeAdult: async () =>
+      (await getSettings(getDriver())).privacy.showAdultContent,
     host: { platform: "desktop", filesystem: true, extensions: true },
     localStream: {
       // Local files are served through Nova's own protocol handler rather than

@@ -376,3 +376,71 @@ test("legacy progress imports into C# once and the recovery copy is preserved", 
   await driver.remove(key);
   assert.equal((await s.progress("manga", "book")).page, 0);
 });
+
+test("missing page referrers use chapter context, stay private, and image failures identify the source", async () => {
+  const requests = [],
+    service = new MangaService(new NodeDriver(join(scratch, "image-context")));
+  service.register(
+    "context",
+    "Context source",
+    async (method) =>
+      ({
+        search: [{ id: "book", title: "Fixture" }],
+        findChapters: [
+          {
+            id: "chapter",
+            title: "Chapter",
+            chapter: "1",
+            index: 0,
+            url: "https://source.example/read/one",
+          },
+        ],
+        findChapterPages: [
+          { url: "https://images.example/page.png", index: 0 },
+        ],
+      })[method],
+    async (request) => {
+      requests.push(request);
+      throw Error("Page image HTTP 403.");
+    },
+    csharpMangaProgress(client, "context"),
+  );
+  await service.search("context", "Fixture");
+  const chapters = await service.chapters("context", "book");
+  assert.equal("url" in chapters[0], false);
+  const pages = await service.pages("context", "book", "chapter");
+  assert.equal("url" in pages[0], false);
+  await assert.rejects(
+    service.image(pages[0].handle),
+    /Context source image \(images.example\): Page image HTTP 403/,
+  );
+  assert.equal(requests[0].headers.Referer, "https://source.example/read/one");
+});
+
+test("paged searches forward page options and do not truncate returned titles at 400", async () => {
+  const s = new MangaService(new NodeDriver(join(scratch, "paged-search"))),
+    calls = [];
+  s.register(
+    "paged",
+    "Paged",
+    async (_method, args) => {
+      calls.push(args[0]);
+      return {
+        items: Array.from({ length: 500 }, (_, i) => ({
+          id: "book-" + args[0].page + "-" + i,
+          title: "Fixture " + i,
+        })),
+        hasMore: args[0].page < 2,
+      };
+    },
+    async () => ({}),
+    csharpMangaProgress(client, "paged"),
+  );
+  const first = await s.searchPage("paged", "Fixture", 1);
+  assert.equal(first.items.length, 500);
+  assert.equal(first.hasMore, true);
+  const last = await s.searchPage("paged", "Fixture", 2);
+  assert.equal(last.hasMore, false);
+  assert.equal(calls[1].page, 2);
+  await assert.rejects(s.searchPage("paged", "Fixture", 0));
+});

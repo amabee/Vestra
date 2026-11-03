@@ -15,10 +15,10 @@ Nova remains in the Vestra repository so existing release and updater URLs conti
 
 ## Implemented features
 
-- Home, discovery, anime search/details, weekly schedule, films/series and manga browsing/reading.
+- Home, discovery, anime search/details, weekly schedule, films/series and manga browsing/reading. Manga search queries all enabled sources, presents cards without extension badges, loads more results as you scroll and combines Continue Reading across extensions. Catalogue titles check available reading editions before opening source-specific chapters.
 - Local library scanning, saved lists, watch history, progress and episode/chapter completion records.
 - Native playback controls, audio/subtitle selection, subtitle appearance, skip controls and source-supported quality choices.
-- Extension browsing, permission review, installation and source diagnostics. Availability and playback depend on each upstream source; experimental listings are marked separately.
+- Extension browsing, permission review, installation, reviewed updates and source diagnostics. Availability and playback depend on each upstream source; experimental listings are marked separately.
 - Searchable settings for application behavior, appearance, playback, connections, library/scanning, diagnostics and updates.
 - AniList browser sign-in from Settings or the account control at the bottom of the sidebar. Connected accounts show their avatar; account credentials and local list backups use OS-backed encrypted storage.
 - An optional qBittorrent connection for category-scoped download management. Nova does not install qBittorrent or provide an embedded torrent engine.
@@ -80,6 +80,14 @@ https://raw.githubusercontent.com/amabee/Foundry/main/extensions/registry.json
 
 New profiles use Foundry. Updated Nova builds resolve the former official Vestra registry URL to Foundry while retaining saved registry origins. Custom URLs and explicitly empty lists remain unchanged. The previous registry file remains a compatibility mirror for older installed clients.
 
+In Extensions, **Check for updates** checks installed SDK extensions and compatibility sources. Review updates before applying them; newly requested permissions start unchecked and additional hosts are highlighted. Reviewed code is pinned in memory, enabled/disabled status is retained, and activation or storage failures attempt to restore the previous runtime. Existing bundled installs are matched by their shipped manifest path before checking Foundry; arbitrary local folders have no automatic remote origin.
+
+Native HentaiEra and experimental Hentai2Read adapters are maintained in Foundry. SDK 1.6 adds optional `searchPage(query, { page, limit })` returning `{ items, hasMore }`; older `search` arrays remain supported. Nova detects repeated pages from legacy providers so infinite scrolling does not repeatedly append the first page.
+
+Registry URLs may point to an array, an `extensions`/`entries` array wrapper, or one extension manifest. Seanime JavaScript/TypeScript anime and manga manifests can embed their script in `payload` or link it through `payloadURI`. Host access still requires review. Unsupported types and languages remain visible with an explanation; listing an extension does not establish upstream compatibility or availability.
+
+**Settings → Application → Anime preferences → Enable adult content** controls AniList anime search and anime/manga catalogue discovery and metadata. When enabled, the `isAdult` filter is omitted; an explicit `null` returns an empty AniList catalogue. Switching the setting changes the query and cache; individual source feeds may enforce their own restrictions.
+
 The root `extensions/` folder is a reviewed offline snapshot, not the canonical source-development location. [extensions.snapshot.json](../../extensions.snapshot.json) pins a Foundry commit and SHA-256 hashes. Existing installed extension IDs and permission grants are retained.
 
 ```sh
@@ -98,6 +106,8 @@ StreamFlix remains excluded from Foundry's published registry and blocked in Nov
 - [electron/ipc-security.ts](electron/ipc-security.ts) authorizes registered WebContents, the exact trusted document and its main frame before privileged IPC handlers run.
 - [electron/preload.ts](electron/preload.ts) exposes the main bridge. [electron/preload-overlay.ts](electron/preload-overlay.ts) exposes a smaller player surface without account/source management, settings writes or updater controls. Subframes receive neither bridge.
 - Navigation, redirects, popups and webviews are constrained. Approved external links from the main window open in the system browser. Browser permission requests are denied by default.
+- Renderer queries and mutations use IPC regardless of Chromium's online/offline hint. Discovery shows catalogue and settings failures with retry actions.
+- Compatibility manga providers run in separate workers (up to four resident workers) with a 30-second script budget and a 35-second host watchdog. Reading progress/bookmarks keep a separate storage worker. Image requests preserve source headers and supply missing browser headers/referrers; image errors include the source and host. An HTTP 403 from an upstream site may still require a source update or session.
 - Community extension code runs in QuickJS isolates inside a utility process. Host calls are brokered by the main process using reviewed capabilities, host grants, rate limits and response/deadline limits.
 - [electron/public-network.ts](electron/public-network.ts) validates DNS answers inside the socket lookup callback, preserving normal TLS hostname verification. Private addresses, including IPv4-mapped forms, are rejected; the guarded transport disables redirects and limits response bytes while reading.
 - AniList and saved qBittorrent credentials use OS-backed encryption; plaintext fallback storage is refused. AniList sign-in validates a short-lived, single-use callback state. Exported list backups contain private list data but no account credentials.

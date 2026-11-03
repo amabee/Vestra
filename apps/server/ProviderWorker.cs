@@ -12,6 +12,7 @@ internal static class ProviderWorker
         using var transport = new ProviderHttpTransport();
         var runtime = new ProviderRuntime(
             transport,
+            limits: new ProviderLimits(MangaTimeoutMs: 30_000),
             store: new ProviderStore(Environment.GetEnvironmentVariable("VESTRA_PROVIDER_DATA_DIR"))
         );
         var progress = new ReadingProgressStore(

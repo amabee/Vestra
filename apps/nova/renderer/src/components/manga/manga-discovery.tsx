@@ -1,3 +1,4 @@
+import { useSettings } from "@/lib/queries";
 import { MangaUnreadBadge } from "../media/completion-badges";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -42,6 +43,8 @@ export function MangaDiscoveryShelf({
   bookmarkControl: (title: MangaDiscoveryTitle) => ReactNode;
   provider?: string;
 }) {
+  const settingsQuery = useSettings();
+  const { data: settings } = settingsQuery;
   const [filters, setFilters] = useState(defaults);
   const [requested, setRequested] = useState(defaults);
   const section = useRef<HTMLElement>(null);
@@ -52,8 +55,13 @@ export function MangaDiscoveryShelf({
   const changing = requested !== filters;
   const knownGenres = useRef<string[]>([]);
   const catalogue = useQuery({
-    queryKey: ["manga-discovery", requested],
+    queryKey: [
+      "manga-discovery",
+      requested,
+      settings?.privacy.showAdultContent ?? false,
+    ],
     queryFn: () => bridge.manga.discover(requested),
+    enabled: !!settings,
     staleTime: 10 * 60_000,
     gcTime: 30 * 60_000,
     retry: false,
@@ -78,7 +86,7 @@ export function MangaDiscoveryShelf({
         <div>
           <h2 className="text-lg font-semibold">{headings[filters.sort]}</h2>
           <p className="mt-1 text-xs text-base-content/45">
-            AniList catalogue · select a title to search your manga source.
+            AniList catalogue · select a title to check all your manga sources.
           </p>
         </div>
         <button
@@ -164,7 +172,23 @@ export function MangaDiscoveryShelf({
           Showing a saved catalogue while AniList is unavailable.
         </p>
       )}
-      {catalogue.isPending || changing ? (
+      {settingsQuery.error ? (
+        <div
+          role="alert"
+          className="rounded-xl border border-base-content/10 p-6 text-sm"
+        >
+          <p>
+            Discovery settings could not be loaded:{" "}
+            {settingsQuery.error.message}
+          </p>
+          <button
+            className="btn btn-sm mt-3"
+            onClick={() => void settingsQuery.refetch()}
+          >
+            Retry settings
+          </button>
+        </div>
+      ) : catalogue.isPending || changing ? (
         <div
           className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6"
           role="status"

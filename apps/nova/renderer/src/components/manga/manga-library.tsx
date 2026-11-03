@@ -1,6 +1,14 @@
+import { MangaSearchResults } from "./manga-search-results";
+import type { InfiniteData } from "@tanstack/react-query";
+import type { MangaSearchPage } from "../../../../shared/manga";
 import { MangaUnreadBadge } from "../media/completion-badges";
 import { useSettings } from "@/lib/queries";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   useCallback,
   useEffect,
@@ -49,15 +57,8 @@ export function MangaLibrary({ renderReader }: { renderReader: OpenReader }) {
     queryFn: bridge.manga.sources,
     refetchInterval: (q) => (q.state.data?.length ? false : 2000),
   });
-  const [params, setParams] = useSearchParams();
-  const id = params.get("source") || sources.data?.[0]?.id || "";
-  useEffect(() => {
-    if (id && !params.has("source")) {
-      const next = new URLSearchParams(params);
-      next.set("source", id);
-      setParams(next, { replace: true });
-    }
-  }, [id, params, setParams]);
+  const [params] = useSearchParams();
+  const id = params.get("source") || params.get("bookSource") || "";
   return (
     <div
       className="mx-auto max-w-[1480px] px-6 py-8 lg:px-10"
@@ -95,41 +96,13 @@ export function MangaLibrary({ renderReader }: { renderReader: OpenReader }) {
         </p>
       ) : (
         <MangaShelf
-          key={id}
           provider={id}
           sourceName={
             sources.data?.find((source) => source.id === id)?.name ||
             "Source unavailable"
           }
           renderReader={renderReader}
-          sourceControl={
-            !sources.data?.length ? (
-              <Link className="btn btn-ghost m-2" to="/extensions">
-                Add a manga source
-              </Link>
-            ) : (
-              <label className="flex shrink-0 items-center gap-2 border-b border-base-content/10 px-3 py-2 sm:border-b-0 sm:border-r">
-                <BookOpen className="size-4 text-base-content/45" />
-                <select
-                  aria-label="Manga source"
-                  className="select select-ghost select-sm min-w-0 max-w-52 bg-transparent text-sm focus:outline-none"
-                  value={id}
-                  onChange={(event) => {
-                    setParams({ source: event.target.value });
-                  }}
-                >
-                  {id && !sources.data?.some((source) => source.id === id) && (
-                    <option value={id}>Source unavailable</option>
-                  )}
-                  {sources.data?.map((source) => (
-                    <option key={source.id} value={source.id}>
-                      {source.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )
-          }
+          sources={sources.data ?? []}
         />
       )}
     </div>
@@ -138,21 +111,23 @@ export function MangaLibrary({ renderReader }: { renderReader: OpenReader }) {
 
 function MangaShelf({
   provider,
-  sourceControl,
+  sources,
   sourceName,
   renderReader,
 }: {
   provider: string;
-  sourceControl: ReactNode;
+  sources: { id: string; name: string }[];
   sourceName: string;
   renderReader: OpenReader;
 }) {
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
-  const [limit, setLimit] = useState(48);
+  const [revision, setRevision] = useState(0);
   const toolbar = useRef<HTMLDivElement>(null);
   const [params, setParams] = useSearchParams();
-  const [book, setBook] = useState<MangaBook | null>(null);
+  const [book, setBook] = useState<(MangaBook & { source: string }) | null>(
+    null,
+  );
   const cache = useQueryClient();
   const bookId = params.get("book"),
     catalogueId = Number(params.get("catalogue") || 0);
@@ -166,9 +141,9 @@ function MangaShelf({
     setParams(next, { replace });
   };
   const openBook = (value: MangaBook, origin = provider) => {
-    setBook(value);
+    setBook({ ...value, source: origin });
     change({
-      source: provider || origin,
+      source: origin,
       bookSource: origin,
       book: value.id,
       title: value.title.slice(0, 500),
@@ -179,7 +154,7 @@ function MangaShelf({
   };
   const openCatalogue = (value: MangaDiscoveryTitle) =>
     change({
-      source: provider || null,
+      source: null,
       bookSource: null,
       catalogue: String(value.id),
       book: null,
@@ -245,6 +220,7 @@ function MangaShelf({
       catalogueId || null,
       originProvider,
       bookId,
+      settings?.privacy.showAdultContent ?? false,
     ],
     queryFn: () =>
       bridge.manga.resolve(
@@ -258,9 +234,12 @@ function MangaShelf({
               title: params.get("title") || undefined,
             },
       ),
-    enabled: !!provider && (!!bookId || !!catalogueId),
+    enabled: !!settings && !!provider && (!!bookId || !!catalogueId),
     initialData:
-      !catalogueId && originProvider === provider && book?.id === bookId
+      !catalogueId &&
+      originProvider === provider &&
+      book?.source === provider &&
+      book?.id === bookId
         ? book
         : undefined,
     staleTime: 5 * 60_000,
@@ -270,6 +249,7 @@ function MangaShelf({
     () => new ReaderImages((handle) => bridge.manga.image(handle)),
   );
   const [lookups] = useState(() => new CoverLookups());
+  const [matchesLane] = useState(() => new CoverLookups());
   const lease = useRef(0);
   useEffect(() => {
     const current = ++lease.current;
@@ -278,19 +258,113 @@ function MangaShelf({
         if (lease.current === current) {
           images.dispose();
           lookups.dispose();
+          matchesLane.dispose();
         }
       });
-  }, [images, lookups]);
-  const recent = useQuery({
-    queryKey: ["manga", provider, "recent"],
-    queryFn: () => bridge.manga.recent(provider),
-    enabled: !bookId && !catalogueId && !!provider,
+  }, [images, lookups, matchesLane]);
+  const recentQueries = useQueries({
+    queries: sources.map((source) => ({
+      queryKey: ["manga", source.id, "recent"],
+      queryFn: () => bridge.manga.recent(source.id),
+      enabled: !bookId && !catalogueId,
+      retry: false,
+    })),
   });
-  const results = useQuery({
-    queryKey: ["manga", provider, "search", query],
-    queryFn: () => bridge.manga.search(provider, query),
-    enabled: !!query && !!provider,
+  const recentEntries = recentQueries
+    .flatMap((result, index) =>
+      (result.data?.entries ?? []).map((entry) => ({
+        ...entry,
+        source: sources[index]!.id,
+        sourceName: sources[index]!.name,
+      })),
+    )
+    .sort(
+      (a, b) =>
+        Number(new Date(b.progress.updatedAt)) -
+        Number(new Date(a.progress.updatedAt)),
+    );
+  const recent = {
+    data: {
+      entries: recentEntries,
+      unreadable: recentQueries.reduce(
+        (n, result) => n + (result.data?.unreadable ?? 0),
+        0,
+      ),
+      truncated: recentQueries.some((result) => result.data?.truncated),
+    },
+    isPending:
+      recentQueries.some((result) => result.isPending) && !recentEntries.length,
+    isFetching: recentQueries.some((result) => result.isFetching),
+    error: recentQueries.find((result) => result.error)?.error,
+    refetch: () => Promise.all(recentQueries.map((result) => result.refetch())),
+  };
+  const matches = useQueries({
+    queries: sources.map((source) => ({
+      queryKey: [
+        "manga",
+        source.id,
+        "resolved-book",
+        catalogueId,
+        source.id,
+        null,
+        settings?.privacy.showAdultContent ?? false,
+      ],
+      queryFn: ({ signal }) =>
+        matchesLane.run(
+          () =>
+            bridge.manga.resolve(source.id, {
+              kind: "catalogue",
+              id: catalogueId,
+            }),
+          signal,
+        ),
+      enabled: !!settings && !!catalogueId && !provider,
+      retry: false,
+      staleTime: 5 * 60_000,
+    })),
   });
+  const sourceChoices =
+    !!catalogueId && !provider && sources.length > 0 ? (
+      <section
+        aria-label="Reading sources"
+        className="space-y-3 rounded-xl border border-base-content/10 p-4"
+      >
+        <h3 className="font-medium">Available reading sources</h3>
+        <p className="text-sm text-base-content/55">
+          Choose an edition from your installed extensions.
+        </p>
+        {matches.map((result, index) => (
+          <div
+            key={sources[index]!.id}
+            className="flex flex-wrap items-center gap-3 text-sm"
+          >
+            <span>{sources[index]!.name}</span>
+            {result.data ? (
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={() => change({ source: sources[index]!.id })}
+              >
+                Read with {sources[index]!.name}
+              </button>
+            ) : result.isPending ? (
+              <span role="status">Checking…</span>
+            ) : result.error ? (
+              <>
+                <span role="alert">{errorText(result.error)}</span>
+                <button
+                  className="btn btn-sm"
+                  onClick={() => void result.refetch()}
+                >
+                  Retry {sources[index]!.name}
+                </button>
+              </>
+            ) : (
+              <span className="text-base-content/55">No exact match</span>
+            )}
+          </div>
+        ))}
+      </section>
+    ) : undefined;
   if (bookId || catalogueId) {
     const back = () =>
       change(
@@ -319,6 +393,7 @@ function MangaShelf({
         <MangaDetailsPage
           key={`${provider}:${id}`}
           provider={provider}
+          sourceChoices={sourceChoices}
           sourceName={sourceName}
           images={images}
           book={activeBook.data ?? undefined}
@@ -344,7 +419,7 @@ function MangaShelf({
           onSearch={(title) => {
             setInput(title);
             setQuery(title);
-            setLimit(48);
+            setRevision((n) => n + 1);
             back();
           }}
         />
@@ -367,13 +442,19 @@ function MangaShelf({
         ref={toolbar}
         className="mb-8 flex flex-col overflow-hidden rounded-xl border border-base-content/10 bg-base-200/40 sm:flex-row sm:items-center"
       >
-        {sourceControl}
+        <span className="px-4 py-2 text-sm text-base-content/55">
+          {sources.length ? (
+            "Search manga"
+          ) : (
+            <Link to="/extensions">Add a manga source</Link>
+          )}
+        </span>
         <form
           className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2"
           onSubmit={(event) => {
             event.preventDefault();
             setQuery(input.trim());
-            setLimit(48);
+            setRevision((n) => n + 1);
           }}
         >
           <Search className="size-4 shrink-0 text-base-content/40" />
@@ -381,9 +462,11 @@ function MangaShelf({
             aria-label="Search manga"
             className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none placeholder:text-base-content/35"
             placeholder={
-              provider ? "Search manga or webtoons" : "Add a source to search"
+              sources.length
+                ? "Search manga or webtoons"
+                : "Add a source to search"
             }
-            disabled={!provider}
+            disabled={!sources.length}
             maxLength={500}
             value={input}
             onChange={(event) => setInput(event.target.value)}
@@ -400,7 +483,7 @@ function MangaShelf({
           )}
           <button
             className="btn btn-primary btn-sm"
-            disabled={!provider || !input.trim() || results.isFetching}
+            disabled={!sources.length || !input.trim()}
           >
             Search
           </button>
@@ -487,6 +570,10 @@ function MangaShelf({
                   ) : (
                     <MangaCard
                       key={`${entry.source}:${entry.book.id}`}
+                      sourceName={
+                        sources.find((source) => source.id === entry.source)
+                          ?.name ?? entry.source
+                      }
                       book={entry.book}
                       images={images}
                       provider={entry.source}
@@ -504,65 +591,22 @@ function MangaShelf({
           )}
         </section>
       ) : query ? (
-        <section aria-label="Manga search results">
-          <div className="mb-5 flex items-baseline justify-between gap-4">
-            <h2 className="min-w-0 truncate text-lg font-semibold">
-              Results for “{query}”
-            </h2>
-            {results.data && (
-              <span className="shrink-0 text-xs text-base-content/40">
-                {results.data.length} titles
-              </span>
-            )}
-          </div>
-          {results.isFetching ? (
-            <CoverSkeletons />
-          ) : results.error ? (
-            <div
-              role="alert"
-              className="rounded-xl border border-base-content/10 p-6 text-sm"
-            >
-              <p>{errorText(results.error)}</p>
-              <button
-                className="btn btn-sm mt-3"
-                onClick={() => void results.refetch()}
-              >
-                Try again
-              </button>
-            </div>
-          ) : results.data?.length === 0 ? (
-            <EmptyShelf
-              title="No matches this time"
-              description="Try another title or select a different source."
+        <MangaSearchResults
+          key={`${query}:${sources.map((source) => source.id).join(",")}`}
+          sources={sources}
+          query={query}
+          revision={revision}
+          renderBook={(value, source) => (
+            <MangaCard
+              book={value}
+              images={images}
+              provider={source}
+              lookups={lookups}
+              onOpen={() => openBook(value, source)}
+              bookmarkControl={saveButton("source", source, value)}
             />
-          ) : (
-            <>
-              <div className={grid}>
-                {results.data?.slice(0, limit).map((value) => (
-                  <MangaCard
-                    key={value.id}
-                    book={value}
-                    images={images}
-                    provider={provider}
-                    lookups={lookups}
-                    onOpen={() => openBook(value)}
-                    bookmarkControl={saveButton("source", provider, value)}
-                  />
-                ))}
-              </div>
-              {(results.data?.length ?? 0) > limit && (
-                <div className="mt-8 text-center">
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    onClick={() => setLimit((old) => old + 48)}
-                  >
-                    Show more titles
-                  </button>
-                </div>
-              )}
-            </>
           )}
-        </section>
+        />
       ) : (
         <>
           <section aria-label="Continue reading">
@@ -585,7 +629,7 @@ function MangaShelf({
                 </button>
               </div>
             )}
-            {!provider ? (
+            {!sources.length ? (
               <p className="text-sm text-base-content/50">
                 Connect a source to start reading.
               </p>
@@ -595,23 +639,28 @@ function MangaShelf({
               <div className="grid auto-cols-[132px] grid-flow-col gap-4 overflow-x-auto pb-3">
                 {recent.data.entries.map((entry) => (
                   <MangaCard
-                    key={entry.book.id}
+                    key={`${entry.source}:${entry.book.id}`}
+                    sourceName={entry.sourceName}
                     book={entry.book}
                     progress={entry.progress}
                     images={images}
-                    provider={provider}
+                    provider={entry.source}
                     lookups={lookups}
-                    disabled={recent.isFetching}
-                    onOpen={() => openBook(entry.book)}
-                    bookmarkControl={saveButton("source", provider, entry.book)}
+
+                    onOpen={() => openBook(entry.book, entry.source)}
+                    bookmarkControl={saveButton(
+                      "source",
+                      entry.source,
+                      entry.book,
+                    )}
                   />
                 ))}
               </div>
             ) : (
               !recent.error && (
                 <p className="rounded-xl border border-dashed border-base-content/10 px-4 py-5 text-sm text-base-content/45">
-                  No recent reading yet. Explore below, or search your source
-                  above.
+                  No recent reading yet. Explore below, or search all your
+                  sources above.
                 </p>
               )
             )}
@@ -643,6 +692,7 @@ function MangaShelf({
 function MangaCard({
   book,
   progress,
+  sourceName,
   images,
   provider,
   lookups,
@@ -652,6 +702,7 @@ function MangaCard({
 }: {
   book: MangaBook;
   progress?: ReadingProgress;
+  sourceName?: string;
   images: ReaderImages;
   provider: string;
   lookups: CoverLookups;
@@ -694,6 +745,9 @@ function MangaCard({
         >
           {book.title}
         </h3>
+        {sourceName && (
+          <p className="mt-1 text-xs text-base-content/55">{sourceName}</p>
+        )}
         {progress && (
           <p className="mt-1 text-[11px] text-base-content/40">
             Last read{" "}
@@ -771,6 +825,21 @@ function CoverArt({
     cache.setQueriesData<MangaBook[]>(
       { queryKey: ["manga", provider, "search"] },
       (rows) => rows?.map((row) => (row.id === book.id ? resolved : row)),
+    );
+    cache.setQueriesData<InfiniteData<MangaSearchPage>>(
+      { queryKey: ["manga", provider, "search-pages"] },
+      (data) =>
+        data
+          ? {
+              ...data,
+              pages: data.pages.map((page) => ({
+                ...page,
+                items: page.items.map((row) =>
+                  row.id === book.id ? resolved : row,
+                ),
+              })),
+            }
+          : data,
     );
     cache.setQueryData<MangaRecent>(["manga", provider, "recent"], (recent) =>
       recent

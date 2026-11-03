@@ -87,6 +87,8 @@ export const api = {
     sources: () => invoke("manga:sources"),
     recent: (p: string) => invoke("manga:recent", p),
     search: (p: string, q: string) => invoke("manga:search", p, q),
+    searchPage: (p: string, q: string, page: number) =>
+      invoke("manga:search-page", p, q, page),
     chapters: (p: string, b: string) => invoke("manga:chapters", p, b),
     pages: (p: string, b: string, c: string) => invoke("manga:pages", p, b, c),
     image: (h: string) => invoke("manga:image", h),
@@ -317,6 +319,11 @@ export const api = {
   },
 
   extensions: {
+    checkUpdates: (): Promise<unknown> => invoke("extensions:updates"),
+    prepareUpdate: (id: string): Promise<unknown> =>
+      invoke("extensions:prepare-update", id),
+    applyUpdate: (token: string, granted: string[]): Promise<unknown> =>
+      invoke("extensions:apply-update", token, granted),
     setEnabled: (id: string, enabled: boolean) =>
       invoke("extensions:enabled", id, enabled),
     list: (): Promise<unknown> => invoke("extensions:list"),

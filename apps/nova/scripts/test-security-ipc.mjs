@@ -20,6 +20,7 @@ async function runner(config) {
   try {
     const { handleIpc, secureWindow } = require("./security.cjs");
     let pauses = 0;
+    handleIpc("extensions:updates", () => []);
     handleIpc("app:version", () => "fixture");
     handleIpc("anilist-account:status", () => ({ connected: false }));
     handleIpc("settings:get", () => ({ appearance: {} }));
@@ -52,6 +53,12 @@ async function runner(config) {
       ),
       { connected: false },
     );
+    assert.deepEqual(
+      await main.webContents.executeJavaScript(
+        "vestra.extensions.checkUpdates()",
+      ),
+      [],
+    );
     const rogue = create(config.preload);
     await rogue.loadFile(page);
     assert.equal(
@@ -60,9 +67,19 @@ async function runner(config) {
       ),
       true,
     );
+    assert.equal(
+      await rogue.webContents.executeJavaScript(
+        "vestra.extensions.checkUpdates().then(()=>false,()=>true)",
+      ),
+      true,
+    );
     const player = create(config.playerPreload);
     secureWindow(player, "player", pathToFileURL(page).href);
     await player.loadFile(page);
+    assert.equal(
+      await player.webContents.executeJavaScript("typeof vestra.extensions"),
+      "undefined",
+    );
     assert.equal(
       await player.webContents.executeJavaScript("vestra.mpv.pause()"),
       1,

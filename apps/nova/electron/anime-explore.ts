@@ -79,8 +79,8 @@ const responseSchema = z.object({
 const fields = `id isAdult title { english romaji native } description(asHtml:false)
   coverImage { extraLarge large medium color } bannerImage averageScore popularity genres episodes duration status format season seasonYear siteUrl
   nextAiringEpisode { episode airingAt }`;
-const common = `type:ANIME,isAdult:false,genre:$genre,search:$search`;
-export const animeExploreGraphQL = `query AnimeExplore($genre:String,$search:String,$year:Int,$status:MediaStatus,$format:MediaFormat,$season:MediaSeason,$rankSeason:MediaSeason,$rankYear:Int,$includeUpcoming:Boolean!,$includeMovies:Boolean!) {
+const common = `type:ANIME,isAdult:$isAdult,genre:$genre,search:$search`;
+export const animeExploreGraphQL = `query AnimeExplore($isAdult:Boolean,$genre:String,$search:String,$year:Int,$status:MediaStatus,$format:MediaFormat,$season:MediaSeason,$rankSeason:MediaSeason,$rankYear:Int,$includeUpcoming:Boolean!,$includeMovies:Boolean!) {
   GenreCollection
   trending:Page(perPage:20) { media(${common},seasonYear:$year,season:$season,status:$status,format:$format,sort:TRENDING_DESC) { ${fields} } }
   topSeason:Page(perPage:20) { media(${common},seasonYear:$rankYear,season:$rankSeason,status:$status,format:$format,sort:[SCORE_DESC,POPULARITY_DESC]) { ${fields} } }
@@ -121,6 +121,7 @@ export class AnimeExplore {
   constructor(
     private fetchCatalogue = fetchCatalogueGraphQL,
     private now = () => Date.now(),
+    private includeAdult: () => Promise<boolean> = async () => false,
   ) {}
   async snapshots(raw: unknown) {
     const ids = [
@@ -149,7 +150,9 @@ export class AnimeExplore {
     const rankSeason =
       query.season || seasonSchema.options[Math.floor(date.getMonth() / 3)]!;
     const rankYear = query.year ?? date.getFullYear();
+    const allowAdult = await this.includeAdult();
     const variables = {
+      ...(allowAdult ? {} : { isAdult: false }),
       genre: query.genre || undefined,
       search: query.search || undefined,
       year: query.year ?? undefined,
@@ -166,21 +169,25 @@ export class AnimeExplore {
         await this.fetchCatalogue(animeExploreGraphQL, variables),
       ),
     );
+    const rows = (items: z.infer<typeof mediaSchema>[]) =>
+      items.filter((row) => allowAdult || !row.isAdult);
     const titleSeason = rankSeason[0]! + rankSeason.slice(1).toLowerCase();
     return {
-      genres: data.GenreCollection,
+      genres: data.GenreCollection.filter(
+        (genre) => allowAdult || genre.toLowerCase() !== "hentai",
+      ),
       sections: [
         {
           id: "trending",
           title: "Trending right now",
-          items: data.trending.media.map((row) =>
+          items: rows(data.trending.media).map((row) =>
             catalogueAnime(row, this.now()),
           ),
         },
         {
           id: "season",
           title: `Top anime of ${titleSeason} ${rankYear}`,
-          items: data.topSeason.media.map((row) =>
+          items: rows(data.topSeason.media).map((row) =>
             catalogueAnime(row, this.now()),
           ),
         },
@@ -190,7 +197,7 @@ export class AnimeExplore {
           items:
             query.status && query.status !== "NOT_YET_RELEASED"
               ? []
-              : (data.upcoming?.media ?? []).map((row) =>
+              : rows(data.upcoming?.media ?? []).map((row) =>
                   catalogueAnime(row, this.now()),
                 ),
         },
@@ -200,7 +207,7 @@ export class AnimeExplore {
           items:
             query.format && query.format !== "MOVIE"
               ? []
-              : (data.movies?.media ?? []).map((row) =>
+              : rows(data.movies?.media ?? []).map((row) =>
                   catalogueAnime(row, this.now()),
                 ),
         },

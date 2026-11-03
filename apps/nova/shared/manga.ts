@@ -66,3 +66,9 @@ export interface MangaBookmark {
 export type MangaSelection =
   | { kind: "catalogue"; id: number }
   | { kind: "source"; source: string; id: string; title?: string };
+
+export interface MangaSearchPage {
+  items: MangaBook[];
+  hasMore: boolean;
+  page: number;
+}

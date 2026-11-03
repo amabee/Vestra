@@ -174,3 +174,35 @@ test("failed feeds can retry and invalid pagination never reaches a source", asy
     await assert.rejects(service.browse(provider.id, { page }));
   assert.equal(calls, 2);
 });
+
+test("catalogue fallback adult visibility uses separate caches and filters marked titles", async () => {
+  let adult = false;
+  const calls = [],
+    provider = source("old", false),
+    registry = new StreamSourceRegistry().register(provider),
+    titles = new AnimeService(registry);
+  const service = new AnimeDiscovery(
+    registry,
+    titles,
+    async (query, variables) => {
+      assert.match(query, /isAdult:\$isAdult/);
+      calls.push(variables.isAdult);
+      return {
+        Page: {
+          pageInfo: { hasNextPage: false },
+          media: [
+            { id: 1, title: { english: "General" }, isAdult: false },
+            { id: 2, title: { english: "Adult fixture" }, isAdult: true },
+          ],
+        },
+      };
+    },
+    async () => adult,
+  );
+  assert.equal((await service.browse(provider.id, {})).items.length, 1);
+  adult = true;
+  assert.equal((await service.browse(provider.id, {})).items.length, 2);
+  adult = false;
+  assert.equal((await service.browse(provider.id, {})).items.length, 1);
+  assert.deepEqual(calls, [false, undefined]);
+});

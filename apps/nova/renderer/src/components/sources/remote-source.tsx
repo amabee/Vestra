@@ -74,7 +74,8 @@ export function RemoteSourceReview({
       <p className="break-all text-xs text-base-content/60">
         Manifest: {plan.manifestUrl}
         <br />
-        Script: {plan.payloadUrl}
+        Script:{" "}
+        {plan.inlinePayload ? "Embedded in this manifest" : plan.payloadUrl}
       </p>
       {!plan.changed && (
         <p role="status">

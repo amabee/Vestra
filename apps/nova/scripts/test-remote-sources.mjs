@@ -146,8 +146,8 @@ test("checksum mismatch, unsafe URLs and oversized manifests are rejected before
     url + "#fragment",
   ])
     await assert.rejects(f.service.prepare(address));
-  f.files.set(url, Buffer.alloc(65537));
-  await assert.rejects(f.service.prepare(url), /65536/);
+  f.files.set(url, Buffer.alloc(2097153));
+  await assert.rejects(f.service.prepare(url), /2097152/);
   assert.deepEqual(await f.manager.list(), []);
 });
 test("remote identity changes, expired reviews, and stale update plans cannot overwrite installed sources", async () => {
@@ -183,4 +183,37 @@ test("same-version drift is visible and retained history is bounded across resta
   });
   await restarted.initialize(async () => []);
   assert.equal((await restarted.list())[0].versions.length, 3);
+});
+
+test("inline Seanime payloads install and update using reviewed pinned code", async () => {
+  const f = await fixture();
+  const code = 'class Provider { base="https://manga.example"; }';
+  f.version("1.0.0", code, { payloadURI: undefined, payload: code });
+  const plan = await f.service.prepare(url);
+  assert.equal(plan.inlinePayload, true);
+  assert.equal(plan.payloadUrl, url);
+  assert.deepEqual(f.requests, [url]);
+  await f.service.apply(plan.token, ["manga.example"]);
+  const next = 'class Provider { base="https://new.example"; }';
+  f.version("2.0.0", next, { payloadURI: undefined, payload: next, hosts: [] });
+  const update = await f.service.check("fixture");
+  assert.equal(update.changed, true);
+  assert.deepEqual(update.addedHosts, ["new.example"]);
+  // A batch check must not evict an open review or authorize its hosts.
+  await f.service.checkAll();
+  f.version("3.0.0", "// changed remotely");
+  await f.service.apply(update.token, ["manga.example"]);
+  assert.equal(f.active.get("fixture").source, next);
+  assert.deepEqual(f.active.get("fixture").hosts, ["manga.example"]);
+});
+test("missing and oversized embedded payloads fail before activation", async () => {
+  const f = await fixture();
+  f.version("1.0.0", "", { payloadURI: undefined, payload: "" });
+  await assert.rejects(f.service.prepare(url), /needs inline payload/);
+  f.version("1.0.0", "", {
+    payloadURI: undefined,
+    payload: "x".repeat(1048577),
+  });
+  await assert.rejects(f.service.prepare(url));
+  assert.equal(f.active.size, 0);
 });
