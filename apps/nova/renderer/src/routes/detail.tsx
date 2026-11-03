@@ -1,3 +1,7 @@
+import {
+  MediaBanner,
+  MediaPageBackground,
+} from "@/components/media/media-banner";
 import "@/components/media/anime-details.css";
 import "@/components/media/screen-details.css";
 import { AnimePoster } from "@/components/media/anime-hub-cards";
@@ -379,6 +383,7 @@ function MediaDetailsRoute() {
 
   return (
     <div className="anime-details screen-details">
+      <MediaPageBackground image={backdrop ?? data?.images.poster} />
       <nav className="anime-navigation" aria-label="Title navigation">
         <button
           type="button"
@@ -394,12 +399,12 @@ function MediaDetailsRoute() {
           Browse {kind === "movie" ? "movies" : "series"}
         </Link>
       </nav>
-      <header className="anime-hero">
-        <div className="anime-backdrop" aria-hidden="true">
-          {backdrop && (
-            <img src={backdrop} alt="" referrerPolicy="no-referrer" />
-          )}
-        </div>
+      <header className="anime-hero" data-has-backdrop={!!backdrop}>
+        <MediaBanner
+          className="anime-backdrop"
+          backdrop={backdrop}
+          fallback={data?.images.poster}
+        />
         <div className="anime-hero-body">
           <div className="anime-poster-column">
             <div className="anime-poster">

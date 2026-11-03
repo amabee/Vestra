@@ -1,4 +1,9 @@
 import {
+  registerAniListAccountIpc,
+  startAniListAccount,
+} from "./anilist-account-ipc";
+import { startLibraryRefresh } from "./library-refresh";
+import {
   loadQbittorrentSettings,
   registerTorrentIpc,
 } from "./qbittorrent-settings";
@@ -353,6 +358,7 @@ if (!gotLock) {
     await loadQbittorrentSettings();
     registerTorrentIpc();
     registerIpc();
+    registerAniListAccountIpc();
     registerMediaProtocolHandler();
     registerMangaIpc(fetchCSharpImage, getMangaBookmarks());
     registerAnimeIpc();
@@ -361,6 +367,8 @@ if (!gotLock) {
 
     mainWindow = createWindow();
     createTray();
+    startLibraryRefresh();
+    void startAniListAccount();
     initAutoUpdate(() => mainWindow);
 
     /*

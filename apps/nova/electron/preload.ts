@@ -38,6 +38,7 @@ const api = {
     mutate: (command: unknown) => invoke("anime:playlist-command", command),
   },
   anime: {
+    inventories: () => invoke("anime:inventories"),
     snapshots: (ids: number[]) => invoke("anime:snapshots", ids),
     explore: (query: unknown) => invoke("anime:explore", query),
     schedule: (query: unknown) => invoke("anime:schedule", query),
@@ -68,6 +69,10 @@ const api = {
     check: (id: string) => invoke("sources:check", id),
   },
   manga: {
+    unread: (p: string, b: string, c: boolean) =>
+      invoke("manga:unread", p, b, c),
+    markChapters: (p: string, b: string, r: boolean) =>
+      invoke("manga:mark-chapters", p, b, r),
     bookmarks: () => invoke("manga:bookmarks"),
     bookmark: (kind: string, source: string, id: string, saved: boolean) =>
       invoke("manga:bookmark", kind, source, id, saved),
@@ -124,7 +129,19 @@ const api = {
     pause: (hash: string) => invoke("torrents:pause", hash),
     resume: (hash: string) => invoke("torrents:resume", hash),
   },
+  anilistAccount: {
+    status: () => invoke("anilist-account:status"),
+    authorize: (id: string) => invoke("anilist-account:authorize", id),
+    connect: (token: string) => invoke("anilist-account:connect", token),
+    disconnect: () => invoke("anilist-account:disconnect"),
+    backup: () => invoke("anilist-account:backup"),
+    exportLatest: () => invoke("anilist-account:export"),
+  },
   settings: {
+    pickImage: () => invoke("settings:pick-image"),
+    exportLocal: () => invoke("settings:export-local"),
+    importLocal: () => invoke("settings:import-local"),
+    folderStatus: () => invoke("library:folder-status"),
     patch: (value: unknown) => invoke("settings:patch", value),
     onChanged: (listener: (value: unknown) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, value: unknown) =>

@@ -1,3 +1,5 @@
+import { AnimeUnwatchedBadge } from "./completion-badges";
+import { useSettings } from "@/lib/queries";
 import type { MediaItem } from "@vestra/types";
 import { Film, Play } from "lucide-react";
 import { useState } from "react";
@@ -24,11 +26,19 @@ export interface MediaCardProps {
   onPlay?: () => void;
 }
 
-export function MediaCard({ item, detail, muted, onSelect, onPlay }: MediaCardProps) {
+export function MediaCard({
+  item,
+  detail,
+  muted,
+  onSelect,
+  onPlay,
+}: MediaCardProps) {
+  const { data: settings } = useSettings();
   const [failed, setFailed] = useState(false);
   const poster = item.images.poster ?? item.images.thumbnail;
   const showImage = Boolean(poster) && !failed;
 
+  if (item.isAdult && settings?.privacy.showAdultContent !== true) return null;
   return (
     <div
       role="button"
@@ -50,6 +60,11 @@ export function MediaCard({ item, detail, muted, onSelect, onPlay }: MediaCardPr
       >
         {showImage ? (
           <img
+            style={
+              item.isAdult && settings?.privacy.blurAdultContent
+                ? { filter: "blur(18px)" }
+                : undefined
+            }
             src={poster ?? ""}
             alt=""
             loading="lazy"
@@ -90,6 +105,7 @@ export function MediaCard({ item, detail, muted, onSelect, onPlay }: MediaCardPr
         {item.title}
       </h3>
 
+      <AnimeUnwatchedBadge item={item} />
       {detail ? <p className="meta mt-0.5">{detail}</p> : null}
     </div>
   );

@@ -1,3 +1,5 @@
+import { MangaUnreadBadge } from "../media/completion-badges";
+import { useSettings } from "@/lib/queries";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useCallback,
@@ -185,6 +187,7 @@ function MangaShelf({
       read: null,
       chapter: null,
     });
+  const { data: settings } = useSettings();
   const saved = useQuery({
     queryKey: ["manga-bookmarks"],
     queryFn: bridge.manga.bookmarks,
@@ -443,22 +446,18 @@ function MangaShelf({
             />
           ) : (
             <div className={grid}>
-              {saved.data.map((entry) =>
-                entry.kind === "catalogue" ? (
-                  <DiscoveryCard
-                    key={`catalogue:${entry.book.id}`}
-                    title={{
-                      id: Number(entry.book.id),
-                      title: entry.book.title,
-                      cover: entry.book.cover,
-                      genres: [],
-                      origin: null,
-                      status: null,
-                      score: null,
-                    }}
-                    images={images}
-                    onSelect={() =>
-                      openCatalogue({
+              {[...saved.data]
+                .sort((a, b) =>
+                  settings?.appearance.mangaLibrarySort === "alphabetical"
+                    ? a.book.title.localeCompare(b.book.title)
+                    : b.savedAt.localeCompare(a.savedAt),
+                )
+                .map((entry) =>
+                  entry.kind === "catalogue" ? (
+                    <DiscoveryCard
+                      provider={provider}
+                      key={`catalogue:${entry.book.id}`}
+                      title={{
                         id: Number(entry.book.id),
                         title: entry.book.title,
                         cover: entry.book.cover,
@@ -466,30 +465,41 @@ function MangaShelf({
                         origin: null,
                         status: null,
                         score: null,
-                      })
-                    }
-                    bookmarkControl={saveButton(
-                      "catalogue",
-                      "anilist",
-                      entry.book,
-                    )}
-                  />
-                ) : (
-                  <MangaCard
-                    key={`${entry.source}:${entry.book.id}`}
-                    book={entry.book}
-                    images={images}
-                    provider={entry.source}
-                    lookups={lookups}
-                    onOpen={() => openBook(entry.book, entry.source)}
-                    bookmarkControl={saveButton(
-                      "source",
-                      entry.source,
-                      entry.book,
-                    )}
-                  />
-                ),
-              )}
+                      }}
+                      images={images}
+                      onSelect={() =>
+                        openCatalogue({
+                          id: Number(entry.book.id),
+                          title: entry.book.title,
+                          cover: entry.book.cover,
+                          genres: [],
+                          origin: null,
+                          status: null,
+                          score: null,
+                        })
+                      }
+                      bookmarkControl={saveButton(
+                        "catalogue",
+                        "anilist",
+                        entry.book,
+                      )}
+                    />
+                  ) : (
+                    <MangaCard
+                      key={`${entry.source}:${entry.book.id}`}
+                      book={entry.book}
+                      images={images}
+                      provider={entry.source}
+                      lookups={lookups}
+                      onOpen={() => openBook(entry.book, entry.source)}
+                      bookmarkControl={saveButton(
+                        "source",
+                        entry.source,
+                        entry.book,
+                      )}
+                    />
+                  ),
+                )}
             </div>
           )}
         </section>
@@ -613,6 +623,7 @@ function MangaShelf({
             )}
           </section>
           <MangaDiscoveryShelf
+            provider={provider}
             images={images}
             onSelect={openCatalogue}
             bookmarkControl={(title) =>
@@ -693,6 +704,7 @@ function MangaCard({
           </p>
         )}
       </button>
+      <MangaUnreadBadge provider={provider} bookId={book.id} />
       {bookmarkControl}
       {issue && (
         <button

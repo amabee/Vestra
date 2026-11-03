@@ -141,3 +141,25 @@
     transition: none;
   }
 }
+@media (min-width: 901px) {
+  .settings-navigation {
+    max-height: calc(100vh - 5rem);
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  .settings-nav-item {
+    padding-block: 0.65rem;
+  }
+}
+@media (max-width: 900px) {
+  .settings-navigation nav > div > p {
+    display: none;
+  }
+}
+.settings-content[data-searching="true"] .settings-preview,
+.settings-content[data-searching="true"]
+  .settings-section:not(:has(.settings-row)):not(
+    [data-settings-search-match="true"]
+  ) {
+  display: none;
+}

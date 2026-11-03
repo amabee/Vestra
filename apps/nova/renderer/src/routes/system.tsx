@@ -1,3 +1,12 @@
+import {
+  SettingsSearchContext,
+  useSettingMatch,
+} from "@/components/settings/search";
+import {
+  ApplicationPreferences,
+  AppearancePreferences,
+  LibraryPreferences,
+} from "@/components/settings/preferences";
 import "./settings.css";
 import {
   Activity,
@@ -30,17 +39,19 @@ import { keys, useDiagnostics, useSettings } from "@/lib/queries";
 const SECTIONS = [
   {
     id: "interface",
-    label: "User Interface",
+    label: "Interface & Appearance",
     icon: Palette,
     description: "Theme, color and navigation",
-    keywords: "appearance dark light motion text accent sidebar glass",
+    keywords:
+      "appearance dark light motion text accent sidebar glass background banner color sorting alphabetical continue watching anime manga navigation preloading transparency navbar unpinned menu blur genre episode filename summary carousel",
   },
   {
     id: "app",
-    label: "App",
+    label: "Application",
     icon: SlidersHorizontal,
     description: "Startup and workspace",
-    keywords: "start home status version storage",
+    keywords:
+      "start home status version storage watch history progress default episode source spoilers adult scores extension secure anilist account backup trailers count",
   },
   {
     id: "playback",
@@ -58,10 +69,11 @@ const SECTIONS = [
   },
   {
     id: "library",
-    label: "Library",
+    label: "Library & Scanning",
     icon: FolderOpen,
     description: "Folders and scanning",
-    keywords: "media files scan local match",
+    keywords:
+      "media files scan local match directory directories automatic refresh startup advanced json configuration import export",
   },
   {
     id: "connections",
@@ -107,6 +119,8 @@ export function SettingsRoute() {
       cache.setQueryData(keys.settings, value);
     },
   });
+  const showing = (id: SettingsSection) =>
+    search.trim() ? true : active.id === id;
   const update = (patch: SettingsPatch) => save.mutate(patch);
   return (
     <Page>
@@ -136,56 +150,86 @@ export function SettingsRoute() {
             <input
               className="input w-full pl-9"
               type="search"
-              aria-label="Find a settings section"
-              placeholder="Find a section"
+              aria-label="Search settings"
+              placeholder="Search settings"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
           </label>
           <nav aria-label="Settings sections" className="mt-4 grid gap-1">
-            {SECTIONS.filter((section) =>
-              `${section.label} ${section.keywords}`
-                .toLowerCase()
-                .includes(search.toLowerCase()),
-            ).map((section) => (
-              <button
-                type="button"
-                className="settings-nav-item"
-                key={section.id}
-                aria-current={active.id === section.id ? "page" : undefined}
-                onClick={() => {
-                  save.reset();
-                  void navigate(`/settings?section=${section.id}`);
-                }}
-              >
-                <section.icon className="size-4 shrink-0" />
-                <span>
-                  <span className="block text-sm font-medium">
-                    {section.label}
-                  </span>
-                  <span className="mt-1 block text-xs text-base-content/45">
-                    {section.description}
-                  </span>
-                </span>
-              </button>
-            ))}
+            {[...SECTIONS]
+              .sort(
+                (a, b) =>
+                  [
+                    "app",
+                    "playback",
+                    "torrents",
+                    "connections",
+                    "diagnostics",
+                    "updates",
+                    "interface",
+                    "library",
+                  ].indexOf(a.id) -
+                  [
+                    "app",
+                    "playback",
+                    "torrents",
+                    "connections",
+                    "diagnostics",
+                    "updates",
+                    "interface",
+                    "library",
+                  ].indexOf(b.id),
+              )
+              .map((section) => (
+                <div key={section.id} className="grid">
+                  {["app", "interface", "library"].includes(section.id) && (
+                    <p className="px-3 pt-4 pb-1 text-xs uppercase tracking-wider text-base-content/40">
+                      {section.id === "app"
+                        ? "Application"
+                        : section.id === "interface"
+                          ? "Interface & Appearance"
+                          : "Library & Scanning"}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    className="settings-nav-item"
+                    key={section.id}
+                    aria-current={active.id === section.id ? "page" : undefined}
+                    onClick={() => {
+                      setSearch("");
+                      save.reset();
+                      void navigate(`/settings?section=${section.id}`);
+                    }}
+                  >
+                    <section.icon className="size-4 shrink-0" />
+                    <span>
+                      <span className="block text-sm font-medium">
+                        {section.label}
+                      </span>
+                      <span className="mt-1 block text-xs text-base-content/45">
+                        {section.description}
+                      </span>
+                    </span>
+                  </button>
+                </div>
+              ))}
           </nav>
-          {SECTIONS.every(
-            (section) =>
-              !`${section.label} ${section.keywords}`
-                .toLowerCase()
-                .includes(search.toLowerCase()),
-          ) && (
-            <p className="p-3 text-sm text-base-content/50">
-              No matching section.
-            </p>
-          )}
         </aside>
-        <div className="settings-content" key={active.id}>
+        <div
+          className="settings-content"
+          data-searching={!!search.trim()}
+          key={active.id}
+        >
           <div className="mb-6">
-            <h2 className="font-serif text-3xl">{active.label}</h2>
+            <h2 className="font-serif text-3xl">
+              {search.trim() ? "Search results" : active.label}
+            </h2>
             <p className="mt-2 text-sm text-base-content/50">
-              {active.description}
+              {search.trim()
+                ? "Matching preferences across all categories"
+                : active.description}
             </p>
           </div>
           {isPending && (
@@ -216,134 +260,156 @@ export function SettingsRoute() {
             </p>
           )}
           {settings && (
-            <fieldset
-              disabled={save.isPending}
-              className="min-w-0 disabled:opacity-65"
-            >
-              {active.id === "interface" && (
-                <InterfaceSettings settings={settings} update={update} />
-              )}
-              {active.id === "app" && (
-                <>
-                  <section className="settings-section">
-                    <Setting
-                      label="Start page"
-                      description="Where Vestra opens on the next launch."
-                    >
-                      <select
-                        aria-label="Start page"
-                        className="select"
-                        value={settings.app.startupPage}
-                        onChange={(e) =>
-                          update({
-                            app: {
-                              startupPage: e.target
-                                .value as Settings["app"]["startupPage"],
-                            },
-                          })
-                        }
+            <SettingsSearchContext.Provider value={search}>
+              <fieldset
+                disabled={save.isPending}
+                className="min-w-0 disabled:opacity-65"
+              >
+                {showing("interface") && (
+                  <>
+                    <InterfaceSettings settings={settings} update={update} />
+                    <AppearancePreferences
+                      settings={settings}
+                      update={update}
+                    />
+                  </>
+                )}
+                {showing("app") && (
+                  <>
+                    <section className="settings-section">
+                      <Setting
+                        label="Start page"
+                        description="Where Vestra opens on the next launch."
                       >
-                        {[
-                          ["/", "Home"],
-                          ["/discover", "Discover"],
-                          ["/anime", "Anime"],
-                          ["/manga", "Manga"],
-                          ["/films", "Films"],
-                          ["/series", "Series"],
-                          ["/library", "Library"],
-                        ].map(([value, label]) => (
-                          <option key={value} value={value}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                    </Setting>
-                    <Switch
-                      label="Show status bar"
-                      description="Keep library counts and update notices along the bottom."
-                      checked={settings.app.showStatusBar}
-                      onChange={(v) => update({ app: { showStatusBar: v } })}
-                    />
-                  </section>
-                  <section className="settings-section">
-                    <h3 className="font-serif text-2xl">This workspace</h3>
-                    <Row
-                      label="Data directory"
-                      value={diagnostics?.dataDir ?? "Loading…"}
-                      mono
-                    />
-                    <Row
-                      label="Files indexed"
-                      value={String(diagnostics?.counts.localFiles ?? 0)}
-                    />
-                    <Row
-                      label="Media folders"
-                      value={String(settings.library.folders.length)}
-                    />
-                  </section>
-                </>
-              )}
-              {active.id === "playback" && (
-                <PlaybackSettings settings={settings} update={update} />
-              )}
-              {active.id === "torrents" && (
-                <>
-                  <section className="settings-section">
-                    <Switch
-                      label="Enable qBittorrent"
-                      description="Connect Vestra's Downloads page to your own torrent client."
-                      checked={settings.downloads.qbittorrentEnabled}
-                      onChange={(v) =>
-                        update({ downloads: { qbittorrentEnabled: v } })
-                      }
-                    />
-                    <Setting
-                      label="Download category"
-                      description="Vestra lists and controls transfers only in this category."
-                    >
-                      <CommitText
-                        label="Download category"
-                        value={settings.downloads.category}
-                        onCommit={(v) => update({ downloads: { category: v } })}
+                        <select
+                          aria-label="Start page"
+                          className="select"
+                          value={settings.app.startupPage}
+                          onChange={(e) =>
+                            update({
+                              app: {
+                                startupPage: e.target
+                                  .value as Settings["app"]["startupPage"],
+                              },
+                            })
+                          }
+                        >
+                          {[
+                            ["/", "Home"],
+                            ["/discover", "Discover"],
+                            ["/anime", "Anime"],
+                            ["/manga", "Manga"],
+                            ["/films", "Films"],
+                            ["/series", "Series"],
+                            ["/library", "Library"],
+                          ].map(([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </Setting>
+                      <Switch
+                        label="Show status bar"
+                        description="Keep library counts and update notices along the bottom."
+                        checked={settings.app.showStatusBar}
+                        onChange={(v) => update({ app: { showStatusBar: v } })}
                       />
-                    </Setting>
-                    <Setting
-                      label="Refresh transfers"
-                      description="Poll only while Downloads is open."
-                    >
-                      <select
-                        aria-label="Refresh transfers"
-                        className="select"
-                        value={settings.downloads.pollIntervalMs}
-                        onChange={(e) =>
-                          update({
-                            downloads: {
-                              pollIntervalMs: Number(e.target.value),
-                            },
-                          })
+                    </section>
+                    <ApplicationPreferences
+                      settings={settings}
+                      update={update}
+                    />
+                    <section className="settings-section">
+                      <h3 className="font-serif text-2xl">This workspace</h3>
+                      <Row
+                        label="Data directory"
+                        value={diagnostics?.dataDir ?? "Loading…"}
+                        mono
+                      />
+                      <Row
+                        label="Files indexed"
+                        value={String(diagnostics?.counts.localFiles ?? 0)}
+                      />
+                      <Row
+                        label="Media folders"
+                        value={String(settings.library.folders.length)}
+                      />
+                    </section>
+                  </>
+                )}
+                {showing("playback") && (
+                  <PlaybackSettings settings={settings} update={update} />
+                )}
+                {showing("torrents") && (
+                  <>
+                    <section className="settings-section">
+                      <Switch
+                        label="Enable qBittorrent"
+                        description="Connect Vestra's Downloads page to your own torrent client."
+                        checked={settings.downloads.qbittorrentEnabled}
+                        onChange={(v) =>
+                          update({ downloads: { qbittorrentEnabled: v } })
                         }
+                      />
+                      <Setting
+                        label="Download category"
+                        description="Vestra lists and controls transfers only in this category."
                       >
-                        {[3000, 5000, 10000, 30000].map((v) => (
-                          <option key={v} value={v}>
-                            {v / 1000} seconds
-                          </option>
-                        ))}
-                      </select>
-                    </Setting>
-                  </section>
-                  <TorrentConnection />
-                </>
-              )}
-              {active.id === "library" && <MediaFolders />}
-              {active.id === "connections" && <TmdbConnection />}
-              {active.id === "diagnostics" && (
-                <>
-                  <SourceHealthPanel />
-                  <PlaybackDiagnosticsPanel />
-                </>
-              )}
-              {active.id === "updates" && <AppUpdatesPanel />}
-            </fieldset>
+                        <CommitText
+                          label="Download category"
+                          value={settings.downloads.category}
+                          onCommit={(v) =>
+                            update({ downloads: { category: v } })
+                          }
+                        />
+                      </Setting>
+                      <Setting
+                        label="Refresh transfers"
+                        description="Poll only while Downloads is open."
+                      >
+                        <select
+                          aria-label="Refresh transfers"
+                          className="select"
+                          value={settings.downloads.pollIntervalMs}
+                          onChange={(e) =>
+                            update({
+                              downloads: {
+                                pollIntervalMs: Number(e.target.value),
+                              },
+                            })
+                          }
+                        >
+                          {[3000, 5000, 10000, 30000].map((v) => (
+                            <option key={v} value={v}>
+                              {v / 1000} seconds
+                            </option>
+                          ))}
+                        </select>
+                      </Setting>
+                    </section>
+                    <TorrentConnection />
+                  </>
+                )}
+                {showing("library") && (
+                  <>
+                    {(!search.trim() ||
+                      /folder|director|primary|additional|local library/i.test(
+                        search,
+                      )) && <MediaFolders />}
+                    <LibraryPreferences settings={settings} update={update} />
+                  </>
+                )}
+                {!search.trim() && showing("connections") && <TmdbConnection />}
+                {!search.trim() && showing("diagnostics") && (
+                  <>
+                    <SourceHealthPanel />
+                    <PlaybackDiagnosticsPanel />
+                  </>
+                )}
+                {!search.trim() && showing("updates") && <AppUpdatesPanel />}
+              </fieldset>
+            </SettingsSearchContext.Provider>
           )}
         </div>
       </div>
@@ -359,6 +425,8 @@ function Setting({
   description?: string;
   children: ReactNode;
 }) {
+  const matches = useSettingMatch(label, description);
+  if (!matches) return null;
   return (
     <div className="settings-row">
       <div>
@@ -801,7 +869,15 @@ function MediaFolders() {
     queryFn: () => bridge.library.folders(),
   });
 
+  const folderStatus = useQuery({
+    queryKey: ["library-folder-status"],
+    queryFn: bridge.settings.folderStatus,
+    refetchInterval: 30000,
+  });
+
   const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: keys.settings });
+    void queryClient.invalidateQueries({ queryKey: ["library-folder-status"] });
     void queryClient.invalidateQueries({ queryKey: ["library-folders"] });
     void queryClient.invalidateQueries({ queryKey: keys.library });
     void queryClient.invalidateQueries({ queryKey: keys.libraryEntries });
@@ -897,7 +973,7 @@ function MediaFolders() {
         />
       ) : (
         <div>
-          {folders.map((folder) => (
+          {folders.map((folder, index) => (
             <div
               key={folder.id}
               className="group flex items-center gap-4 border-b rule px-2 py-2.5"
@@ -907,7 +983,12 @@ function MediaFolders() {
                 className="min-w-0 flex-1 truncate font-mono text-[12px] text-base-content/75"
                 title={folder.path}
               >
+                {index === 0 ? "Primary · " : "Additional · "}
                 {folder.path}
+                {folderStatus.data?.find((v) => v.id === folder.id)
+                  ?.available === false
+                  ? " · Unavailable (records retained)"
+                  : ""}
               </span>
               <button
                 type="button"
@@ -922,6 +1003,11 @@ function MediaFolders() {
         </div>
       )}
 
+      {(pick.error || remove.error) && (
+        <p role="alert" className="text-error">
+          {(pick.error || remove.error)?.message}
+        </p>
+      )}
       {scan.error ? (
         <p className="mt-3 text-xs text-error">
           {(scan.error as Error).message}

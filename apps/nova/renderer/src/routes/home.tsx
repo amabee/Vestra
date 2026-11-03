@@ -3,7 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { mediaKey, type MediaItem, type WatchlistStatus } from "@vestra/types";
 import { bridge } from "@/lib/bridge";
-import { useWatchlist, useHistory, useProgress } from "@/lib/queries";
+import {
+  useSettings,
+  useWatchlist,
+  useHistory,
+  useProgress,
+} from "@/lib/queries";
 import {
   AnimeHubHeader,
   useAnimeHub,
@@ -17,6 +22,7 @@ import { animeHomeModel } from "@/components/media/anime-hub-model";
 import { playlistKey } from "@/components/media/playlist-picker";
 
 export function HomeRoute() {
+  const { data: settings } = useSettings();
   const hub = useAnimeHub(),
     controls = useAnimeHubActions(hub.provider);
   const watchlist = useWatchlist(),
@@ -84,34 +90,50 @@ export function HomeRoute() {
     }[],
     resume = false,
   ) =>
-    rows.map((row) => (
-      <AnimeHubCard
-        key={mediaKey(row.item)}
-        title={{
-          item: row.item,
-          totalEpisodes: null,
-          airedEpisodes: null,
-          season: null,
-          format: null,
-        }}
-        provider={hub.provider}
-        status={row.status}
-        percent={resume ? row.progress?.percent : undefined}
-        onPlay={() =>
-          controls.actions.mutate({ item: row.item, provider: hub.provider })
+    [...rows]
+      .sort((a, b) => {
+        const order = resume
+          ? settings?.appearance.continueWatchingSort
+          : settings?.appearance.animeLibrarySort;
+        if (order === "alphabetical")
+          return a.item.title.localeCompare(b.item.title);
+        if (order === "release") return (b.item.year ?? 0) - (a.item.year ?? 0);
+        if (!resume && order === "added") {
+          const added = (item: MediaItem) =>
+            watchlist.data?.find((v) => mediaKey(v.ref) === mediaKey(item))
+              ?.addedAt ?? 0;
+          return added(b.item) - added(a.item);
         }
-        disabled={!hub.available}
-        busy={
-          controls.actions.isPending &&
-          mediaKey(controls.actions.variables.item) === mediaKey(row.item)
-        }
-        onPlaylist={() => controls.setSaving(row.item)}
-        working={controls.status.isPending}
-        onStatus={(status) =>
-          controls.status.mutate({ item: row.item, status })
-        }
-      />
-    ));
+        return 0;
+      })
+      .map((row) => (
+        <AnimeHubCard
+          key={mediaKey(row.item)}
+          title={{
+            item: row.item,
+            totalEpisodes: null,
+            airedEpisodes: null,
+            season: null,
+            format: null,
+          }}
+          provider={hub.provider}
+          status={row.status}
+          percent={resume ? row.progress?.percent : undefined}
+          onPlay={() =>
+            controls.actions.mutate({ item: row.item, provider: hub.provider })
+          }
+          disabled={!hub.available}
+          busy={
+            controls.actions.isPending &&
+            mediaKey(controls.actions.variables.item) === mediaKey(row.item)
+          }
+          onPlaylist={() => controls.setSaving(row.item)}
+          working={controls.status.isPending}
+          onStatus={(status) =>
+            controls.status.mutate({ item: row.item, status })
+          }
+        />
+      ));
   return (
     <div className="anime-hub">
       <AnimeHubHeader
@@ -119,6 +141,26 @@ export function HomeRoute() {
         lead="Pick up an episode, or find the next one on your list."
         hub={hub}
       />
+      {settings?.appearance.homeBanner !== "none" &&
+        (() => {
+          const image =
+            settings?.appearance.homeBanner === "custom"
+              ? settings.appearance.bannerImage
+                ? `vestra-media://appearance/bannerImage?v=${encodeURIComponent(settings.appearance.bannerImage)}`
+                : null
+              : (model.continueWatching.find((r) => r.item.isAdult !== true)
+                  ?.item.images.backdrop ??
+                model.groups
+                  .flatMap((g) => g.items)
+                  .find(
+                    (r) => r.item.isAdult !== true && r.item.images.backdrop,
+                  )?.item.images.backdrop);
+          return image ? (
+            <div className="home-art-banner" aria-label="Home banner">
+              <img src={image} alt="" />
+            </div>
+          ) : null;
+        })()}
       {failure && (
         <div className="hub-notice" role="alert">
           <h2>Your lists could not be fully loaded</h2>

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, useSearchParams } from "react-router";
 import { bridge } from "@/lib/bridge";
-import { keys, useLibrary } from "@/lib/queries";
+import { keys, useLibrary, useSettings } from "@/lib/queries";
 import {
   preferredAnimeSource,
   rememberAnimeSource,
@@ -24,9 +24,16 @@ export function useAnimeHub() {
     refetchInterval: 5000,
   });
   const files = useLibrary();
+  const { data: settings } = useSettings();
+  const preferred = settings?.playback.defaultEpisodeSource;
   const hasLocal = !!files.data?.length;
   const provider =
-    params.get("source") ?? preferredAnimeSource(sources.data, hasLocal);
+    params.get("source") ??
+    (preferred &&
+    (sources.data?.some((s) => s.id === preferred) ||
+      (preferred === "local" && hasLocal))
+      ? preferred
+      : preferredAnimeSource(sources.data, hasLocal));
   const patch = (values: Record<string, string>) => {
     // Router functional setters do not queue like React state setters.
     const next = new URLSearchParams(latestParams.current);

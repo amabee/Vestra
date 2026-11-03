@@ -1,3 +1,5 @@
+import { getAnimeInventories } from "./anime-inventories";
+import type { AnimeSourceEpisodes } from "../shared/anime";
 import { getWatchlist, getHistory, getAllProgress } from "@vestra/storage";
 import { mediaRefSchema, mediaItemSchema } from "@vestra/types";
 import { ipcMain } from "electron";
@@ -12,6 +14,15 @@ import { AnimeSchedule } from "./anime-schedule";
 import { AnimeExplore } from "./anime-explore";
 import { getStreamSourceRegistry, getProviderRegistry } from "./services";
 export function registerAnimeIpc() {
+  const inventories = getAnimeInventories(getDriver());
+  const remember = async (
+    work: AnimeSourceEpisodes | null | Promise<AnimeSourceEpisodes | null>,
+  ) => {
+    const value = await work;
+    if (value) await inventories.remember(value).catch(() => undefined);
+    return value;
+  };
+  ipcMain.handle("anime:inventories", () => inventories.list());
   const explore = new AnimeExplore();
   ipcMain.handle("anime:snapshots", (_e, ids) => explore.snapshots(ids));
   ipcMain.handle("anime:explore", (_e, query) => explore.load(query));
@@ -49,10 +60,11 @@ export function registerAnimeIpc() {
           "builtin",
         )
       ).filter((entry) => entry.kind === "file");
-      return { item, queue };
+      return remember({ item, queue, provider: "local" });
     }
-    if (item.source === id) return service.open(item);
-    if (item.source.startsWith("ext-")) return service.resolve(id, item);
+    if (item.source === id) return remember(service.open(item));
+    if (item.source.startsWith("ext-"))
+      return remember(service.resolve(id, item));
     const details = await getProviderRegistry()
       .forRef(item)
       ?.getDetails?.(item, {
@@ -61,7 +73,7 @@ export function registerAnimeIpc() {
       });
     if (!details)
       throw Error("Anime information could not be loaded. Try again.");
-    return service.resolve(id, details);
+    return remember(service.resolve(id, details));
   });
   ipcMain.handle("anime:sources", () => service.list());
   ipcMain.handle("anime:search", (_e, id, query) =>
@@ -99,9 +111,11 @@ export function registerAnimeIpc() {
           "This source title is no longer known. Search it again in Anime.",
         );
       const selected = z.string().min(1).max(120).parse(id);
-      return selected === saved.source
-        ? service.open(saved)
-        : service.resolve(selected, saved);
+      return remember(
+        selected === saved.source
+          ? service.open(saved)
+          : service.resolve(selected, saved),
+      );
     }
 
     const item = await getProviderRegistry()
@@ -114,12 +128,14 @@ export function registerAnimeIpc() {
       throw new Error(
         "Anime information is unavailable. Retry the title lookup.",
       );
-    return service.resolve(z.string().min(1).max(120).parse(id), item);
+    return remember(
+      service.resolve(z.string().min(1).max(120).parse(id), item),
+    );
   });
   ipcMain.handle("anime:title", (_e, handle) =>
     service.title(z.string().uuid().parse(handle)),
   );
   ipcMain.handle("anime:episodes", (_e, handle) =>
-    service.episodes(z.string().uuid().parse(handle)),
+    remember(service.episodes(z.string().uuid().parse(handle))),
   );
 }

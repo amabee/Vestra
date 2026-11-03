@@ -34,6 +34,7 @@ export const animeExploreQuery = z.object({
   search: z.string().trim().max(200).default(""),
 });
 const mediaSchema = z.object({
+  isAdult: z.boolean().nullish(),
   id: z.number().int().positive(),
   title: z.object({
     english: z.string().max(500).nullish(),
@@ -75,7 +76,7 @@ const responseSchema = z.object({
   upcoming: pageSchema.optional(),
   movies: pageSchema.optional(),
 });
-const fields = `id title { english romaji native } description(asHtml:false)
+const fields = `id isAdult title { english romaji native } description(asHtml:false)
   coverImage { extraLarge large medium color } bannerImage averageScore popularity genres episodes duration status format season seasonYear siteUrl
   nextAiringEpisode { episode airingAt }`;
 const common = `type:ANIME,isAdult:false,genre:$genre,search:$search`;

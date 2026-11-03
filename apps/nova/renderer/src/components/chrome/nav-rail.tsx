@@ -1,3 +1,6 @@
+import { useEffect, useRef } from "react";
+import { useSettings } from "@/lib/queries";
+import { preloadDestination } from "@/lib/navigation-preload";
 import { NavLink } from "react-router";
 import {
   Download,
@@ -56,6 +59,8 @@ const SECTIONS = [
 ] as const;
 
 export function NavRail() {
+  const { data: settings } = useSettings();
+  const unpinned = settings?.appearance.unpinnedMenuItems ?? [];
   return (
     <nav
       aria-label="Main navigation"
@@ -63,11 +68,40 @@ export function NavRail() {
     >
       {SECTIONS.map((section) => (
         <div key={section.label} className="flex flex-col items-center gap-1">
-          {section.items.map((item) => (
-            <RailLink key={item.to} {...item} />
-          ))}
+          {section.items
+            .filter(
+              (item) =>
+                !unpinned.includes(item.to as (typeof unpinned)[number]),
+            )
+            .map((item) => (
+              <RailLink key={item.to} {...item} />
+            ))}
         </div>
       ))}
+      {unpinned.length > 0 && (
+        <details className="relative">
+          <summary className="cursor-pointer px-2 py-1 text-xs">More</summary>
+          <div className="absolute left-full bottom-0 z-30 grid gap-1 border rule bg-base-200 p-2 min-w-40">
+            {SECTIONS.flatMap<{
+              to: string;
+              label: string;
+              icon: typeof Compass;
+            }>((s) => [...s.items])
+              .filter((item) =>
+                unpinned.includes(item.to as (typeof unpinned)[number]),
+              )
+              .map((item) => (
+                <NavLink
+                  className="px-2 py-1 text-sm hover:text-primary"
+                  key={item.to}
+                  to={item.to}
+                >
+                  {item.label}
+                </NavLink>
+              ))}
+          </div>
+        </details>
+      )}
     </nav>
   );
 }
@@ -81,8 +115,40 @@ function RailLink({
   label: string;
   icon: typeof Compass;
 }) {
+  const { data: settings } = useSettings();
+  const mode = settings?.appearance.navigationPreloading ?? "intent";
+  const anchor = useRef<HTMLAnchorElement>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancel = () => {
+    if (timer.current) clearTimeout(timer.current);
+  };
+  const preload = () => {
+    void preloadDestination(to).catch(() => undefined);
+  };
+  useEffect(() => {
+    if (mode !== "viewport" || !anchor.current) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) {
+        preload();
+        observer.disconnect();
+      }
+    });
+    observer.observe(anchor.current);
+    return () => observer.disconnect();
+  }, [mode, to]);
+  useEffect(() => cancel, [mode]);
   return (
     <NavLink
+      ref={anchor}
+      onMouseEnter={() => {
+        if (mode === "intent" || mode === "faster-intent")
+          timer.current = setTimeout(preload, mode === "intent" ? 180 : 40);
+      }}
+      onMouseLeave={cancel}
+      onFocus={() => {
+        if (mode !== "disabled") preload();
+      }}
+      onBlur={cancel}
       to={to}
       end={to === "/"}
       title={label}

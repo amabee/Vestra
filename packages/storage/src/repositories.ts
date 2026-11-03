@@ -2,7 +2,6 @@ import { z } from "zod";
 
 import { MAX_RECENT_SEARCHES, STORAGE_KEYS } from "@vestra/config/constants";
 import {
-  DEFAULT_SETTINGS,
   episodeBookmarkSchema,
   historyEntrySchema,
   isSameMedia,
@@ -10,6 +9,7 @@ import {
   mediaKey,
   recentSearchSchema,
   settingsSchema,
+  recoverSettings,
   watchProgressSchema,
   watchlistEntrySchema,
   type EpisodeBookmark,
@@ -89,12 +89,11 @@ export function progressKey(
  * ========================================================================== */
 
 export async function getSettings(driver: StorageDriver): Promise<Settings> {
-  return readDocument(
-    driver,
-    STORAGE_KEYS.settings,
-    settingsSchema,
-    DEFAULT_SETTINGS,
-  );
+  try {
+    return recoverSettings(await driver.read(STORAGE_KEYS.settings));
+  } catch {
+    return settingsSchema.parse({});
+  }
 }
 
 export async function saveSettings(

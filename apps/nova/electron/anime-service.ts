@@ -29,13 +29,11 @@ export class AnimeService {
   private known = new WeakMap<StreamSourceProvider, Map<string, Anime>>();
   constructor(private registry: StreamSourceRegistry) {}
   list() {
-    return this.registry
-      .supporting("anime")
-      .map((source) => ({
-        id: source.id,
-        name: source.name,
-        categories: source.browseCategories ?? [],
-      }));
+    return this.registry.supporting("anime").map((source) => ({
+      id: source.id,
+      name: source.name,
+      categories: source.browseCategories ?? [],
+    }));
   }
   private requireCurrent(source: StreamSourceProvider) {
     if (
@@ -224,6 +222,11 @@ export class AnimeService {
       rating: {},
       isSeries: true,
     });
-    return { item, queue };
+    return {
+      item,
+      queue,
+      provider: source.id,
+      episodesComplete: episodes.length <= 2000,
+    };
   }
 }

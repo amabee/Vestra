@@ -1,3 +1,9 @@
+import { getAnimeInventories } from "./anime-inventories";
+import { constants as fsConstants } from "node:fs";
+import { refreshLocalLibrary } from "./library-refresh";
+import { localConfigurationSchema } from "@vestra/types";
+import { readFile, writeFile, stat, access } from "node:fs/promises";
+import { resolve, normalize } from "node:path";
 import { createSettingsPatcher } from "./settings-service";
 import { playbackDiagnostics } from "./playback-diagnostics";
 import { playbackFailureReply } from "../shared/playback-errors";
@@ -29,7 +35,6 @@ import {
   removeFromWatchlist,
   remapEpisodeKeys,
   saveProgress,
-  saveSettings,
   toggleBookmark,
 } from "@vestra/storage";
 import {
@@ -62,12 +67,7 @@ import {
   watchlistStatusSchema,
   type MediaItem,
 } from "@vestra/types";
-import {
-  getSkipTimes,
-  matchLibrary,
-  reportSkipTime,
-  scanLibrary,
-} from "@vestra/providers";
+import { getSkipTimes, matchLibrary, reportSkipTime } from "@vestra/providers";
 import {
   app,
   ipcMain,
@@ -248,15 +248,80 @@ export function registerDataIpc(): void {
 
   handle("settings:get", () => getSettings(getDriver()));
 
-  handle("settings:save", (raw: unknown) =>
-    saveSettings(getDriver(), parse(settingsSchema, raw, "settings")),
-  );
-
   const patchSettings = createSettingsPatcher(getDriver(), (saved) => {
     for (const window of BrowserWindow.getAllWindows())
       window.webContents.send("settings:changed", saved);
   });
+  handle("settings:save", (raw: unknown) => {
+    const value = parse(settingsSchema, raw, "settings");
+    return patchSettings.transform(() => value);
+  });
   handle("settings:patch", (raw: unknown) => patchSettings(raw));
+  handle("settings:pick-image", async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ["openFile"],
+      filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp"] }],
+    });
+    if (result.canceled || !result.filePaths[0]) return null;
+    const file = result.filePaths[0];
+    if (
+      !/\.(png|jpe?g|webp)$/i.test(file) ||
+      (await stat(file)).size > 20 * 1024 * 1024
+    )
+      throw new Error("Choose a PNG, JPEG or WebP smaller than 20 MB.");
+    return file;
+  });
+  handle("settings:export-local", async () => {
+    const result = await dialog.showSaveDialog({
+      title: "Export local configuration",
+      defaultPath: "vestra-local-config.json",
+      filters: [{ name: "JSON configuration", extensions: ["json"] }],
+    });
+    if (result.canceled || !result.filePath) return false;
+    const settings = await getSettings(getDriver());
+    const { folders, ...library } = settings.library;
+    await writeFile(
+      result.filePath,
+      JSON.stringify(
+        { format: "vestra-local-config", version: 1, library },
+        null,
+        2,
+      ),
+      { encoding: "utf8", mode: 0o600 },
+    );
+    return true;
+  });
+  handle("settings:import-local", async () => {
+    const result = await dialog.showOpenDialog({
+      title: "Import local configuration",
+      properties: ["openFile"],
+      filters: [{ name: "JSON configuration", extensions: ["json"] }],
+    });
+    if (result.canceled || !result.filePaths[0]) return null;
+    const file = result.filePaths[0];
+    if ((await stat(file)).size > 65536)
+      throw new Error("Configuration must be smaller than 64 KB.");
+    const config = localConfigurationSchema.parse(
+      JSON.parse(await readFile(file, "utf8")),
+    );
+    return patchSettings({ library: config.library });
+  });
+  handle("library:folder-status", async () => {
+    const settings = await getSettings(getDriver());
+    return Promise.all(
+      settings.library.folders.map(async (folder) => {
+        try {
+          await access(folder.path, fsConstants.R_OK);
+          return {
+            id: folder.id,
+            available: (await stat(folder.path)).isDirectory(),
+          };
+        } catch {
+          return { id: folder.id, available: false };
+        }
+      }),
+    );
+  });
 
   handle("app:data-dir", () => resolveDataDir());
 
@@ -349,13 +414,22 @@ export function registerDataIpc(): void {
       return (await getScreenService().open(item, selectedSource)).queue;
     }
 
-    return resolveCataloguePlayback(
+    const queue = await resolveCataloguePlayback(
       getProviderRegistry(),
       getAdapterRegistry(),
       getStreamSourceRegistry(),
       ref,
       selectedSource,
     );
+    if (ref.kind === "anime" && queue.some((entry) => entry.kind === "file"))
+      await getAnimeInventories(getDriver())
+        .remember({
+          item: ref,
+          provider: "local",
+          queue: queue.filter((entry) => entry.kind === "file"),
+        })
+        .catch(() => undefined);
+    return queue;
   });
   handle("playback:qualities", (raw: unknown) =>
     remoteQualities(
@@ -416,9 +490,11 @@ export function registerDataIpc(): void {
 
   handle("history:list", () => getHistory(getDriver()));
 
-  handle("history:add", (raw: unknown) =>
-    addHistoryEntry(getDriver(), parse(historyAddSchema, raw, "history entry")),
-  );
+  handle("history:add", async (raw: unknown) => {
+    const input = parse(historyAddSchema, raw, "history entry");
+    if (!(await getSettings(getDriver())).privacy.trackHistory) return null;
+    return addHistoryEntry(getDriver(), input);
+  });
 
   handle("history:clear", () => clearHistory(getDriver()));
 
@@ -515,9 +591,8 @@ export function registerDataIpc(): void {
   /**
    * Pick a folder through the OS dialog rather than a text field.
    *
-   * A typed path is the one place a user can hand the scanner something that
-   * does not exist, or that they cannot read. The native picker cannot produce
-   * either, so the whole class of error disappears.
+   * Validate after selection too: a removable drive or network folder can
+   * disappear while the dialog is open. Stored records remain untouched.
    */
   handle("library:pick-folder", async () => {
     const result = await dialog.showOpenDialog({
@@ -528,29 +603,39 @@ export function registerDataIpc(): void {
     if (result.canceled || !result.filePaths[0]) return null;
 
     const chosen = result.filePaths[0];
-    const driver = getDriver();
-    const settings = await getSettings(driver);
-
-    if (settings.library.folders.some((folder) => folder.path === chosen)) {
-      return settings.library.folders;
-    }
-
-    const updated = await saveSettings(driver, {
-      ...settings,
-      library: {
-        ...settings.library,
-        folders: [
-          ...settings.library.folders,
-          {
-            id: randomUUID(),
-            path: chosen,
-            label: null,
-            enabled: true,
-            lastScannedAt: null,
-            fileCount: 0,
-          },
-        ],
-      },
+    await access(chosen, fsConstants.R_OK);
+    if (!(await stat(chosen)).isDirectory())
+      throw new Error("Choose an accessible directory.");
+    const updated = await patchSettings.transform((settings) => {
+      if (
+        settings.library.folders.some(
+          (folder) =>
+            normalize(resolve(folder.path))
+              .toLowerCase()
+              .replace(/[\\/]+$/, "") ===
+            normalize(resolve(chosen))
+              .toLowerCase()
+              .replace(/[\\/]+$/, ""),
+        )
+      )
+        return settings;
+      return {
+        ...settings,
+        library: {
+          ...settings.library,
+          folders: [
+            ...settings.library.folders,
+            {
+              id: randomUUID(),
+              path: chosen,
+              label: null,
+              enabled: true,
+              lastScannedAt: null,
+              fileCount: 0,
+            },
+          ],
+        },
+      };
     });
 
     return updated.library.folders;
@@ -558,16 +643,13 @@ export function registerDataIpc(): void {
 
   handle("library:remove-folder", async (raw: unknown) => {
     const id = parse(z.string().min(1).max(200), raw, "folder id");
-    const driver = getDriver();
-    const settings = await getSettings(driver);
-
-    const updated = await saveSettings(driver, {
+    const updated = await patchSettings.transform((settings) => ({
       ...settings,
       library: {
         ...settings.library,
         folders: settings.library.folders.filter((folder) => folder.id !== id),
       },
-    });
+    }));
 
     return updated.library.folders;
   });
@@ -579,25 +661,7 @@ export function registerDataIpc(): void {
    * identifying them leaves the library in a state the UI cannot present:
    * paths with no titles, no artwork and nothing to link to.
    */
-  handle("library:scan", async () => {
-    const driver = getDriver();
-    const settings = await getSettings(driver);
-
-    const scan = await scanLibrary(driver, settings.library);
-
-    const match = settings.library.autoMatchMetadata
-      ? await matchLibrary(driver, getProviderRegistry())
-      : { matched: 0, unmatched: 0 };
-
-    return {
-      scanned: scan.scanned,
-      added: scan.added,
-      removed: scan.removed,
-      errors: scan.errors,
-      matched: match.matched,
-      unmatched: match.unmatched,
-    };
-  });
+  handle("library:scan", () => refreshLocalLibrary());
 
   /**
    * Identify everything again, including files that already carry a match.
@@ -674,11 +738,10 @@ export function registerDataIpc(): void {
       "registry list",
     );
 
-    const settings = await getSettings(getDriver());
-    const saved = await saveSettings(getDriver(), {
+    const saved = await patchSettings.transform((settings) => ({
       ...settings,
       extensions: { ...settings.extensions, registries },
-    });
+    }));
 
     return saved.extensions.registries;
   });

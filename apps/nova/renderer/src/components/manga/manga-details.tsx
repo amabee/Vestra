@@ -1,5 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { MediaBanner, MediaPageBackground } from "../media/media-banner";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { MangaUnreadBadge } from "../media/completion-badges";
+import { useSettings } from "@/lib/queries";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   BookOpen,
@@ -36,6 +39,13 @@ export function MangaDetailsPage({
   catalogueId,
   ...props
 }: Shared & { book?: MangaBook; catalogueId?: number }) {
+  const cache = useQueryClient();
+  const { data: settings } = useSettings();
+  const mark = useMutation({
+    mutationFn: (read: boolean) =>
+      bridge.manga.markChapters(props.provider, book!.id, read),
+    onSuccess: () => cache.invalidateQueries({ queryKey: ["manga-unread"] }),
+  });
   const info = useQuery({
     queryKey: catalogueId
       ? ["manga-info", catalogueId]
@@ -55,6 +65,10 @@ export function MangaDetailsPage({
     staleTime: 30_000,
     retry: false,
   });
+  useEffect(() => {
+    if (chapters.data)
+      void cache.invalidateQueries({ queryKey: ["manga-unread"] });
+  }, [chapters.data, cache]);
   const progress = useQuery({
     queryKey: ["manga", props.provider, book?.id, "progress"],
     queryFn: () => bridge.manga.progress(props.provider, book!.id),
@@ -72,6 +86,24 @@ export function MangaDetailsPage({
     queryFn: () => bridge.manga.cover(props.provider, book!.id, false),
     enabled: !!book,
     staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const backgroundHandle = artwork.data?.cover || book?.cover || data?.cover;
+  const backgroundArt = useQuery({
+    queryKey: ["manga-cover", backgroundHandle],
+    queryFn: () => props.images.load(backgroundHandle!),
+    enabled: !!backgroundHandle,
+    staleTime: Infinity,
+    retry: false,
+  });
+  const bannerArt = useQuery({
+    queryKey: ["manga-cover", data?.banner],
+    queryFn: () => props.images.load(data!.banner!),
+    enabled:
+      !!data?.banner &&
+      (settings?.appearance.mediaBannerAppearance !== "hide" ||
+        !!settings?.appearance.mediaBlurredBackground),
+    staleTime: Infinity,
     retry: false,
   });
   const ordered = chapterSequence(chapters.data ?? [], "", "");
@@ -92,6 +124,7 @@ export function MangaDetailsPage({
   if (data?.volumes != null) facts.push(["Volumes", String(data.volumes)]);
   return (
     <article className="manga-info" data-manga-details>
+      <MediaPageBackground image={bannerArt.data ?? backgroundArt.data} />
       <nav className="manga-info__nav" aria-label="Manga navigation">
         <button
           className="btn btn-ghost manga-info__back"
@@ -105,6 +138,34 @@ export function MangaDetailsPage({
           {props.provider ? props.sourceName : "No reading source selected"}
         </span>
       </nav>
+      <MediaBanner
+        className="manga-info__banner"
+        backdrop={bannerArt.data}
+        fallback={backgroundArt.data}
+      />
+      {settings?.privacy.mangaUnreadCount && book && (
+        <div className="manga-completion-controls">
+          <MangaUnreadBadge provider={props.provider} bookId={book.id} />
+          <span className="text-xs text-base-content/50">
+            Reconcile chapter history without changing your reading position:
+          </span>
+          <button
+            className="btn btn-sm"
+            disabled={mark.isPending || !chapters.data}
+            onClick={() => mark.mutate(true)}
+          >
+            Mark all chapters read
+          </button>
+          <button
+            className="btn btn-sm btn-ghost"
+            disabled={mark.isPending || !chapters.data}
+            onClick={() => mark.mutate(false)}
+          >
+            Mark all chapters unread
+          </button>
+          {mark.error && <p role="alert">{mark.error.message}</p>}
+        </div>
+      )}
       <div className="manga-info__layout">
         <aside
           className="manga-info__publication"

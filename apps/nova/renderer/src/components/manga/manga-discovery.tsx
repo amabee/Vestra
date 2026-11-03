@@ -1,3 +1,4 @@
+import { MangaUnreadBadge } from "../media/completion-badges";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
@@ -31,6 +32,7 @@ const headings = {
   newest: "Newest releases",
 };
 export function MangaDiscoveryShelf({
+  provider = "",
   images,
   onSelect,
   bookmarkControl,
@@ -38,6 +40,7 @@ export function MangaDiscoveryShelf({
   images: ReaderImages;
   onSelect: (title: MangaDiscoveryTitle) => void;
   bookmarkControl: (title: MangaDiscoveryTitle) => ReactNode;
+  provider?: string;
 }) {
   const [filters, setFilters] = useState(defaults);
   const [requested, setRequested] = useState(defaults);
@@ -200,6 +203,7 @@ export function MangaDiscoveryShelf({
           <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
             {catalogue.data.items.map((title) => (
               <DiscoveryCard
+                provider={provider}
                 key={title.id}
                 title={title}
                 images={images}
@@ -246,6 +250,7 @@ export function MangaDiscoveryShelf({
 }
 
 export function DiscoveryCard({
+  provider = "",
   title,
   images,
   onSelect,
@@ -255,6 +260,7 @@ export function DiscoveryCard({
   images: ReaderImages;
   onSelect: () => void;
   bookmarkControl?: ReactNode;
+  provider?: string;
 }) {
   const [issue, setIssue] = useState(false),
     [retrying, setRetrying] = useState(false);
@@ -332,6 +338,11 @@ export function DiscoveryCard({
           )}
         </div>
       </button>
+      <MangaUnreadBadge
+        provider={provider}
+        bookId={String(title.id)}
+        catalogue
+      />
       {bookmarkControl}
       {issue && (
         <button

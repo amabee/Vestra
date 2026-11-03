@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { mediaKey, type MediaItem } from "@vestra/types";
 import { bridge } from "@/lib/bridge";
-import { keys } from "@/lib/queries";
+import { useSettings, keys } from "@/lib/queries";
 
 /** Session-owned snapshots prevent cleanup from saving a replacement episode. */
 export function usePlaybackPersistence(input: {
@@ -15,6 +15,7 @@ export function usePlaybackPersistence(input: {
   ready: boolean;
 }) {
   const cache = useQueryClient();
+  const { data: settings } = useSettings();
   const {
     item,
     episodeId,
@@ -48,24 +49,36 @@ export function usePlaybackPersistence(input: {
       episodeNumber,
     } = snapshot;
     if (!current || total <= 0 || at <= 0) return;
-    void bridge.progress
-      .save({
-        ref: current,
-        episodeId,
-        episodeNumber,
-        positionSeconds: at,
-        durationSeconds: total,
-      })
-      .then(async (saved) => {
-        try {
-          await bridge.history.add({
-            item: current,
+    const progress = {
+      percent: Math.min(1, at / total),
+      completed: at / total >= (settings?.playback.markWatchedAt ?? 0.9),
+    };
+    void (
+      settings?.playback.autoUpdateProgress === false
+        ? Promise.resolve(progress)
+        : bridge.progress.save({
+            ref: current,
             episodeId,
             episodeNumber,
             positionSeconds: at,
-            completed: saved.completed,
-          });
-          if (!snapshot.checkedList && saved.percent >= 0.01) {
+            durationSeconds: total,
+          })
+    )
+      .then(async (saved) => {
+        try {
+          if (settings?.privacy.trackHistory !== false)
+            await bridge.history.add({
+              item: current,
+              episodeId,
+              episodeNumber,
+              positionSeconds: at,
+              completed: saved.completed,
+            });
+          if (
+            settings?.playback.autoUpdateProgress !== false &&
+            !snapshot.checkedList &&
+            saved.percent >= 0.01
+          ) {
             const list = await bridge.watchlist.list();
             if (
               list.find((row) => mediaKey(row.ref) === mediaKey(current))
@@ -82,7 +95,7 @@ export function usePlaybackPersistence(input: {
         }
       })
       .catch(() => undefined);
-  }, [snapshot, cache]);
+  }, [snapshot, cache, settings]);
   useEffect(() => {
     if (!item) return;
     const timer = setInterval(persist, 15000);

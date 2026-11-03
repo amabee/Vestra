@@ -1,3 +1,4 @@
+import { useSettings } from "@/lib/queries";
 import type { MediaItem } from "@vestra/types";
 
 import { EntryActions } from "./entry-actions";
@@ -25,7 +26,14 @@ export interface CatalogueEntryProps {
   onSelect?: (item: MediaItem) => void;
 }
 
-export function CatalogueEntry({ item, index, owned, onSelect }: CatalogueEntryProps) {
+export function CatalogueEntry({
+  item,
+  index,
+  owned,
+  onSelect,
+}: CatalogueEntryProps) {
+  const { data: settings } = useSettings();
+  if (item.isAdult && settings?.privacy.showAdultContent !== true) return null;
   const poster = item.images.poster ?? item.images.thumbnail;
 
   return (
@@ -51,6 +59,11 @@ export function CatalogueEntry({ item, index, owned, onSelect }: CatalogueEntryP
       <div className="aspect-[2/3] w-14 self-start overflow-hidden rounded-selector bg-base-200">
         {poster ? (
           <img
+            style={
+              item.isAdult && settings?.privacy.blurAdultContent
+                ? { filter: "blur(18px)" }
+                : undefined
+            }
             src={poster}
             alt=""
             loading="lazy"
@@ -68,7 +81,8 @@ export function CatalogueEntry({ item, index, owned, onSelect }: CatalogueEntryP
 
         <MetaLine item={item} owned={owned} />
 
-        {item.overview ? (
+        {item.overview &&
+        !(item.kind === "anime" && settings?.privacy.hideAnimeSpoilers) ? (
           <p className="line-clamp-1 max-w-[80ch] text-[13px] leading-relaxed text-base-content/50">
             {item.overview}
           </p>
@@ -87,11 +101,13 @@ export function CatalogueEntry({ item, index, owned, onSelect }: CatalogueEntryP
  * the eye skip it until it is wanted.
  */
 function MetaLine({ item, owned }: { item: MediaItem; owned?: boolean }) {
+  const { data: settings } = useSettings();
   const parts: string[] = [];
 
   if (item.year) parts.push(String(item.year));
   parts.push(item.isSeries ? "Series" : "Film");
-  if (item.rating.score !== null) parts.push(`${Math.round(item.rating.score)}%`);
+  if (!settings?.privacy.hideAudienceScores && item.rating.score !== null)
+    parts.push(`${Math.round(item.rating.score)}%`);
   parts.push(item.source);
 
   return (

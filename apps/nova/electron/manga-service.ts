@@ -1,3 +1,4 @@
+import { ChapterCompletions } from "./chapter-completions";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { MangaCoverCache } from "./manga-cover-cache";
@@ -95,12 +96,42 @@ export class MangaService {
     image: (request: unknown) => Promise<unknown>;
   } | null = null;
   private catalogueCovers = new Map<number, string>();
+  private catalogueBanners = new Map<number, string>();
+  catalogueBanner(id: number, url: string) {
+    const prior = this.catalogueBanners.get(id);
+    if (prior && this.covers.get(prior)?.url === url) return prior;
+    if (prior) this.covers.delete(prior);
+    if (this.catalogueBanners.size >= 64) {
+      const oldest = this.catalogueBanners.keys().next().value!;
+      this.covers.delete(this.catalogueBanners.get(oldest)!);
+      this.catalogueBanners.delete(oldest);
+    }
+    const handle = randomUUID();
+    this.catalogueBanners.set(id, handle);
+    this.covers.set(handle, {
+      providerId: "catalogue:anilist",
+      url,
+      headers: {},
+    });
+    return handle;
+  }
   private catalogueTitles = new Map<number, string>();
   private bookmarksRepository: MangaBookmarkRepository | null = null;
+  private completions: ChapterCompletions;
   constructor(
     private readonly driver: StorageDriver,
     private coverCache?: MangaCoverCache,
-  ) {}
+  ) {
+    this.completions = new ChapterCompletions(driver);
+  }
+  unread(p: string, b: string) {
+    return this.completions.count(p, b);
+  }
+  async markChapters(p: string, b: string, read: boolean) {
+    this.book(p, b);
+    await this.completions.markAll(p, b, read);
+    return this.unread(p, b);
+  }
   registerBookmarks(repository: MangaBookmarkRepository) {
     this.bookmarksRepository = repository;
   }
@@ -400,6 +431,17 @@ export class MangaService {
     if (this.chaptersByBook.size >= 20 && !this.chaptersByBook.has(key))
       this.chaptersByBook.delete(this.chaptersByBook.keys().next().value!);
     this.chaptersByBook.set(key, rows);
+    const existingProgress = await this.progress(id, book);
+    if (this.providers.get(id) !== provider)
+      throw new Error("Manga source changed. Reopen the library.");
+    await this.completions.inventory(
+      id,
+      book,
+      rows.map((c) => c.id),
+      existingProgress !== null,
+    );
+    if (this.providers.get(id) !== provider)
+      throw new Error("Manga source changed. Reopen the library.");
     return rows;
   }
   cover(id: string, book: string, refresh = false): Promise<MangaBook> {
@@ -588,9 +630,10 @@ export class MangaService {
     const repository = this.provider(p).progress;
     const title = this.books.get(this.key(p, b))!.title;
     const cover = this.artwork.get(this.key(p, b));
-    const result = this.writes.then(() =>
-      repository.save(b, chapterId, page, count, title, cover),
-    );
+    const result = this.writes.then(async () => {
+      await repository.save(b, chapterId, page, count, title, cover);
+      if (page === count - 1) await this.completions.complete(p, b, chapterId);
+    });
     this.writes = result.catch(() => undefined);
     return result;
   }

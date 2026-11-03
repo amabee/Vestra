@@ -40,7 +40,9 @@ function pickTitle(media: AnilistMedia): string {
 
 function pickOriginalTitle(media: AnilistMedia, chosen: string): string | null {
   const candidates = [media.title?.romaji, media.title?.native];
-  return candidates.find((t): t is string => Boolean(t) && t !== chosen) ?? null;
+  return (
+    candidates.find((t): t is string => Boolean(t) && t !== chosen) ?? null
+  );
 }
 
 function mapStatus(status: AnilistStatus | null | undefined): ReleaseStatus {
@@ -90,10 +92,14 @@ export function normaliseAnime(media: AnilistMedia): MediaItem {
       score: normaliseScore(media.averageScore),
       votes: media.popularity ?? null,
     },
-    genres: (media.genres ?? []).map((name) => ({ id: name.toLowerCase(), name })),
+    genres: (media.genres ?? []).map((name) => ({
+      id: name.toLowerCase(),
+      name,
+    })),
     status: mapStatus(media.status),
     durationSeconds,
     isSeries,
+    isAdult: media.isAdult === true,
     sourceUrl: media.siteUrl ?? `https://anilist.co/anime/${media.id}`,
   };
 }
