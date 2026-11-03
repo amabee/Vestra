@@ -166,8 +166,9 @@ interface RawBridge {
   };
   anilistAccount: {
     status: () => Promise<unknown>;
-    authorize: (id: string) => Promise<unknown>;
-    connect: (token: string) => Promise<unknown>;
+    signIn: () => Promise<unknown>;
+    cancelSignIn: () => Promise<unknown>;
+    onChanged: (listener: (value: unknown) => void) => () => void;
     disconnect: () => Promise<unknown>;
     backup: () => Promise<unknown>;
     exportLatest: () => Promise<unknown>;
@@ -711,11 +712,20 @@ export const bridge = {
   anilistAccount: {
     status: async () =>
       (await raw().anilistAccount.status()) as import("../../../shared/anilist-account").AniListAccountStatus,
-    authorize: (id: string) => raw().anilistAccount.authorize(id),
-    connect: async (token: string) =>
-      (await raw().anilistAccount.connect(
-        token,
-      )) as import("../../../shared/anilist-account").AniListAccountStatus,
+    signIn: async () =>
+      (await raw().anilistAccount.signIn()) as import("../../../shared/anilist-account").AniListAccountStatus,
+    cancelSignIn: async () =>
+      (await raw().anilistAccount.cancelSignIn()) as import("../../../shared/anilist-account").AniListAccountStatus,
+    onChanged: (
+      listener: (
+        value: import("../../../shared/anilist-account").AniListAccountStatus,
+      ) => void,
+    ) =>
+      raw().anilistAccount.onChanged((value) =>
+        listener(
+          value as import("../../../shared/anilist-account").AniListAccountStatus,
+        ),
+      ),
     disconnect: async () =>
       (await raw().anilistAccount.disconnect()) as import("../../../shared/anilist-account").AniListAccountStatus,
     backup: async () =>

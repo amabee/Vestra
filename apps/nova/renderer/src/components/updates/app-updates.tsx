@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { ArrowDownToLine, RefreshCw, RotateCw } from "lucide-react";
 import { bridge } from "@/lib/bridge";
 import { SectionRule } from "@/components/layout/page";
+import { ReleaseNotes } from "./release-notes";
 
 const key = ["app-updates"];
 function useAppUpdates() {
@@ -177,9 +178,7 @@ export function AppUpdatesPanel() {
             <summary className="cursor-pointer text-base-content/70">
               What’s new
             </summary>
-            <p className="mt-3 whitespace-pre-wrap break-words text-base-content/60">
-              {state.releaseNotes}
-            </p>
+            <ReleaseNotes notes={state.releaseNotes} />
           </details>
         )}
       </div>

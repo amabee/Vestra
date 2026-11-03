@@ -1,4 +1,10 @@
+export interface AniListLoginState {
+  configured: boolean;
+  phase: "idle" | "waiting" | "connecting" | "error";
+  message: string | null;
+}
 export interface AniListAccountStatus {
+  login?: AniListLoginState;
   connected: boolean;
   user: { id: number; name: string; avatar: string | null; url: string } | null;
   encryptionAvailable: boolean;

@@ -131,8 +131,14 @@ const api = {
   },
   anilistAccount: {
     status: () => invoke("anilist-account:status"),
-    authorize: (id: string) => invoke("anilist-account:authorize", id),
-    connect: (token: string) => invoke("anilist-account:connect", token),
+    signIn: () => invoke("anilist-account:sign-in"),
+    cancelSignIn: () => invoke("anilist-account:cancel-sign-in"),
+    onChanged: (listener: (value: unknown) => void) => {
+      const handler = (_event: unknown, value: unknown) => listener(value);
+      ipcRenderer.on("anilist-account:changed", handler);
+      return () =>
+        ipcRenderer.removeListener("anilist-account:changed", handler);
+    },
     disconnect: () => invoke("anilist-account:disconnect"),
     backup: () => invoke("anilist-account:backup"),
     exportLatest: () => invoke("anilist-account:export"),

@@ -40,6 +40,7 @@ jobs:
       - run: pnpm test:settings
       - run: pnpm test:settings:expansion
       - run: pnpm test:settings:integrations
+      - run: pnpm test:anilist:login
       - run: pnpm test:updater:ui
       - run: pnpm test:extensions:install
       - name: Build Windows x64 NSIS installer

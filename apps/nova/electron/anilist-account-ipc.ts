@@ -1,13 +1,47 @@
-import { dialog, ipcMain, safeStorage, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  safeStorage,
+  shell,
+} from "electron";
 import { writeFile } from "node:fs/promises";
-import { z } from "zod";
 import { getSettings } from "@vestra/storage";
 import { AniListAccount } from "./anilist-account";
 import { getDriver, resolveDataDir } from "./services";
+import { AniListBrowserLogin, isAniListCallback } from "./anilist-login";
 
 let account: AniListAccount | null = null;
 let initialization: Promise<unknown> | null = null;
+let login: AniListBrowserLogin | null = null;
 const ensureReady = () => (initialization ??= getAniListAccount().load());
+function getLogin() {
+  return (login ??= new AniListBrowserLogin({
+    clientId: process.env.ANILIST_CLIENT_ID?.trim() || undefined,
+    openBrowser: (url) => shell.openExternal(url),
+    connect: (token) => getAniListAccount().connect(token),
+    cancelConnect: () => getAniListAccount().disconnect(),
+    changed: broadcast,
+  }));
+}
+function snapshot() {
+  return { ...getAniListAccount().status(), login: getLogin().snapshot() };
+}
+function broadcast() {
+  const value = snapshot();
+  for (const window of BrowserWindow.getAllWindows())
+    if (!window.isDestroyed())
+      window.webContents.send("anilist-account:changed", value);
+}
+export async function handleAniListCallback(raw: string) {
+  if (!isAniListCallback(raw)) return false;
+  await app.whenReady();
+  await ensureReady();
+  const handled = await getLogin().complete(raw);
+  broadcast();
+  return handled;
+}
 export function getAniListAccount() {
   return (account ??= new AniListAccount(resolveDataDir(), {
     available: () =>
@@ -23,29 +57,46 @@ export function registerAniListAccountIpc() {
   void ensureReady();
   ipcMain.handle("anilist-account:status", async () => {
     await ensureReady();
-    return service.status();
+    return snapshot();
   });
   ipcMain.handle("anilist-account:connect", async (_e, token) => {
     await ensureReady();
-    return service.connect(token);
+    await getLogin().cancel();
+    await service.connect(token);
+    broadcast();
+    return snapshot();
   });
   ipcMain.handle("anilist-account:disconnect", async () => {
     await ensureReady();
-    return service.disconnect();
+    await getLogin().cancel();
+    await service.disconnect();
+    broadcast();
+    return snapshot();
   });
   ipcMain.handle("anilist-account:backup", async () => {
     await ensureReady();
     return service.backup();
   });
-  ipcMain.handle("anilist-account:authorize", async (_e, raw) => {
-    const id = z
-      .string()
-      .trim()
-      .regex(/^[1-9]\d{0,11}$/)
-      .parse(raw);
-    await shell.openExternal(
-      `https://anilist.co/api/v2/oauth/authorize?client_id=${id}&response_type=token`,
-    );
+  ipcMain.handle("anilist-account:sign-in", async () => {
+    await ensureReady();
+    if (!service.status().encryptionAvailable)
+      throw new Error("Secure storage is unavailable on this computer.");
+    const registered = process.defaultApp
+      ? app.setAsDefaultProtocolClient("vestra", process.execPath, [
+          app.getAppPath(),
+        ])
+      : app.setAsDefaultProtocolClient("vestra");
+    if (!registered)
+      throw new Error(
+        "Vestra could not enable browser sign-in. Reinstall the app and try again.",
+      );
+    await getLogin().begin();
+    return snapshot();
+  });
+  ipcMain.handle("anilist-account:cancel-sign-in", async () => {
+    await ensureReady();
+    await getLogin().cancel();
+    return snapshot();
   });
   ipcMain.handle("anilist-account:export", async () => {
     await ensureReady();

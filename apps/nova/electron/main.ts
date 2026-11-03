@@ -1,7 +1,9 @@
 import {
   registerAniListAccountIpc,
   startAniListAccount,
+  handleAniListCallback,
 } from "./anilist-account-ipc";
+import { isAniListCallback } from "./anilist-login";
 import { startLibraryRefresh } from "./library-refresh";
 import {
   loadQbittorrentSettings,
@@ -341,13 +343,29 @@ function registerIpc(): void {
 }
 
 // A single instance owns the tray and window; a second launch focuses the first.
+app.on("open-url", (event, url) => {
+  if (!isAniListCallback(url)) return;
+  event.preventDefault();
+  void handleAniListCallback(url)
+    .then((handled) => {
+      if (handled && mainWindow) {
+        mainWindow.show();
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+      }
+    })
+    .catch(() => undefined);
+});
 const gotLock = app.requestSingleInstanceLock();
 
 if (!gotLock) {
   app.quit();
 } else {
-  app.on("second-instance", () => {
+  app.on("second-instance", (_event, commandLine) => {
+    const callback = commandLine.find(isAniListCallback);
+    if (callback) void handleAniListCallback(callback).catch(() => undefined);
     if (mainWindow) {
+      mainWindow.show();
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
     }
@@ -366,6 +384,8 @@ if (!gotLock) {
     registerSourceIpc();
 
     mainWindow = createWindow();
+    const callback = process.argv.find(isAniListCallback);
+    if (callback) void handleAniListCallback(callback).catch(() => undefined);
     createTray();
     startLibraryRefresh();
     void startAniListAccount();

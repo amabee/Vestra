@@ -43,7 +43,7 @@ Retain version 1 additive defaults and existing document. Recover invalid indivi
 
 ## Integration limits (explicit, no disconnected controls)
 
-- [x] AniList connection, identity, disconnect and automatic backups are integrated. Tokens and private list backups use OS encryption. The browser PIN flow needs a registered public client ID or an already issued access token; no client secret is shipped.
+- [x] AniList connection, identity, disconnect and automatic backups are integrated. Tokens and private list backups use OS encryption. The browser sign-in flow uses public client ID 55841 and returns directly to Vestra; normal users never enter client IDs or tokens. No client secret is shipped.
 - [x] Anime unwatched and manga unread badges use known inventories and recorded completions. Provider-specific episode inventories and chapter completion metadata persist in the existing storage driver. Unknown historical progress stays unknown; manga Details provides explicit reconciliation without changing resume positions.
 - Anime cards have no trailer player; carousels have no automatic scrolling. Their requested disable switches are unnecessary in the current implementation and are explained in Settings.
 - Automatic refresh checks root directory metadata; deep edits inside unchanged subfolders require manual scanning. No scan stream/progress API exists; manual scan has pending/error/result feedback.
@@ -89,7 +89,7 @@ Modified:
 - [x] Anime episode inventories and exact unwatched badges; persisted manga chapter completions and unread badges without inferring skipped chapters.
 - [x] Shared media-banner behavior across anime, movie/TV and manga details.
 - [x] Targeted service, persistence, UI and regression validation.
-      Use AniList's documented desktop OAuth token/PIN flow with a public client ID; never ship a client secret. Existing public catalogue access remains independent. Backups must include anime and manga, paginate fully, retain previous successful snapshots on failure, and pause on expired authorization. Chapter-count migration must label unknown historical completion rather than fabricate it.
+      Use AniList's documented desktop OAuth implicit flow with a public client ID and app callback; never ship a client secret. Existing public catalogue access remains independent. Backups must include anime and manga, paginate fully, retain previous successful snapshots on failure, and pause on expired authorization. Chapter-count migration must label unknown historical completion rather than fabricate it.
 
 ### Follow-up implementation and validation
 
@@ -101,4 +101,8 @@ Modified:
 - Workspace typechecking, Nova build, package settings lint, settings regression suites, nine real C#-backed manga service tests, 13 anime hub tests, anime UI and movie/TV UI regressions pass. A pre-existing unsafe calendar-test DOM read was changed to wait for the route element.
 - Remaining operational setup: the user authorizes their own AniList account. Live authentication was not attempted without credentials. Native dialogs retain the earlier implementation; export paths were not driven interactively. No new preference requires restart.
 
-AniList setup: in [AniList developer settings](https://anilist.co/settings/developer), use `https://anilist.co/api/v2/oauth/pin` as the application's redirect. Enter its public client ID under Application → Local account & AniList, authorize in the browser, and paste the returned token. This follows [AniList's documented desktop PIN flow](https://docs.anilist.co/guide/auth/#auth-pin). Reconnecting restores backup status for that account; disconnecting removes its saved token and retains its encrypted snapshots.
+AniList sign-in: choose **Sign in with AniList**, approve in the system browser and return to Vestra automatically. Existing encrypted sessions and backups are retained. Backup controls are grouped under List backups after connection.
+
+One-time maintainer configuration: public client ID **55841** must have its redirect set to `vestra://auth/anilist` in [AniList developer settings](https://anilist.co/settings/developer), replacing the old PIN redirect. The installer registers the `vestra` protocol. The app handles `open-url`, `second-instance` and initial callback arguments in its main process; callback URLs and tokens never cross into the renderer or logs. OAuth uses a cryptographically random, single-use state with a five-minute lifetime. Canceled, mismatched, duplicate, expired and replayed callbacks cannot connect an account. Canceling during verification also cancels the existing account service's pending connection.
+
+Browser-login validation: `pnpm test:anilist:login` covers authorization URL, client identity, callback/state validation, replay, timeout, browser/provider errors, cancellation and installer protocol declaration. Settings UI checks the one-button flow, waiting/cancel state, live connected-account notification, disconnect and retained backup controls. Live provider authorization and Windows protocol dispatch still require the provider redirect and a newly installed build; they are not claimed as authenticated end-to-end tests.
