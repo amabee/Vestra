@@ -235,6 +235,46 @@ test("release artifact verification rejects version/hash/path/feed mismatches", 
     (await validateRelease(folder, version, "v1.2.3")).version,
     version,
   );
+  await assert.rejects(
+    () => validateRelease(folder, version, "v1.2.3", "Vestra Fixture"),
+    /publisher/,
+  );
+  await writeFile(
+    config,
+    JSON.stringify({
+      provider: "github",
+      owner: "amabee",
+      repo: "Vestra",
+      publisherName: ["Vestra Fixture"],
+    }),
+  );
+  assert.equal(
+    (await validateRelease(folder, version, "v1.2.3", "Vestra Fixture"))
+      .version,
+    version,
+  );
+  await assert.rejects(
+    () => validateRelease(folder, version, "v1.2.3", "Wrong Publisher"),
+    /publisher/,
+  );
+  await writeFile(
+    config,
+    JSON.stringify({
+      provider: "github",
+      owner: "amabee",
+      repo: "Vestra",
+      publisherName: ["Vestra Fixture"],
+      verifyUpdateCodeSignature: false,
+    }),
+  );
+  await assert.rejects(
+    () => validateRelease(folder, version, "v1.2.3", "Vestra Fixture"),
+    /publisher/,
+  );
+  await writeFile(
+    config,
+    JSON.stringify({ provider: "github", owner: "amabee", repo: "Vestra" }),
+  );
   await assert.rejects(() => validateRelease(folder, version, "v1.2.4"), /tag/);
   await assert.rejects(() => validateRelease(folder, "1.2.3-beta.1"), /stable/);
   feed.files[0].url = "../installer.exe";

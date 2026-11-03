@@ -19,13 +19,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: "10.0.x"
       - run: pnpm install --frozen-lockfile
@@ -34,7 +34,7 @@ jobs:
         run: |
           $version = (Get-Content apps/nova/package.json -Raw | ConvertFrom-Json).version
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Only stable semantic versions can use this release pipeline.' }
-          if ('${{ github.ref_type }}' -eq 'tag' -and '${{ github.ref_name }}' -ne "v$version") { throw 'Tag must match the Nova app version.' }
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag must match the Nova app version.' }
       - run: pnpm --filter @vestra/nova typecheck
       - run: pnpm test:updater
       - run: pnpm test:settings
@@ -43,6 +43,19 @@ jobs:
       - run: pnpm test:anilist:login
       - run: pnpm test:updater:ui
       - run: pnpm test:extensions:install
+      - run: pnpm audit --audit-level=low
+      - run: pnpm --filter @vestra/nova build:electron
+      - run: pnpm test:security
+      - name: Require Windows release signing
+        shell: pwsh
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          WINDOWS_PUBLISHER: ${{ vars.VESTRA_WINDOWS_PUBLISHER }}
+        run: |
+          if (-not $env:CSC_LINK -or -not $env:CSC_KEY_PASSWORD -or -not $env:WINDOWS_PUBLISHER) {
+            throw 'Signed releases require CSC_LINK, CSC_KEY_PASSWORD and the VESTRA_WINDOWS_PUBLISHER repository variable.'
+          }
       - name: Build Windows x64 NSIS installer
         run: pnpm --filter @vestra/nova release:build
         env:
@@ -52,13 +65,23 @@ jobs:
       - run: pnpm test:settings:integrations:ui
       - name: Smoke-test packaged worker and compiler
         run: node apps/nova/scripts/test-packaged-worker.mjs --resources apps/nova/release/win-unpacked/resources
+      - run: node apps/nova/scripts/test-packaged-security.mjs
       - run: pnpm test:updater:ipc
       - name: Validate installer, hashes, blockmap and embedded feed
         shell: pwsh
+        env:
+          VESTRA_WINDOWS_PUBLISHER: ${{ vars.VESTRA_WINDOWS_PUBLISHER }}
         run: |
-          if ('${{ github.ref_type }}' -ne 'tag') { Remove-Item Env:GITHUB_REF_NAME -ErrorAction SilentlyContinue }
+          if ($env:GITHUB_REF_TYPE -ne 'tag') { Remove-Item Env:GITHUB_REF_NAME -ErrorAction SilentlyContinue }
           pnpm release:validate
-      - uses: actions/upload-artifact@v4
+      - name: Verify Windows publisher signatures
+        shell: pwsh
+        env:
+          WINDOWS_PUBLISHER: ${{ vars.VESTRA_WINDOWS_PUBLISHER }}
+        run: |
+          $version = (Get-Content apps/nova/package.json -Raw | ConvertFrom-Json).version
+          ./apps/nova/scripts/verify-windows-signature.ps1 -InstallerPath "apps/nova/release/Vestra-Nova-$version-Setup-x64.exe" -AppPath 'apps/nova/release/win-unpacked/Vestra Nova.exe' -ExpectedPublisherName $env:WINDOWS_PUBLISHER
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nova-windows-installer
           path: |
@@ -72,7 +95,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = '${{ github.ref_name }}'
+          $tag = $env:GITHUB_REF_NAME
           $release = gh release view $tag --json isDraft 2>$null
           if ($LASTEXITCODE -eq 0) {
             if (-not ($release | ConvertFrom-Json).isDraft) { throw 'Published releases are immutable; bump the version instead.' }

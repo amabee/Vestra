@@ -1,3 +1,5 @@
+import { pathToFileURL } from "node:url";
+import { handleIpc, secureWindow } from "./ipc-security";
 import {
   registerAniListAccountIpc,
   startAniListAccount,
@@ -13,16 +15,7 @@ import { initAutoUpdate } from "./auto-update";
 import { loadTmdbSettings } from "./tmdb-settings";
 import { join } from "node:path";
 
-import {
-  BrowserWindow,
-  Menu,
-  Tray,
-  app,
-  dialog,
-  ipcMain,
-  nativeImage,
-  shell,
-} from "electron";
+import { BrowserWindow, Menu, Tray, app, dialog, nativeImage } from "electron";
 
 import {
   callExtension,
@@ -74,7 +67,7 @@ import { registerScreenIpc } from "./screen-ipc";
  * the data directory — is unaffected and already running.
  */
 
-const isDev = process.env.NODE_ENV === "development";
+const isDev = !app.isPackaged && process.env.NODE_ENV === "development";
 
 /**
  * Pin the app name before anything reads a path from it.
@@ -226,24 +219,13 @@ function createWindow(): BrowserWindow {
     else console.info(prefix, details.message);
   });
 
-  // Open target=_blank and external links in the user's browser instead.
-  window.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("https://") || url.startsWith("http://")) {
-      void shell.openExternal(url);
-    }
-    return { action: "deny" };
-  });
-
-  // Block in-app navigation. The renderer is a single-page app using hash
-  // routing, so any real navigation attempt is either a mistake or hostile.
-  window.webContents.on("will-navigate", (event, url) => {
-    if (isDev && url.startsWith(DEV_SERVER_URL)) return;
-
-    event.preventDefault();
-    if (url.startsWith("https://") || url.startsWith("http://")) {
-      void shell.openExternal(url);
-    }
-  });
+  secureWindow(
+    window,
+    "main",
+    isDev
+      ? `${DEV_SERVER_URL}/`
+      : pathToFileURL(join(__dirname, "../dist-renderer/index.html")).href,
+  );
 
   void loadRenderer(window);
 
@@ -290,15 +272,15 @@ function createTray(): void {
  * -------------------------------------------------------------------------- */
 
 function registerIpc(): void {
-  ipcMain.handle("window:minimize", () => mainWindow?.minimize());
+  handleIpc("window:minimize", () => mainWindow?.minimize());
 
-  ipcMain.handle("window:toggle-maximize", () => {
+  handleIpc("window:toggle-maximize", () => {
     if (!mainWindow) return;
     if (mainWindow.isMaximized()) mainWindow.unmaximize();
     else mainWindow.maximize();
   });
 
-  ipcMain.handle("window:close", () => mainWindow?.close());
+  handleIpc("window:close", () => mainWindow?.close());
 
   /**
    * Native fullscreen, rather than the renderer's own.
@@ -308,18 +290,15 @@ function registerIpc(): void {
    * page-level fullscreen left the video at its windowed size and position.
    * Driving the window itself keeps the two in step.
    */
-  ipcMain.handle("window:set-fullscreen", (_event, value: unknown) => {
+  handleIpc("window:set-fullscreen", (_event, value: unknown) => {
     if (!mainWindow) return false;
     mainWindow.setFullScreen(value === true);
     return mainWindow.isFullScreen();
   });
 
-  ipcMain.handle(
-    "window:is-fullscreen",
-    () => mainWindow?.isFullScreen() ?? false,
-  );
+  handleIpc("window:is-fullscreen", () => mainWindow?.isFullScreen() ?? false);
 
-  ipcMain.handle("app:version", () => app.getVersion());
+  handleIpc("app:version", () => app.getVersion());
 
   // Settings, discovery, watchlist, progress, library and extensions.
   registerDataIpc();
@@ -329,17 +308,15 @@ function registerIpc(): void {
   registerMpvIpc();
 
   // Google Fonts for subtitles: search, install, and list what is installed.
-  ipcMain.handle("subtitle-fonts:search", (_e, query: unknown) =>
+  handleIpc("subtitle-fonts:search", (_e, query: unknown) =>
     searchGoogleFonts(typeof query === "string" ? query : ""),
   );
-  ipcMain.handle("subtitle-fonts:install", (_e, family: unknown) => {
+  handleIpc("subtitle-fonts:install", (_e, family: unknown) => {
     if (typeof family !== "string")
       throw new Error("Choose a font to install.");
     return installGoogleFont(family);
   });
-  ipcMain.handle("subtitle-fonts:installed", () =>
-    listInstalledSubtitleFonts(),
-  );
+  handleIpc("subtitle-fonts:installed", () => listInstalledSubtitleFonts());
 }
 
 // A single instance owns the tray and window; a second launch focuses the first.

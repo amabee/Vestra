@@ -1,11 +1,5 @@
-import {
-  app,
-  BrowserWindow,
-  dialog,
-  ipcMain,
-  safeStorage,
-  shell,
-} from "electron";
+import { handleIpc } from "./ipc-security";
+import { app, BrowserWindow, dialog, safeStorage, shell } from "electron";
 import { writeFile } from "node:fs/promises";
 import { getSettings } from "@vestra/storage";
 import { AniListAccount } from "./anilist-account";
@@ -55,29 +49,29 @@ export function getAniListAccount() {
 export function registerAniListAccountIpc() {
   const service = getAniListAccount();
   void ensureReady();
-  ipcMain.handle("anilist-account:status", async () => {
+  handleIpc("anilist-account:status", async () => {
     await ensureReady();
     return snapshot();
   });
-  ipcMain.handle("anilist-account:connect", async (_e, token) => {
+  handleIpc("anilist-account:connect", async (_e, token) => {
     await ensureReady();
     await getLogin().cancel();
     await service.connect(token);
     broadcast();
     return snapshot();
   });
-  ipcMain.handle("anilist-account:disconnect", async () => {
+  handleIpc("anilist-account:disconnect", async () => {
     await ensureReady();
     await getLogin().cancel();
     await service.disconnect();
     broadcast();
     return snapshot();
   });
-  ipcMain.handle("anilist-account:backup", async () => {
+  handleIpc("anilist-account:backup", async () => {
     await ensureReady();
     return service.backup();
   });
-  ipcMain.handle("anilist-account:sign-in", async () => {
+  handleIpc("anilist-account:sign-in", async () => {
     await ensureReady();
     if (!service.status().encryptionAvailable)
       throw new Error("Secure storage is unavailable on this computer.");
@@ -93,12 +87,12 @@ export function registerAniListAccountIpc() {
     await getLogin().begin();
     return snapshot();
   });
-  ipcMain.handle("anilist-account:cancel-sign-in", async () => {
+  handleIpc("anilist-account:cancel-sign-in", async () => {
     await ensureReady();
     await getLogin().cancel();
     return snapshot();
   });
-  ipcMain.handle("anilist-account:export", async () => {
+  handleIpc("anilist-account:export", async () => {
     await ensureReady();
     const json = await service.exportLatest();
     const selection = await dialog.showSaveDialog({

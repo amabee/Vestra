@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { handleIpc } from "./ipc-security";
 import { z } from "zod";
 import { getDriver, resolveDataDir } from "./services";
 import { join } from "node:path";
@@ -32,7 +32,7 @@ export function registerMangaIpc(
   const resolver = new MangaTitleResolver(getDriver(), api, (id) =>
     details.get(id),
   );
-  ipcMain.handle("manga:resolve", (_e, p, selection) => {
+  handleIpc("manga:resolve", (_e, p, selection) => {
     const provider = z.string().min(1).max(120).parse(p);
     const input = z
       .discriminatedUnion("kind", [
@@ -52,7 +52,7 @@ export function registerMangaIpc(
       ? resolver.catalogue(provider, input.id)
       : resolver.source(provider, input.source, input.id, input.title);
   });
-  ipcMain.handle("manga:unread", async (_e, p, b, catalogue) => {
+  handleIpc("manga:unread", async (_e, p, b, catalogue) => {
     const provider = z.string().min(1).max(120).parse(p);
     const book = text.parse(b);
     const isCatalogue = z.boolean().parse(catalogue);
@@ -64,13 +64,13 @@ export function registerMangaIpc(
       : book;
     return resolved ? api.unread(provider, resolved) : null;
   });
-  ipcMain.handle("manga:mark-chapters", (_e, p, b, read) =>
+  handleIpc("manga:mark-chapters", (_e, p, b, read) =>
     api.markChapters(text.parse(p), text.parse(b), z.boolean().parse(read)),
   );
   const discovery = new MangaDiscovery(getDriver(), (id, url) =>
     api.catalogueCover(id, url),
   );
-  ipcMain.handle("manga:discover", async (_e, filters) => {
+  handleIpc("manga:discover", async (_e, filters) => {
     const page = await discovery.browse(filters);
     page.items.forEach((item) => api.registerCatalogueTitle(item));
     api.preloadArtwork(
@@ -80,9 +80,9 @@ export function registerMangaIpc(
     );
     return page;
   });
-  ipcMain.handle("manga:sources", () => api.list());
-  ipcMain.handle("manga:bookmarks", () => api.bookmarks());
-  ipcMain.handle("manga:bookmark", (_e, kind, source, id, saved) =>
+  handleIpc("manga:sources", () => api.list());
+  handleIpc("manga:bookmarks", () => api.bookmarks());
+  handleIpc("manga:bookmark", (_e, kind, source, id, saved) =>
     api.bookmark(
       z.enum(["source", "catalogue"]).parse(kind),
       z.string().min(1).max(120).parse(source),
@@ -90,47 +90,45 @@ export function registerMangaIpc(
       z.boolean().parse(saved),
     ),
   );
-  ipcMain.handle("manga:book", (_e, p, id, title) =>
+  handleIpc("manga:book", (_e, p, id, title) =>
     api.resolveBook(
       text.parse(p),
       text.parse(id),
       z.string().trim().max(500).optional().parse(title),
     ),
   );
-  ipcMain.handle("manga:info", async (_e, p, id) => {
+  handleIpc("manga:info", async (_e, p, id) => {
     const book = api.knownBook(text.parse(p), text.parse(id));
     const info = await details.source(book.title);
     if (info) api.registerCatalogueTitle(info);
     return info;
   });
-  ipcMain.handle("manga:details", async (_e, id) => {
+  handleIpc("manga:details", async (_e, id) => {
     const info = await details.get(z.number().int().positive().parse(id));
     if (info) api.registerCatalogueTitle(info);
     return info;
   });
-  ipcMain.handle("manga:catalogue-cover", (_e, id) =>
+  handleIpc("manga:catalogue-cover", (_e, id) =>
     api.refreshCatalogueCover(z.number().int().positive().parse(id)),
   );
-  ipcMain.handle("manga:recent", (_e, p) => api.recent(text.parse(p)));
-  ipcMain.handle("manga:search", (_e, p, q) =>
+  handleIpc("manga:recent", (_e, p) => api.recent(text.parse(p)));
+  handleIpc("manga:search", (_e, p, q) =>
     api.search(text.parse(p), z.string().trim().min(1).max(500).parse(q)),
   );
-  ipcMain.handle("manga:chapters", (_e, p, b) =>
+  handleIpc("manga:chapters", (_e, p, b) =>
     api.chapters(text.parse(p), text.parse(b)),
   );
-  ipcMain.handle("manga:pages", (_e, p, b, c) =>
+  handleIpc("manga:pages", (_e, p, b, c) =>
     api.pages(text.parse(p), text.parse(b), text.parse(c)),
   );
-  ipcMain.handle("manga:image", (_e, h) =>
-    api.image(z.string().uuid().parse(h)),
-  );
-  ipcMain.handle("manga:cover", (_e, p, b, refresh) =>
+  handleIpc("manga:image", (_e, h) => api.image(z.string().uuid().parse(h)));
+  handleIpc("manga:cover", (_e, p, b, refresh) =>
     api.cover(text.parse(p), text.parse(b), z.boolean().parse(refresh)),
   );
-  ipcMain.handle("manga:progress", (_e, p, b) =>
+  handleIpc("manga:progress", (_e, p, b) =>
     api.progress(text.parse(p), text.parse(b)),
   );
-  ipcMain.handle("manga:save", (_e, p, b, c, n) =>
+  handleIpc("manga:save", (_e, p, b, c, n) =>
     api.save(
       text.parse(p),
       text.parse(b),

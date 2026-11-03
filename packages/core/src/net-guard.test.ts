@@ -9,8 +9,39 @@ import { isBlockedAddress } from "./net-guard";
  */
 
 describe("isBlockedAddress", () => {
+  it("blocks hexadecimal and expanded IPv4-mapped private addresses", () => {
+    for (const address of [
+      "::ffff:7f00:1",
+      "0:0:0:0:0:ffff:a00:1",
+      "::ffff:c0a8:101",
+      "::7f00:1",
+      "0:0:0:0:0:0:0:1",
+    ])
+      expect(isBlockedAddress(address), address).toBe(true);
+    expect(isBlockedAddress("::ffff:808:808")).toBe(false);
+  });
+  it("rejects malformed IPv6 and transition/documentation ranges", () => {
+    for (const address of [
+      "garbage::1",
+      "1::2::3",
+      "12345::1",
+      "2001:db8::1",
+      "2002:7f00:1::",
+      "64:ff9b::7f00:1",
+      "192.0.2.1",
+      "198.51.100.1",
+      "203.0.113.1",
+    ])
+      expect(isBlockedAddress(address), address).toBe(true);
+  });
+
   it("allows ordinary public addresses", () => {
-    for (const address of ["1.1.1.1", "8.8.8.8", "140.82.121.4", "2606:4700::1111"]) {
+    for (const address of [
+      "1.1.1.1",
+      "8.8.8.8",
+      "140.82.121.4",
+      "2606:4700::1111",
+    ]) {
       expect(isBlockedAddress(address), address).toBe(false);
     }
   });
@@ -36,7 +67,12 @@ describe("isBlockedAddress", () => {
 
   it("allows the public parts of ranges that only look private", () => {
     // 172.15 and 172.32 sit outside 172.16/12, and 100.128 outside 100.64/10.
-    for (const address of ["172.15.0.1", "172.32.0.1", "100.128.0.1", "100.63.0.1"]) {
+    for (const address of [
+      "172.15.0.1",
+      "172.32.0.1",
+      "100.128.0.1",
+      "100.63.0.1",
+    ]) {
       expect(isBlockedAddress(address), address).toBe(false);
     }
   });
@@ -54,7 +90,14 @@ describe("isBlockedAddress", () => {
   });
 
   it("blocks unspecified, multicast and reserved", () => {
-    for (const address of ["0.0.0.0", "224.0.0.1", "240.0.0.1", "255.255.255.255", "::", "ff02::1"]) {
+    for (const address of [
+      "0.0.0.0",
+      "224.0.0.1",
+      "240.0.0.1",
+      "255.255.255.255",
+      "::",
+      "ff02::1",
+    ]) {
       expect(isBlockedAddress(address), address).toBe(true);
     }
   });
@@ -72,7 +115,18 @@ describe("isBlockedAddress", () => {
 
   it("refuses anything it cannot read as an address", () => {
     // Octal and short forms are resolved by some stacks as loopback.
-    for (const address of ["", "  ", "localhost", "127.1", "0x7f.0.0.1", "017700000001", "1.2.3", "1.2.3.4.5", "999.1.1.1", "1.2.3.-1"]) {
+    for (const address of [
+      "",
+      "  ",
+      "localhost",
+      "127.1",
+      "0x7f.0.0.1",
+      "017700000001",
+      "1.2.3",
+      "1.2.3.4.5",
+      "999.1.1.1",
+      "1.2.3.-1",
+    ]) {
       expect(isBlockedAddress(address), JSON.stringify(address)).toBe(true);
     }
   });

@@ -47,6 +47,9 @@ export function isBlockedIPv4(address: string): boolean {
   if (a === 192 && b === 168) return true; // private
   if (a === 100 && b >= 64 && b <= 127) return true; // carrier-grade NAT
   if (a === 192 && b === 0) return true; // IETF protocol assignments
+  if (a === 192 && b === 0 && octets[2] === 2) return true;
+  if (a === 198 && b === 51 && octets[2] === 100) return true;
+  if (a === 203 && b === 0 && octets[2] === 113) return true;
   if (a === 198 && (b === 18 || b === 19)) return true; // benchmarking
   if (a >= 224) return true; // multicast and reserved
 
@@ -54,25 +57,50 @@ export function isBlockedIPv4(address: string): boolean {
 }
 
 export function isBlockedIPv6(address: string): boolean {
-  // Drop any zone index: "fe80::1%eth0" is still link-local.
-  const value = (address.toLowerCase().split("%")[0] ?? "").trim();
-
-  if (value === "::" || value === "::1") return true;
-
-  // IPv4-mapped and IPv4-compatible forms reach exactly the same places.
-  const embedded = /(\d+\.\d+\.\d+\.\d+)$/.exec(value);
-  if (embedded?.[1] && value.startsWith("::")) return isBlockedIPv4(embedded[1]);
-
-  const head = value.split(":")[0] ?? "";
-  if (!/^[0-9a-f]{0,4}$/.test(head)) return true;
-
-  const first = Number.parseInt(head || "0", 16);
-
-  if ((first & 0xfe00) === 0xfc00) return true; // unique local
-  if ((first & 0xffc0) === 0xfe80) return true; // link local
-  if ((first & 0xff00) === 0xff00) return true; // multicast
-
-  return false;
+  let value = (address.toLowerCase().split("%")[0] ?? "").trim();
+  // Normalize dotted tails before expanding compressed groups.
+  if (value.includes(".")) {
+    const tail = value.slice(value.lastIndexOf(":") + 1);
+    const octets = ipv4Octets(tail);
+    if (!octets) return true;
+    value =
+      value.slice(0, -tail.length) +
+      ((octets[0]! << 8) | octets[1]!).toString(16) +
+      ":" +
+      ((octets[2]! << 8) | octets[3]!).toString(16);
+  }
+  const halves = value.split("::");
+  if (halves.length > 2) return true;
+  const left = halves[0] ? halves[0].split(":") : [];
+  const right = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const missing = 8 - left.length - right.length;
+  if (
+    (halves.length === 1 && missing !== 0) ||
+    (halves.length === 2 && missing < 1)
+  )
+    return true;
+  const parts = [
+    ...left,
+    ...Array<string>(halves.length === 2 ? missing : 0).fill("0"),
+    ...right,
+  ];
+  if (parts.length !== 8 || parts.some((part) => !/^[0-9a-f]{1,4}$/.test(part)))
+    return true;
+  const words = parts.map((part) => Number.parseInt(part, 16));
+  if (
+    words.slice(0, 5).every((word) => word === 0) &&
+    (words[5] === 0xffff || words[5] === 0)
+  ) {
+    return isBlockedIPv4(
+      `${words[6]! >> 8}.${words[6]! & 255}.${words[7]! >> 8}.${words[7]! & 255}`,
+    );
+  }
+  // Only public global unicast. Reject transition/special/documentation ranges.
+  return (
+    (words[0]! & 0xe000) !== 0x2000 ||
+    (words[0] === 0x2001 && (words[1]! < 0x0200 || words[1] === 0x0db8)) ||
+    words[0] === 0x2002
+  );
 }
 
 /**

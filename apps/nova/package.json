@@ -2,7 +2,7 @@
   "name": "@vestra/nova",
   "version": "0.2.2",
   "private": true,
-  "description": "Vestra Nova — the Vestra desktop application (Electron).",
+  "description": "Vestra Nova \u00e2\u20ac\u201d the Vestra desktop application (Electron).",
   "main": "dist-electron/main.js",
   "scripts": {
     "build:renderer": "vite build --config renderer/vite.config.ts",
@@ -20,7 +20,7 @@
     "package:dir": "pnpm run publish:worker && pnpm run build && electron-builder --win --x64 --dir",
     "typecheck": "tsc --noEmit -p tsconfig.electron.json && tsc --noEmit -p renderer/tsconfig.json",
     "clean": "rimraf dist-electron dist-renderer release .turbo",
-    "release:build": "pnpm run fetch:mpv && pnpm run publish:worker && pnpm run build && electron-builder --win nsis --x64 --publish never"
+    "release:build": "pnpm run fetch:mpv && pnpm run publish:worker && pnpm run build && electron-builder --win nsis --x64 --publish never --config.forceCodeSigning=true"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.24",
@@ -33,7 +33,8 @@
     "@vestra/storage": "workspace:*",
     "@vestra/types": "workspace:*",
     "electron-updater": "^6.8.11",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "undici": "^7.30.1"
   },
   "devDependencies": {
     "7zip-min": "^3.0.1",
@@ -51,8 +52,8 @@
     "concurrently": "^10.0.4",
     "cross-env": "^10.1.0",
     "daisyui": "^5.7.14",
-    "electron": "^43.2.0",
-    "electron-builder": "^26.15.3",
+    "electron": "^43.8.6",
+    "electron-builder": "^26.18.0",
     "esbuild": "^0.28.1",
     "lucide-react": "catalog:",
     "react": "catalog:",
@@ -61,7 +62,7 @@
     "rimraf": "^6.1.3",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
-    "vite": "^7.3.6",
+    "vite": "^7.3.7",
     "wait-on": "^9.1.0",
     "zustand": "catalog:"
   },
@@ -145,6 +146,13 @@
         "repo": "Vestra",
         "releaseType": "draft"
       }
-    ]
+    ],
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true
+    }
   }
 }

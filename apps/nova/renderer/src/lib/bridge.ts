@@ -153,6 +153,7 @@ interface RawBridge {
     sourceHealth: () => Promise<unknown>;
   };
   shell: {
+    copyText: (text: string) => Promise<unknown>;
     openExternal: (url: string) => Promise<unknown>;
   };
   torrents: {
@@ -691,6 +692,7 @@ export const bridge = {
   },
 
   shell: {
+    copyText: (text: string) => raw().shell.copyText(text),
     openExternal: async (url: string): Promise<void> => {
       await raw().shell.openExternal(url);
     },

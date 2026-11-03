@@ -1,7 +1,8 @@
+import { handleIpc } from "./ipc-security";
 import { createHash, randomUUID } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { basename } from "node:path";
-import { dialog, ipcMain } from "electron";
+import { dialog } from "electron";
 import { z } from "zod";
 import { SourceManager, sourceId, sourceOptions } from "./source-manager";
 import { RemoteSourceService } from "./source-remote";
@@ -46,23 +47,23 @@ export function registerSourceIpc(): void {
     string,
     { source: string; filename: string; expires: number }
   >();
-  ipcMain.handle("sources:list", async () => {
+  handleIpc("sources:list", async () => {
     await ready;
     return manager.list();
   });
-  ipcMain.handle("sources:remote-prepare", async (_e, url) => {
+  handleIpc("sources:remote-prepare", async (_e, url) => {
     await ready;
     return remote.prepare(z.string().parse(url));
   });
-  ipcMain.handle("sources:remote-check", async (_e, id) => {
+  handleIpc("sources:remote-check", async (_e, id) => {
     await ready;
     return remote.check(sourceId.parse(id));
   });
-  ipcMain.handle("sources:remote-apply", async (_e, token, hosts) => {
+  handleIpc("sources:remote-apply", async (_e, token, hosts) => {
     await ready;
     await remote.apply(z.string().uuid().parse(token), hosts);
   });
-  ipcMain.handle("sources:rollback", async (_e, id, revision, expectedHash) => {
+  handleIpc("sources:rollback", async (_e, id, revision, expectedHash) => {
     await ready;
     await manager.rollback(
       sourceId.parse(id),
@@ -76,7 +77,7 @@ export function registerSourceIpc(): void {
         .parse(expectedHash),
     );
   });
-  ipcMain.handle("sources:pick", async () => {
+  handleIpc("sources:pick", async () => {
     await ready;
     const selection = await dialog.showOpenDialog({
       title: "Import provider script",
@@ -106,7 +107,7 @@ export function registerSourceIpc(): void {
       sha256: createHash("sha256").update(source).digest("hex"),
     };
   });
-  ipcMain.handle("sources:install", async (_e, token, options) => {
+  handleIpc("sources:install", async (_e, token, options) => {
     await ready;
     const key = z.string().uuid().parse(token);
     const script = pending.get(key);
@@ -120,11 +121,11 @@ export function registerSourceIpc(): void {
     });
     pending.delete(key);
   });
-  ipcMain.handle("sources:update", async (_e, id, options) => {
+  handleIpc("sources:update", async (_e, id, options) => {
     await ready;
     await manager.update(sourceId.parse(id), options);
   });
-  ipcMain.handle("sources:replace", async (_e, id, token, expectedHash) => {
+  handleIpc("sources:replace", async (_e, id, token, expectedHash) => {
     await ready;
     const key = z.string().uuid().parse(token);
     const script = pending.get(key);
@@ -140,11 +141,11 @@ export function registerSourceIpc(): void {
     );
     pending.delete(key);
   });
-  ipcMain.handle("sources:remove", async (_e, id) => {
+  handleIpc("sources:remove", async (_e, id) => {
     await ready;
     await manager.remove(sourceId.parse(id));
   });
-  ipcMain.handle("sources:check", async (_e, id) => {
+  handleIpc("sources:check", async (_e, id) => {
     await ready;
     await manager.check(sourceId.parse(id));
   });

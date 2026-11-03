@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent } from "electron";
+import { handleIpc } from "./ipc-security";
+import { app, BrowserWindow, type IpcMainInvokeEvent } from "electron";
 import { autoUpdater } from "electron-updater";
 import { UpdateController } from "./update-controller";
 
@@ -24,19 +25,19 @@ export function initAutoUpdate(window: () => BrowserWindow | null): void {
     )
       throw Error("Update controls are only available in the app window.");
   };
-  ipcMain.handle("updates:state", (event) => {
+  handleIpc("updates:state", (event) => {
     trusted(event);
     return controller.snapshot();
   });
-  ipcMain.handle("updates:check", (event) => {
+  handleIpc("updates:check", (event) => {
     trusted(event);
     return controller.check();
   });
-  ipcMain.handle("updates:download", (event) => {
+  handleIpc("updates:download", (event) => {
     trusted(event);
     return controller.download();
   });
-  ipcMain.handle("updates:install", (event) => {
+  handleIpc("updates:install", (event) => {
     trusted(event);
     return controller.install();
   });

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
-  "description": "Vestra — a unified entertainment platform for anime, movies, TV, K-drama, YouTube and local media.",
+  "description": "Vestra \u00e2\u20ac\u201d a unified entertainment platform for anime, movies, TV, K-drama, YouTube and local media.",
   "packageManager": "pnpm@11.9.0",
   "engines": {
     "node": ">=22.0.0"
@@ -79,7 +79,8 @@
     "test:vixsrc:live": "node apps/nova/scripts/test-vixsrc-live.mjs --live",
     "test:vyla": "node apps/nova/scripts/test-vyla-service.mjs",
     "test:archive": "pnpm --filter @vestra/extension-host exec vitest run src/examples/internet-archive.test.ts",
-    "test:archive:live": "node apps/nova/scripts/test-archive-live.mjs --live"
+    "test:archive:live": "node apps/nova/scripts/test-archive-live.mjs --live",
+    "test:security": "vitest run apps/nova/electron/security.test.ts packages/core/src/net-guard.test.ts && node apps/nova/scripts/test-security-ipc.mjs"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",
@@ -87,6 +88,6 @@
     "rimraf": "^6.1.3",
     "turbo": "^2.10.8",
     "typescript": "catalog:",
-    "vitest": "^3.2.7"
+    "vitest": "^4.1.12"
   }
 }
