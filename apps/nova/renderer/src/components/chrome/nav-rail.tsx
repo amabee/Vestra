@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useSettings } from "@/lib/queries";
 import { preloadDestination } from "@/lib/navigation-preload";
 import { NavLink } from "react-router";
+import { SidebarAniListAccount } from "./anilist-account";
 import {
   Download,
   Blocks,
@@ -64,20 +65,22 @@ export function NavRail() {
   return (
     <nav
       aria-label="Main navigation"
-      className="nova-nav-rail flex w-14 shrink-0 flex-col items-center gap-6 border-r rule py-4"
+      className="nova-nav-rail flex min-h-0 w-14 shrink-0 flex-col items-center gap-4 border-r rule py-4"
     >
-      {SECTIONS.map((section) => (
-        <div key={section.label} className="flex flex-col items-center gap-1">
-          {section.items
-            .filter(
-              (item) =>
-                !unpinned.includes(item.to as (typeof unpinned)[number]),
-            )
-            .map((item) => (
-              <RailLink key={item.to} {...item} />
-            ))}
-        </div>
-      ))}
+      <div className="nova-nav-sections flex min-h-0 w-full flex-col items-center gap-6 overflow-y-auto overflow-x-hidden">
+        {SECTIONS.map((section) => (
+          <div key={section.label} className="flex flex-col items-center gap-1">
+            {section.items
+              .filter(
+                (item) =>
+                  !unpinned.includes(item.to as (typeof unpinned)[number]),
+              )
+              .map((item) => (
+                <RailLink key={item.to} {...item} />
+              ))}
+          </div>
+        ))}
+      </div>
       {unpinned.length > 0 && (
         <details className="relative">
           <summary className="cursor-pointer px-2 py-1 text-xs">More</summary>
@@ -102,6 +105,7 @@ export function NavRail() {
           </div>
         </details>
       )}
+      <SidebarAniListAccount />
     </nav>
   );
 }

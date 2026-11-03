@@ -232,13 +232,34 @@
 :root[data-accent="cyan"] {
   --color-primary: oklch(60% 0.12 205);
 }
+.nova-nav-rail {
+  --nova-rail-width: 3.5rem;
+}
+.nova-sidebar-account > div {
+  width: min(16rem, calc(100vw - var(--nova-rail-width) - 1.5rem));
+}
 :root[data-sidebar-labels="on"] .nova-nav-rail {
+  --nova-rail-width: 10rem;
   width: 10rem;
   align-items: stretch;
   padding-inline: 0.75rem;
 }
 :root[data-sidebar-labels="on"] .nova-nav-rail > div {
   align-items: stretch;
+}
+:root[data-sidebar-labels="on"] .nova-nav-sections > div,
+:root[data-expand-sidebar-on-hover="on"]
+  .nova-nav-rail:hover
+  .nova-nav-sections
+  > div {
+  align-items: stretch;
+}
+.nova-nav-sections {
+  scrollbar-width: none;
+}
+.nova-sidebar-account summary:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 :root[data-sidebar-labels="on"] .nova-nav-link {
   display: flex;
@@ -310,6 +331,7 @@
   background: var(--color-base-100);
 }
 :root[data-expand-sidebar-on-hover="on"] .nova-nav-rail:hover {
+  --nova-rail-width: 12rem;
   width: 12rem;
   align-items: stretch;
 }

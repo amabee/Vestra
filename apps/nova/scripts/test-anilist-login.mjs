@@ -61,9 +61,15 @@ try {
   assert.equal(opened[0].pathname, "/api/v2/oauth/authorize");
   assert.equal(opened[0].searchParams.get("client_id"), "55841");
   assert.equal(
-    opened[0].searchParams.get("redirect_uri"),
-    ANILIST_LOGIN_REDIRECT,
+    opened[0].searchParams.has("redirect_uri"),
+    false,
+    "AniList implicit grant must use the registered redirect, without a redirect_uri override",
   );
+  assert.deepEqual([...opened[0].searchParams.keys()].sort(), [
+    "client_id",
+    "response_type",
+    "state",
+  ]);
   assert.equal(opened[0].searchParams.get("response_type"), "token");
   assert.ok(state().length >= 43);
   assert.equal(login.snapshot().phase, "waiting");

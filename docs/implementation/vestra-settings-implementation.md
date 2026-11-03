@@ -106,3 +106,12 @@ AniList sign-in: choose **Sign in with AniList**, approve in the system browser 
 One-time maintainer configuration: public client ID **55841** must have its redirect set to `vestra://auth/anilist` in [AniList developer settings](https://anilist.co/settings/developer), replacing the old PIN redirect. The installer registers the `vestra` protocol. The app handles `open-url`, `second-instance` and initial callback arguments in its main process; callback URLs and tokens never cross into the renderer or logs. OAuth uses a cryptographically random, single-use state with a five-minute lifetime. Canceled, mismatched, duplicate, expired and replayed callbacks cannot connect an account. Canceling during verification also cancels the existing account service's pending connection.
 
 Browser-login validation: `pnpm test:anilist:login` covers authorization URL, client identity, callback/state validation, replay, timeout, browser/provider errors, cancellation and installer protocol declaration. Settings UI checks the one-button flow, waiting/cancel state, live connected-account notification, disconnect and retained backup controls. Live provider authorization and Windows protocol dispatch still require the provider redirect and a newly installed build; they are not claimed as authenticated end-to-end tests.
+
+### AniList implicit-redirect compatibility fix
+
+The authorization request now sends only client_id, response_type=token and state. AniList's documented implicit flow uses the registered client redirect; an explicit redirect_uri has caused unsupported_grant_type in real clients. Callback validation still requires vestra://auth/anilist and the single-use state. The URL regression test explicitly rejects redirect_uri; real account authorization remains user-tested rather than claimed from mocked tests.
+Sources: https://docs.anilist.co/guide/auth/implicit and https://github.com/AsrOfficialDev/ReDantotsu/commit/89f23ae.
+
+### Sidebar AniList account
+
+The bottom of the navigation rail now shows the saved AniList avatar (with an icon fallback). Its account panel uses the same main-process sign-in, cancel and disconnect operations and React Query account cache as Settings. Account events update both surfaces immediately. The panel links to Application settings for backups, closes on Escape or outside clicks, and stays accessible while navigation scrolls in short windows. Settings UI coverage verifies login/cancel, avatar updates/failure fallback, disconnect and bottom placement with labels on/off.
