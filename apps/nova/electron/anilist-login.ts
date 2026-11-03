@@ -83,7 +83,8 @@ export class AniListBrowserLogin {
     const url = new URL(ANILIST_OAUTH_AUTHORIZE);
     url.searchParams.set("client_id", this.clientId);
     url.searchParams.set("response_type", "token");
-    url.searchParams.set("redirect_uri", ANILIST_LOGIN_REDIRECT);
+    // AniList's implicit flow uses the redirect registered for this client.
+    // Sending redirect_uri here can produce unsupported_grant_type.
     url.searchParams.set("state", state);
     try {
       await this.options.openBrowser(url.href);
