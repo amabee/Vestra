@@ -1,6 +1,6 @@
 {
   "name": "@vestra/nova",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Vestra Nova — the Vestra desktop application (Electron).",
   "main": "dist-electron/main.js",
@@ -68,6 +68,14 @@
   "build": {
     "appId": "app.vestra.nova",
     "productName": "Vestra Nova",
+    "protocols": [
+      {
+        "name": "Vestra account sign-in",
+        "schemes": [
+          "vestra"
+        ]
+      }
+    ],
     "directories": {
       "output": "release",
       "buildResources": "build"

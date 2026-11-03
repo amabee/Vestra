@@ -32,6 +32,13 @@ export function AppShell() {
   const started = useRef(false);
   useEffect(
     () =>
+      bridge.anilistAccount.onChanged((value) =>
+        cache.setQueryData(["anilist-account"], value),
+      ),
+    [cache],
+  );
+  useEffect(
+    () =>
       bridge.settings.onChanged?.((value) =>
         cache.setQueryData(keys.settings, value),
       ),
