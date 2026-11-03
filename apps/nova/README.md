@@ -1,88 +1,156 @@
 # Vestra Nova — Desktop
 
-The Vestra desktop app. It is an Electron app with three parts: the main process
-(the back office that talks to the system), a secure preload bridge (the only
-door between the window and the main process), and the renderer (the screens
-you see, built with React).
+Nova is Vestra's Electron desktop application, with a React interface, native mpv playback, a C# provider worker and sandboxed JavaScript extensions. The supported packaged target is **Windows x64**.
 
-## Status
+## Repositories
 
-| Piece | State |
-| --- | --- |
-| Main process, tray, single-instance lock | working |
-| Preload bridge and IPC channels | working |
-| Renderer (screens: home, anime search and details, player controls) | working |
-| Extension sandbox (QuickJS in a utility process) | working |
-| Local library scanning and playback | working |
-| Auto-update | not started |
+| Project         | Location                                                | Responsibility                                                    |
+| --------------- | ------------------------------------------------------- | ----------------------------------------------------------------- |
+| Nova            | [Vestra](https://github.com/amabee/Vestra), `apps/nova` | Desktop UI, playback, settings and releases                       |
+| Backend and SDK | `apps/server`, `packages/` and `tests/` in Vestra       | Provider worker, extension sandbox, contracts and shared services |
+| Foundry         | [Vestra Foundry](https://github.com/amabee/Foundry)     | Native extension sources, registry and extension publication      |
+| Pulse           | [Vestra Pulse](https://github.com/amabee/Pulse)         | Mobile planning scaffold; no implemented mobile app yet           |
 
-## Running
+Nova remains in the Vestra repository so existing release and updater URLs continue to work. The existing documentation site is unchanged by the repository split.
 
-```bash
-pnpm --filter @vestra/nova build   # build the main process, preload and renderer
-pnpm --filter @vestra/nova start   # launch the app
-```
+## Implemented features
 
-Development mode, with the screens reloading as you save:
+- Home, discovery, anime search/details, weekly schedule, films/series and manga browsing/reading.
+- Local library scanning, saved lists, watch history, progress and episode/chapter completion records.
+- Native playback controls, audio/subtitle selection, subtitle appearance, skip controls and source-supported quality choices.
+- Extension browsing, permission review, installation and source diagnostics. Availability and playback depend on each upstream source; experimental listings are marked separately.
+- Searchable settings for application behavior, appearance, playback, connections, library/scanning, diagnostics and updates.
+- AniList browser sign-in from Settings or the account control at the bottom of the sidebar. Connected accounts show their avatar; account credentials and local list backups use OS-backed encrypted storage.
+- An optional qBittorrent connection for category-scoped download management. Nova does not install qBittorrent or provide an embedded torrent engine.
+- Stable Windows app updates through GitHub Releases, with manual checking, release notes, explicit download and restart/install actions.
 
-```bash
+This README describes the source on `main`. A published installer contains the source from its release tag; changes on `main` may await the next release.
+
+## Development
+
+Run these commands from the **Vestra repository root**. Use Node 22 or newer, pnpm 11.9.0 and the .NET 10 SDK. The .NET SDK is needed for backend development and packaging; installed Windows builds include their worker runtime.
+
+```sh
+pnpm install --frozen-lockfile
+pnpm build:server
+pnpm --filter @vestra/nova fetch:mpv
 pnpm dev:nova
 ```
 
-`pnpm --filter @vestra/nova package:dir` makes an unpacked folder you can run
-without an installer. `pnpm --filter @vestra/nova package` makes a Windows
-installer through electron-builder. Both put what they need in `release/` and
-`dist-electron/`, including the QuickJS `.wasm` file. No `node_modules` are
-shipped.
+To build and run without the Vite development server:
 
-After changing code, rebuild the side you changed:
+```sh
+pnpm --filter @vestra/nova build
+pnpm --filter @vestra/nova start
+```
 
-- Main process or preload: `pnpm --filter @vestra/nova build:electron`
-- Screens: `pnpm --filter @vestra/nova build:renderer`
+For a change limited to one side:
 
-## Build
+```sh
+pnpm --filter @vestra/nova build:electron
+pnpm --filter @vestra/nova build:renderer
+```
 
-`scripts/build-electron.mjs` bundles with esbuild rather than `tsc`. Workspace
-packages ship raw TypeScript with extensionless imports, so `tsc` would emit a
-`require()` pointing at a `.ts` file Node cannot run. `tsconfig.electron.json`
-is therefore typecheck-only.
+The Electron build includes the main process, extension worker, main-window preload and restricted player preload. Restart Electron after main-process or preload changes. Development renderer changes use Vite.
 
-Two things the bundle has to correct for:
+Optional service connections are configured through Settings or the repository's [.env.example](../../.env.example). Source-only development debugging is available through `pnpm --filter @vestra/nova start:debug`; packaged builds refuse the development debugging environment setting.
 
-- esbuild rewrites ESM to CJS, which leaves `import.meta.url` undefined and
-  breaks quickjs-emscripten's WASM lookup. A `define` plus a banner points it at
-  the bundle's own path.
-- The `.wasm` is copied next to the bundle, because emscripten resolves it
-  relative to the module that loads it.
+## Packaging
 
-## Security model
+```sh
+# Unpacked Windows application; fetch mpv first on a fresh checkout.
+pnpm --filter @vestra/nova fetch:mpv
+pnpm --filter @vestra/nova package:dir
 
-- `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`
-- The renderer only sees the allow-listed bridge in [electron/preload.ts](electron/preload.ts)
-- Every IPC channel is explicitly registered in [electron/main.ts](electron/main.ts)
-- External links open in the system browser; in-app navigation is blocked
-- Extension isolates run in a `utilityProcess`, and that process cannot reach
-  the network at all. Requests are relayed to the main process, which owns the
-  permission grant and the host allow-list.
-- Logs for failed requests name the site and the error type, but never the
-  full web address, query values, cookies or tokens.
+# Local Windows installer, without publishing.
+pnpm --filter @vestra/nova release:build
+```
 
-## Loading and retries
+Outputs are under `apps/nova/release/`; compiled application code is under `dist-electron/` and `dist-renderer/`. Packaging publishes the self-contained C# worker and checks its manifest, runtime files and provider compiler. It also verifies the pinned Foundry snapshot before including bundled extensions.
 
-- Search results and episode lists are kept in memory for a few minutes
-  ([electron/ttl-cache.ts](electron/ttl-cache.ts)). Failed or empty results are
-  never kept.
-- Two identical requests at the same time share one network call.
-- Safe GET requests retry up to 2 times on temporary errors (dropped
-  connection, timeout, DNS trouble, HTTP 429, 502, 503 or 504), waiting a
-  little longer each time.
-- The Quality list for an episode is fetched early, while the anime loads, so
-  the gear menu opens without waiting.
+[scripts/build-electron.mjs](scripts/build-electron.mjs) bundles workspace TypeScript through esbuild. Electron TypeScript configuration is typecheck-only. The build copies QuickJS's WASM and the provider compiler next to the main-process assets so packaged execution can resolve them.
 
-## Next steps
+## Foundry extensions
 
-1. **Animated loading.** Skeleton placeholders and transitions for search
-   results are not built yet. The details page has grey loading blocks.
-2. **Faster first video.** Starting a stream can still take a long time when
-   an extension's requests are slow. Measure which request is slow first.
-3. **App updates.** Implemented in Settings with stable GitHub Releases, explicit download/restart and a draft release workflow. See the [release guide](../../docs/app-updates.md).
+The canonical registry is:
+
+```text
+https://raw.githubusercontent.com/amabee/Foundry/main/extensions/registry.json
+```
+
+New profiles use Foundry. Updated Nova builds resolve the former official Vestra registry URL to Foundry while retaining saved registry origins. Custom URLs and explicitly empty lists remain unchanged. The previous registry file remains a compatibility mirror for older installed clients.
+
+The root `extensions/` folder is a reviewed offline snapshot, not the canonical source-development location. [extensions.snapshot.json](../../extensions.snapshot.json) pins a Foundry commit and SHA-256 hashes. Existing installed extension IDs and permission grants are retained.
+
+```sh
+pnpm extensions:verify
+pnpm extensions:update <reviewed-full-commit-sha>
+pnpm test:foundry
+```
+
+Edit and build extension sources in Foundry, then update the snapshot after reviewing the upstream commit. Sync/update commands refuse to overwrite local snapshot edits; verification rejects changed, missing or extra files and unsafe paths. Packaging works from the verified local snapshot without downloading a moving branch.
+
+StreamFlix remains excluded from Foundry's published registry and blocked in Nova's bundled install path. Vidlink remains experimental. Offline contract checks do not establish current upstream streaming availability.
+
+## Security boundaries
+
+- Main and player renderers use context isolation, sandboxing, disabled Node integration and a restrictive Content Security Policy.
+- [electron/ipc-security.ts](electron/ipc-security.ts) authorizes registered WebContents, the exact trusted document and its main frame before privileged IPC handlers run.
+- [electron/preload.ts](electron/preload.ts) exposes the main bridge. [electron/preload-overlay.ts](electron/preload-overlay.ts) exposes a smaller player surface without account/source management, settings writes or updater controls. Subframes receive neither bridge.
+- Navigation, redirects, popups and webviews are constrained. Approved external links from the main window open in the system browser. Browser permission requests are denied by default.
+- Community extension code runs in QuickJS isolates inside a utility process. Host calls are brokered by the main process using reviewed capabilities, host grants, rate limits and response/deadline limits.
+- [electron/public-network.ts](electron/public-network.ts) validates DNS answers inside the socket lookup callback, preserving normal TLS hostname verification. Private addresses, including IPv4-mapped forms, are rejected; the guarded transport disables redirects and limits response bytes while reading.
+- AniList and saved qBittorrent credentials use OS-backed encryption; plaintext fallback storage is refused. AniList sign-in validates a short-lived, single-use callback state. Exported list backups contain private list data but no account credentials.
+- Packaged Electron fuses disable RunAsNode, Node options and Node inspector CLI flags, and enable ASAR-only loading with embedded integrity checking.
+
+These controls and automated tests do not constitute a complete penetration test or guarantee that every upstream provider or native dependency is vulnerability-free.
+
+## Updates and releases
+
+The update feed remains [amabee/Vestra Releases](https://github.com/amabee/Vestra/releases). Installed Windows builds can check for stable releases; source and portable launches do not replace themselves through the updater. Downloads and restart/install remain explicit user actions; prereleases and downgrades are disabled.
+
+[The release workflow](../../.github/workflows/nova-release.yml) builds on a matching stable version tag, runs application/security/Foundry checks, validates the installer and updater artifacts, and uploads a **draft** release. Publishing the reviewed draft is a separate step.
+
+From the repository root:
+
+```sh
+pnpm release:version patch
+```
+
+Review and commit the version change, then create the corresponding `vX.Y.Z` tag when ready. Installer hashes, blockmap, version/path and embedded feed must pass validation before publication. Do not replace assets of an already-published version.
+
+**Windows signing is currently deferred.** With no signing configuration, the workflow allows unsigned releases while keeping the remaining security and artifact checks enabled. Providing all three values below enables required signing and publisher verification; partial configuration fails the workflow:
+
+| GitHub configuration       | Kind                | Purpose                                                            |
+| -------------------------- | ------------------- | ------------------------------------------------------------------ |
+| `CSC_LINK`                 | Secret              | Certificate input for the configured certificate-file signing path |
+| `CSC_KEY_PASSWORD`         | Secret              | Certificate password                                               |
+| `VESTRA_WINDOWS_PUBLISHER` | Repository variable | Expected publisher name                                            |
+
+Cloud signing needs its own integration. Microsoft Store distribution has not been configured. Unsigned installers do not establish a trusted Windows publisher identity.
+
+## Verification commands
+
+Run checks appropriate to the files changed. Security and updater IPC checks use the built preloads; settings UI checks also use the built renderer stylesheet.
+
+```sh
+pnpm --filter @vestra/nova typecheck
+pnpm --filter @vestra/nova build
+pnpm test:security
+pnpm test:foundry
+pnpm test:anilist:login
+pnpm test:settings:expansion
+pnpm test:settings:integrations
+pnpm test:settings:ui
+pnpm test:updater
+pnpm test:updater:ipc
+```
+
+After creating an unpacked Windows package:
+
+```sh
+node apps/nova/scripts/test-packaged-security.mjs
+node apps/nova/scripts/test-packaged-worker.mjs --resources apps/nova/release/win-unpacked/resources
+```
+
+The package checks inspect the actual executable's fuse values, both preload assets, the worker and the bundled compiler. Tests that use fixtures or inspect exports do not replace a manual playback/login/update check of the final installer.
