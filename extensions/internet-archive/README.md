@@ -11,7 +11,7 @@ Open **Extensions → Available**, find **Internet Archive · Classics**, and cl
 **Install**. Review its network access to `archive.org`, then confirm. Open
 Movies to browse or search. If you use custom registries, add the Vestra registry:
 
-`https://raw.githubusercontent.com/amabee/Vestra/main/extensions/registry.json`
+`https://raw.githubusercontent.com/amabee/Foundry/main/extensions/registry.json`
 
 Folder installation remains available for extension development. No profile is
 modified by the test scripts. Registry releases pin manifest and code URLs to an
@@ -47,4 +47,4 @@ Latest additions and playback of **His Girl Friday (1940)**. Bundled mpv decoded
 H.264 video/AAC audio and loaded the supplied SRT caption. Reported renditions
 were 480p/240p in that sample; no universal HD or availability claim is made.
 
-See the [installation guide](../../docs/website/internet-archive.md).
+See the [installation guide](https://github.com/amabee/Vestra/blob/main/docs/website/internet-archive.md).

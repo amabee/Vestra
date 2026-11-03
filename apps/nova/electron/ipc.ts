@@ -1,4 +1,5 @@
 import { handleIpc } from "./ipc-security";
+import { registryFetchUrl } from "./extension-registry";
 import { getAnimeInventories } from "./anime-inventories";
 import { constants as fsConstants } from "node:fs";
 import { refreshLocalLibrary } from "./library-refresh";
@@ -760,7 +761,9 @@ export function registerDataIpc(): void {
 
     for (const registryUrl of settings.extensions.registries) {
       try {
-        const response = await safeFetch({ url: registryUrl });
+        const response = await safeFetch({
+          url: registryFetchUrl(registryUrl),
+        });
         if (response.status !== 200) {
           errors.push({
             registryUrl,

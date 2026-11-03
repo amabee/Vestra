@@ -1,0 +1,107 @@
+{
+  "schema": 1,
+  "repository": "amabee/Foundry",
+  "revision": "1d5301e20822139bfc19e97e4ef6a9290da25482",
+  "files": [
+    {
+      "path": "extensions/README.md",
+      "sha256": "51cce45bc588f1887f93ea6a53a3ff6912deb3bfd51617cac227aab75613aa72"
+    },
+    {
+      "path": "extensions/desiflix/README.md",
+      "sha256": "d82361bca595205eee8e41ebd1e27e29e6832810a5b0e04ac630ed69e069f18e"
+    },
+    {
+      "path": "extensions/desiflix/index.js",
+      "sha256": "635de8d4a1a4ad93fd60c3de09acbd3afba7879f95c2b7417e75f1df498ce7b0"
+    },
+    {
+      "path": "extensions/desiflix/manifest.json",
+      "sha256": "29c28112f649708cc3b407891e4cc22aa8a43297ac2c2fc0aa0e130ecf286d5c"
+    },
+    {
+      "path": "extensions/internet-archive/README.md",
+      "sha256": "8e901c4e2b4fafe734d1f887c5cdd1cb3ebba8faa04d0b130e90df25a58a2b1a"
+    },
+    {
+      "path": "extensions/internet-archive/index.js",
+      "sha256": "6467d44385fd0a95648b7301b0ac8f21246860f9412e45ae0b6052be067f157a"
+    },
+    {
+      "path": "extensions/internet-archive/manifest.json",
+      "sha256": "e6f0fa0cc3a5d06f2d4611935399eb88bdc0aa863c0deb724f3ccbf2bfa6e50a"
+    },
+    {
+      "path": "extensions/kisskh/README.md",
+      "sha256": "a7790602ff9359d39b789c1952052793a803eec33ffebd6b6caff3688773f6fd"
+    },
+    {
+      "path": "extensions/kisskh/index.js",
+      "sha256": "94ccac286a5c72b05871706800074483a439f46e40bbe4c72031e1b69516a1fd"
+    },
+    {
+      "path": "extensions/kisskh/manifest.json",
+      "sha256": "e536ed1c956ccedd240d469f3a57ad1ec66cad5e4c1dd6c9d3437781efaf84e7"
+    },
+    {
+      "path": "extensions/kisskh/src/request-key.js",
+      "sha256": "dac5d861eca0d7ec570029ad0e5eac7c74be6cd1091d7937733360e96afb22eb"
+    },
+    {
+      "path": "extensions/kisskh/src/source.js",
+      "sha256": "2bb76395d3087f553b84f273c4ed63b32e0054c34cfa1aa160bceba471cf4a51"
+    },
+    {
+      "path": "extensions/moviebox/README.md",
+      "sha256": "802d3381bce0566a7a2168d472c724c00d099b6ed603ebb67402b4eb62803892"
+    },
+    {
+      "path": "extensions/moviebox/index.js",
+      "sha256": "eeb7cf32fe00188c0373e79b79606efad61bb9751bbd214b50626c7908bb9a63"
+    },
+    {
+      "path": "extensions/moviebox/manifest.json",
+      "sha256": "29de105ad6151c243e82e7b89f10ca4de5ae79473f4959259330c588306128cd"
+    },
+    {
+      "path": "extensions/registry.json",
+      "sha256": "d883f8ef60b8533a50897181330d692e2d47b12927af2c1fe605c8c5dd319487"
+    },
+    {
+      "path": "extensions/streamflix/README.md",
+      "sha256": "4ad72e10f81c45086f2678d0fbdb1d9726c88597a262928e50cb42d8fb5570c2"
+    },
+    {
+      "path": "extensions/streamflix/index.js",
+      "sha256": "5f3b867329342bd855b2c7603cec2a95118a0e7c65ce967e109273f6220cbfb4"
+    },
+    {
+      "path": "extensions/streamflix/manifest.json",
+      "sha256": "055afda6c70acc2bc8babc94539f9867eddf47420b58787b732b3c1e57d0d307"
+    },
+    {
+      "path": "extensions/vidlink/README.md",
+      "sha256": "10b50fbd95f10c1b778b34fb1c5466cb10b552fc3f72e50fa8b41fa7a1900316"
+    },
+    {
+      "path": "extensions/vidlink/index.js",
+      "sha256": "d391d5ca20e1138494f781f30ba2e25205702856b6a546f6b30e9fd016d8caeb"
+    },
+    {
+      "path": "extensions/vidlink/manifest.json",
+      "sha256": "e6fc71d854cfe1c667a041476aa9bb594d0440ccdad7533621680376247e73c7"
+    },
+    {
+      "path": "extensions/vixsrc/README.md",
+      "sha256": "7bcd275c584f0cd971744d06df60c9edcaee804d2007e0b5bbdd007659a2d346"
+    },
+    {
+      "path": "extensions/vixsrc/index.js",
+      "sha256": "b758a62e12603b853ebfde8a4345c7f7067f1bc79ae686bb94c5748527ac4740"
+    },
+    {
+      "path": "extensions/vixsrc/manifest.json",
+      "sha256": "87f328573e74145b64a9c56662260cd4759c5fa9714aac266ff4da3ecadfe13c"
+    }
+  ]
+}

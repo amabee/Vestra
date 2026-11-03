@@ -35,6 +35,8 @@ jobs:
           $version = (Get-Content apps/nova/package.json -Raw | ConvertFrom-Json).version
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Only stable semantic versions can use this release pipeline.' }
           if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag must match the Nova app version.' }
+      - run: pnpm extensions:verify
+      - run: pnpm test:foundry
       - run: pnpm --filter @vestra/nova typecheck
       - run: pnpm test:updater
       - run: pnpm test:settings
