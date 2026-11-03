@@ -5,6 +5,7 @@ import {
 } from "./anime-source-preference";
 import { PlaylistPicker } from "./playlist-picker";
 import { AniListListControl } from "./anilist-list-control";
+import { sourceRecoveryResume } from "@/lib/playback-recovery";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDuration } from "@vestra/core/format";
 import {
@@ -117,6 +118,13 @@ export function AnimeDetails() {
     queryFn: () => bridge.media.details(ref! as MediaItem),
     enabled: !!ref,
   });
+  const choosingSource = params.get("chooseSource") === "1";
+  useEffect(() => {
+    if (!choosingSource || extensions.isPending || details.isPending) return;
+    const picker = document.getElementById("anime-playback-source");
+    picker?.scrollIntoView({ block: "center" });
+    picker?.focus({ preventScroll: true });
+  }, [choosingSource, extensions.isPending, details.isPending]);
   const episodes = useQuery({
     queryKey: ["anime-source-details", identity, selected],
     queryFn: () => bridge.anime.resolve(selected, ref!),
@@ -229,6 +237,17 @@ export function AnimeDetails() {
       startAt ?? null,
       quality ? { [entry.locator]: quality } : {},
     );
+    if (params.has("resumeEpisode") || choosingSource) {
+      const next = new URLSearchParams(params);
+      for (const key of [
+        "resumeEpisode",
+        "resumeSeason",
+        "resumeAt",
+        "chooseSource",
+      ])
+        next.delete(key);
+      setParams(next, { replace: true });
+    }
   };
   const resumeIndex =
     queue
@@ -238,13 +257,15 @@ export function AnimeDetails() {
       )
       .sort((a, b) => (b.watch?.updatedAt ?? 0) - (a.watch?.updatedAt ?? 0))[0]
       ?.index ?? -1;
+  const recovery = sourceRecoveryResume(params, queue);
   const first =
-    resumeIndex >= 0
+    recovery?.index ??
+    (resumeIndex >= 0
       ? resumeIndex
       : Math.max(
           0,
           queue.findIndex((entry) => !saved(entry)?.completed),
-        );
+        ));
   // Minutes left in the episode to resume, shown next to the play button.
   const resumeWatch = resumeIndex >= 0 ? saved(queue[resumeIndex]!) : undefined;
   const resumeLeft = resumeWatch?.durationSeconds
@@ -477,21 +498,27 @@ export function AnimeDetails() {
               <button
                 type="button"
                 className="anime-primary"
-                disabled={!queue.length || busy || (!localMode && !available)}
+                disabled={
+                  !queue.length ||
+                  busy ||
+                  (!localMode && !available) ||
+                  (params.has("resumeEpisode") && !recovery)
+                }
                 onClick={() =>
                   play(
                     first,
                     undefined,
-                    resumeIndex >= 0
-                      ? Math.floor(saved(queue[first]!)?.positionSeconds ?? 0)
-                      : 0,
+                    recovery?.startAt ??
+                      (resumeIndex >= 0
+                        ? Math.floor(saved(queue[first]!)?.positionSeconds ?? 0)
+                        : 0),
                   )
                 }
               >
                 <Play size={17} className="fill-current" />
                 {busy
                   ? "Finding episodes…"
-                  : resumeIndex >= 0
+                  : recovery || resumeIndex >= 0
                     ? `Resume episode ${queue[first]?.episode ?? first + 1}`
                     : `Play episode ${queue[first]?.episode ?? 1}`}
               </button>
@@ -523,6 +550,13 @@ export function AnimeDetails() {
                 Add to playlist
               </button>
             </div>
+            {params.has("resumeEpisode") && !recovery && !busy && (
+              <p role="status" className="anime-message">
+                The interrupted episode is not available from this source.
+                Choose another source or select an episode below. Your saved
+                progress is retained.
+              </p>
+            )}
             {library.error && (
               <p role="alert" className="anime-error">
                 {library.error.message}
@@ -664,6 +698,7 @@ export function AnimeDetails() {
             <label className="anime-source-label">
               Playback source
               <select
+                id="anime-playback-source"
                 aria-label="Playback source"
                 value={selected}
                 onChange={(event) => patch("source", event.target.value)}

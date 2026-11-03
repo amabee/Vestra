@@ -472,7 +472,8 @@ export type PlayerCommand =
   | "previous"
   | "close"
   | "toggle-fullscreen"
-  | "open-settings";
+  | "open-settings"
+  | "change-source";
 
 /** An opening or ending range, from AniSkip. */
 export interface SkipInterval {

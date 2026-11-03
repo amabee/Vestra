@@ -51,6 +51,11 @@ jobs:
       - run: pnpm test:anilist:visibility
       - run: pnpm test:ipc:queries
       - run: pnpm test:manga:pagination
+      - run: pnpm test:reliability
+      - run: pnpm test:manga:navigation
+      - run: pnpm test:manga:preload
+      - run: node apps/nova/scripts/test-manga-information.mjs
+      - run: pnpm test:anime:runtime
       - run: pnpm audit --audit-level=low
       - run: pnpm --filter @vestra/nova build:electron
       - run: pnpm test:security
@@ -78,6 +83,8 @@ jobs:
       - run: pnpm test:settings:ui
       - run: pnpm test:settings:integrations:ui
       - run: node apps/nova/scripts/test-anilist-sync-ui.mjs
+      - run: pnpm test:reliability:ui
+      - run: node apps/nova/scripts/test-reader-ui.mjs
       - name: Smoke-test packaged worker and compiler
         run: node apps/nova/scripts/test-packaged-worker.mjs --resources apps/nova/release/win-unpacked/resources
       - run: node apps/nova/scripts/test-packaged-security.mjs

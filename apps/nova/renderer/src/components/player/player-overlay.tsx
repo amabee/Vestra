@@ -1,4 +1,8 @@
 import { playbackIssue } from "../../../../shared/playback-errors";
+import {
+  PlaybackCheckpoint,
+  playbackSourceLink,
+} from "@/lib/playback-recovery";
 import { usePlaybackPersistence } from "./use-playback-persistence";
 import { mediaKey, type MediaItem } from "@vestra/types";
 import { preferChapters, skipRangesFromChapters } from "@vestra/core/chapters";
@@ -162,6 +166,38 @@ export function PlayerOverlay() {
    */
   const playbackCurrent =
     openedSession === sessionId && !opening && !mpv.loading;
+  const checkpoint = useRef(new PlaybackCheckpoint());
+  checkpoint.current.observe(
+    sessionId,
+    usingMpv ? mpv.position : builtinClock.position,
+    usingMpv
+      ? playbackCurrent && !mpv.idle && !mpv.error
+      : builtinClock.session === sessionId && !failed,
+    usePlayer.getState().startAt,
+  );
+  const retryPlayback = useCallback(() => {
+    const state = usePlayer.getState();
+    if (!state.item) return;
+    setFailed(null);
+    state.open(
+      state.item,
+      state.queue,
+      state.index,
+      checkpoint.current.read(state.sessionId, state.startAt),
+      state.renditionOverrides,
+    );
+  }, []);
+  const changeSource = useCallback(() => {
+    const state = usePlayer.getState();
+    if (!state.item) return;
+    const url = playbackSourceLink(
+      state.item,
+      state.queue[state.index],
+      checkpoint.current.read(state.sessionId, state.startAt),
+    );
+    state.close();
+    void navigate(url);
+  }, [navigate]);
   const skipTimes = useQuery({
     queryKey: [
       "skip-times",
@@ -300,17 +336,12 @@ export function PlayerOverlay() {
     return bridge.player.onCommand((command) => {
       switch (command) {
         case "retry": {
-          const state = usePlayer.getState();
-          if (state.item)
-            state.open(
-              state.item,
-              state.queue,
-              state.index,
-              state.startAt,
-              state.renditionOverrides,
-            );
+          retryPlayback();
           break;
         }
+        case "change-source":
+          changeSource();
+          break;
         case "next":
           next();
           break;
@@ -334,7 +365,7 @@ export function PlayerOverlay() {
           break;
       }
     });
-  }, [next, previous, close, navigate]);
+  }, [next, previous, close, navigate, retryPlayback, changeSource]);
 
   /* ---------------------------------------------------------------------- *
    * Keyboard
@@ -778,20 +809,16 @@ export function PlayerOverlay() {
             <button
               type="button"
               className="mt-6 mr-3 rounded-field border border-base-content/20 px-4 py-2 text-sm"
-              onClick={() => {
-                setFailed(null);
-                usePlayer
-                  .getState()
-                  .open(
-                    item,
-                    queue,
-                    index,
-                    usePlayer.getState().startAt,
-                    renditionOverrides,
-                  );
-              }}
+              onClick={retryPlayback}
             >
               Try again
+            </button>
+            <button
+              type="button"
+              className="mt-6 mr-3 rounded-field border border-base-content/20 px-4 py-2 text-sm"
+              onClick={changeSource}
+            >
+              Choose another source
             </button>
             <button
               type="button"

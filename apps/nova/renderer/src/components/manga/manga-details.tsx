@@ -23,6 +23,7 @@ import "./manga-details.css";
 type Shared = {
   provider: string;
   sourceChoices?: ReactNode;
+  onChooseSource?: () => void;
   sourceName: string;
   images: ReaderImages;
   saved: boolean;
@@ -311,9 +312,18 @@ export function MangaDetailsPage({
             aria-label="Manga chapters"
             aria-busy={props.resolving || (!!book && chapters.isPending)}
           >
-            <div className="manga-info__section-head">
+            <div className="manga-info__section-head flex-wrap gap-2">
               <h2>Chapters</h2>
               {book && chapters.data && <span>{ordered.length} available</span>}
+              {props.onChooseSource && (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  aria-label="Choose reading source"
+                  onClick={props.onChooseSource}
+                >
+                  Change source
+                </button>
+              )}
             </div>
             {props.resolving || (book && chapters.isPending) ? (
               <div role="status" className="manga-info__chapter-skeleton">
@@ -337,9 +347,13 @@ export function MangaDetailsPage({
                   <RefreshCw className="size-4" />
                   Retry matching
                 </button>
+                {props.sourceChoices}
               </div>
             ) : props.sourceChoices ? (
               <div>
+                {!book && props.provider && (
+                  <h3>No matching manga in {props.sourceName}</h3>
+                )}
                 {props.sourceChoices}
                 <button
                   className="btn btn-ghost mt-3"

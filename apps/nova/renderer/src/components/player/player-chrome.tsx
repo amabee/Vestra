@@ -390,6 +390,12 @@ export function PlayerChrome() {
               Try again
             </button>
             <button
+              className="mt-6 mr-3 rounded-lg border border-white/25 px-4 py-2"
+              onClick={() => send("change-source")}
+            >
+              Choose another source
+            </button>
+            <button
               className="mt-6 rounded-lg border border-white/25 px-4 py-2"
               onClick={() => send("close")}
             >

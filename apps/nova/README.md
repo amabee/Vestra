@@ -16,6 +16,8 @@ Nova remains in the Vestra repository so existing release and updater URLs conti
 ## Implemented features
 
 - Home, discovery, anime search/details, weekly schedule, films/series and manga browsing/reading. Manga search queries all enabled sources, presents cards without extension badges, loads more results as you scroll and combines Continue Reading across extensions. Catalogue titles check available reading editions before opening source-specific chapters.
+- Continue Reading opens the saved manga chapter/page directly. Catalogue reading sources are remembered per title; selecting an edition opens the reader in one click. Reader failures offer image retry, chapter refresh and source changes without returning to the library. Saved-progress errors and missing chapters require recovery or an explicit chapter choice before recording a new position.
+- Playback retries retain the last confirmed position. The failure screen links directly to source selection; anime recovery carries the numbered episode and season and resumes only when the replacement source contains that exact episode.
 - Local library scanning, saved lists, watch history, progress and episode/chapter completion records.
 - Native playback controls, audio/subtitle selection, subtitle appearance, skip controls and source-supported quality choices.
 - Extension browsing, permission review, installation, reviewed updates and source diagnostics. Availability and playback depend on each upstream source; experimental listings are marked separately.

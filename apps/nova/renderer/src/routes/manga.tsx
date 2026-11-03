@@ -1,5 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { BookOpen, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 import { MangaLibrary } from "@/components/manga/manga-library";
 import { bridge } from "@/lib/bridge";
@@ -13,14 +19,22 @@ const errorText = (error: unknown) =>
 export function MangaRoute() {
   return (
     <MangaLibrary
-      renderReader={(provider, book, onBack, chapter) => (
+      renderReader={(
+        provider,
+        book,
+        onBack,
+        chapter,
+        backLabel,
+        onChangeSource,
+      ) => (
         <BookReader
           key={`${provider}:${book.id}`}
           provider={provider}
           book={book}
           onBack={onBack}
           initialChapter={chapter}
-          backLabel="Details"
+          backLabel={backLabel ?? "Details"}
+          onChangeSource={onChangeSource}
         />
       )}
     />
@@ -32,24 +46,28 @@ export function BookReader({
   onBack,
   initialChapter,
   backLabel = "Library",
+  onChangeSource,
 }: {
   provider: string;
   book: MangaBook;
   onBack: () => void;
   initialChapter?: string;
   backLabel?: string;
+  onChangeSource?: () => void;
 }) {
   const chapters = useQuery({
     queryKey: ["manga", provider, book.id, "chapters"],
     queryFn: () => bridge.manga.chapters(provider, book.id),
     staleTime: 0,
     gcTime: 0,
+    retry: false,
   });
   const progress = useQuery({
     queryKey: ["manga", provider, book.id, "progress"],
     queryFn: () => bridge.manga.progress(provider, book.id),
     staleTime: 0,
     gcTime: 0,
+    retry: false,
   });
   const [selected, setSelected] = useState(initialChapter ?? "");
   const [language, setLanguage] = useState("");
@@ -85,6 +103,11 @@ export function BookReader({
     "";
   const chapter = ordered.some((c) => c.id === selected) ? selected : fallback;
   const chapterIndex = ordered.findIndex((c) => c.id === chapter);
+  const requestedChapter = selected || progress.data?.chapterId;
+  const missingChapter =
+    !!requestedChapter &&
+    ordered.length > 0 &&
+    !ordered.some((row) => row.id === requestedChapter);
   return (
     <section
       ref={chrome.root}
@@ -116,7 +139,13 @@ export function BookReader({
             {ordered[chapterIndex]?.title || "Choose a chapter"}
           </p>
         </div>
-        <div aria-hidden="true" />
+        <div className="text-right">
+          {onChangeSource && (
+            <button className="btn btn-ghost btn-sm" onClick={onChangeSource}>
+              Change source
+            </button>
+          )}
+        </div>
       </header>
       {chrome.error && (
         <p role="alert" className="bg-base-100 px-4 py-2">
@@ -238,18 +267,42 @@ export function BookReader({
           </aside>
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          {chapters.error && <p role="alert">{errorText(chapters.error)}</p>}
-          {progress.error && (
+          {chapters.error && (
             <p role="alert">
-              Could not read saved progress: {errorText(progress.error)}
+              {errorText(chapters.error)}{" "}
+              <button
+                className="btn btn-sm"
+                onClick={() => void chapters.refetch()}
+              >
+                Retry chapters
+              </button>
             </p>
           )}
-          {chapters.isPending ||
-          progress.isPending ||
-          chapters.isFetching ||
-          progress.isFetching ? (
+          {progress.error && (
+            <p role="alert">
+              Could not read saved progress: {errorText(progress.error)}{" "}
+              <button
+                className="btn btn-sm"
+                onClick={() => void progress.refetch()}
+              >
+                Retry saved progress
+              </button>
+            </p>
+          )}
+          {chapters.isPending || progress.isPending ? (
             <p role="status" className="py-5">
               Loading chapters…
+            </p>
+          ) : progress.error ? null : missingChapter ? (
+            <p role="alert" className="p-6">
+              The saved chapter is no longer available in this selection. Your
+              reading position has been kept.{" "}
+              <button
+                className="btn btn-sm"
+                onClick={() => setChaptersOpen(true)}
+              >
+                Choose chapter
+              </button>
             </p>
           ) : ordered.length ? (
             <>
@@ -269,6 +322,7 @@ export function BookReader({
                 chrome={chrome}
                 settingsOpen={settingsOpen}
                 onSettingsChange={changeSettings}
+                onChangeSource={onChangeSource}
                 chapterControl={
                   <button
                     className="btn btn-ghost btn-sm max-w-44"
@@ -294,7 +348,15 @@ export function BookReader({
             </>
           ) : (
             !chapters.error && (
-              <p className="py-5">No chapters match the current selection.</p>
+              <p className="py-5">
+                No chapters match the current selection.{" "}
+                <button
+                  className="btn btn-sm"
+                  onClick={() => void chapters.refetch()}
+                >
+                  Refresh chapters
+                </button>
+              </p>
             )
           )}
         </div>
@@ -312,6 +374,7 @@ function ChapterReader({
   onSettingsChange,
   settingsOpen,
   chapterControl,
+  onChangeSource,
 }: {
   provider: string;
   book: string;
@@ -322,36 +385,75 @@ function ChapterReader({
   onSettingsChange: (open: boolean) => void;
   settingsOpen: boolean;
   chapterControl: ReactNode;
+  onChangeSource?: () => void;
 }) {
+  const position = useRef(start);
+  const rememberPosition = useCallback((page: number) => {
+    position.current = page;
+  }, []);
   const pages = useQuery({
     queryKey: ["manga", provider, book, chapter, "pages"],
     queryFn: () => bridge.manga.pages(provider, book, chapter),
     staleTime: Infinity,
     gcTime: 0,
+    retry: false,
   });
-  if (pages.isPending) return <p role="status">Loading pages…</p>;
+  const reload = () => {
+    if (pages.isFetching) return;
+    void pages.refetch();
+  };
+  if (pages.isPending || pages.isFetching)
+    return (
+      <p role="status">
+        {pages.data ? "Refreshing chapter…" : "Loading pages…"}
+      </p>
+    );
   if (pages.error)
     return (
       <p role="alert">
         {errorText(pages.error)}{" "}
-        <button className="btn btn-sm" onClick={() => void pages.refetch()}>
+        <button className="btn btn-sm" onClick={reload}>
           Retry
+        </button>
+        {onChangeSource && (
+          <button className="btn btn-sm ml-2" onClick={onChangeSource}>
+            Change source
+          </button>
+        )}
+      </p>
+    );
+  if (!pages.data.length)
+    return (
+      <p>
+        This chapter has no pages.{" "}
+        <button className="btn btn-sm" onClick={reload}>
+          Refresh chapter
         </button>
       </p>
     );
-  if (!pages.data.length) return <p>This chapter has no pages.</p>;
   return (
     <PageReader
+      key={pages.data[0]?.handle}
       provider={provider}
       book={book}
       chapter={chapter}
       pages={pages.data}
-      start={start}
+      start={position.current}
+      onPosition={rememberPosition}
+      onReloadChapter={reload}
+      onChangeSource={onChangeSource}
       onNextChapter={onNextChapter}
       chrome={chrome}
       onSettingsChange={onSettingsChange}
       settingsOpen={settingsOpen}
-      chapterControl={chapterControl}
+      chapterControl={
+        <>
+          {chapterControl}
+          <button className="btn btn-ghost btn-sm" onClick={reload}>
+            Refresh chapter
+          </button>
+        </>
+      }
     />
   );
 }

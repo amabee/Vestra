@@ -57,6 +57,13 @@ export class ReaderImages {
     }
     return this.load(handle, 1);
   }
+  invalidate(handle: string) {
+    const value = this.cache.get(handle);
+    if (value !== undefined) {
+      this.bytes -= value.length * 2;
+      this.cache.delete(handle);
+    }
+  }
   prefetch(handles: string[]) {
     const keep = new Set(handles);
     for (const [key, job] of this.jobs) {
@@ -114,11 +121,10 @@ export class ReaderImages {
     this.disposed = true;
     this.cache.clear();
     this.bytes = 0;
-    for (const [key, job] of this.jobs)
-      if (!job.started) {
-        this.jobs.delete(key);
-        job.reject(new Error("Chapter closed."));
-      }
+    for (const [key, job] of this.jobs) {
+      this.jobs.delete(key);
+      job.reject(new Error("Chapter closed."));
+    }
   }
 }
 
