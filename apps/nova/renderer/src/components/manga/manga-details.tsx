@@ -1,4 +1,5 @@
 import { MediaBanner, MediaPageBackground } from "../media/media-banner";
+import { AniListListControl } from "../media/anilist-list-control";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { MangaUnreadBadge } from "../media/completion-badges";
 import { useSettings } from "@/lib/queries";
@@ -149,6 +150,14 @@ export function MangaDetailsPage({
         backdrop={bannerArt.data}
         fallback={backgroundArt.data}
       />
+      {(catalogueId || book) && (
+        <AniListListControl
+          type="MANGA"
+          source={catalogueId || data?.id ? "anilist" : props.provider}
+          id={String(catalogueId || data?.id || book!.id)}
+          title={title}
+        />
+      )}
       {settings?.privacy.mangaUnreadCount && book && (
         <div className="manga-completion-controls">
           <MangaUnreadBadge provider={props.provider} bookId={book.id} />

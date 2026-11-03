@@ -38,9 +38,16 @@ export function AniListConnection({
   const [notice, setNotice] = useState("");
   const action = useMutation({
     mutationFn: async (value: {
-      kind: "sign-in" | "cancel-sign-in" | "disconnect" | "backup" | "export";
+      kind:
+        | "sign-in"
+        | "cancel-sign-in"
+        | "disconnect"
+        | "backup"
+        | "export"
+        | "sync";
     }) => {
       setNotice("");
+      if (value.kind === "sync") return bridge.anilistAccount.sync();
       if (value.kind === "sign-in") return bridge.anilistAccount.signIn();
       if (value.kind === "cancel-sign-in")
         return bridge.anilistAccount.cancelSignIn();
@@ -71,8 +78,8 @@ export function AniListConnection({
       <h3 className="font-serif text-2xl">Local account & AniList</h3>
       <p className="my-3 text-sm text-base-content/60">
         {value?.connected
-          ? "Your anime and manga list backups are encrypted on this computer."
-          : "Sign in to enable encrypted backups of your anime and manga lists."}
+          ? "Your anime and manga lists sync with AniList. Pending changes and list backups are encrypted on this computer."
+          : "Sign in to sync your anime and manga lists and keep encrypted backups."}
       </p>
       <p role="status" className="my-3 text-sm">
         {status.isPending
@@ -160,6 +167,48 @@ export function AniListConnection({
           >
             Disconnect AniList
           </button>
+        </div>
+      )}
+      {(value?.connected || value?.user) && (
+        <div className="mt-4 border-t rule pt-3">
+          <h4 className="font-medium">List sync</h4>
+          <p className="my-2 text-sm text-base-content/60">
+            Watchlist and reading shelf additions are saved to AniList. Playlist
+            additions save the title as planned; playlist names and ordering
+            stay in Vestra. Watching and reading update progress when an episode
+            or numbered chapter is completed. Existing AniList lists appear in
+            Vestra automatically.
+          </p>
+          <button
+            className="btn btn-sm"
+            disabled={
+              action.isPending ||
+              !value.connected ||
+              value.sync?.syncing ||
+              (value.sync?.retryAt ?? 0) > Date.now()
+            }
+            onClick={() => action.mutate({ kind: "sync" })}
+          >
+            {value.sync?.syncing ? "Syncing…" : "Sync AniList now"}
+          </button>
+          <p role="status" className="my-2 text-sm">
+            Last sync: {date(value.sync?.lastSyncAt)} ·{" "}
+            {value.sync?.pending ?? 0} pending
+          </p>
+          {!!value.sync?.unmatched && (
+            <p className="text-sm text-warning">
+              {value.sync.unmatched} titles need an exact AniList match. Open
+              the matching catalogue title to link the reading source.
+            </p>
+          )}
+          {value.sync?.retryAt && (
+            <p className="text-sm">Next retry: {date(value.sync.retryAt)}</p>
+          )}
+          {value.sync?.lastError && (
+            <p role="alert" className="text-sm text-warning">
+              {value.sync.lastError}
+            </p>
+          )}
         </div>
       )}
       {(value?.connected || value?.user) && (

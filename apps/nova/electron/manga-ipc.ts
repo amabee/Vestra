@@ -1,5 +1,11 @@
 import { getSettings } from "@vestra/storage";
 import { handleIpc } from "./ipc-security";
+import {
+  aniListMangaEntries,
+  aniListMangaIdentity,
+  aniListMangaVisible,
+  emitAniList,
+} from "./anilist-sync-events";
 import { z } from "zod";
 import { getDriver, resolveDataDir } from "./services";
 import { join } from "node:path";
@@ -36,7 +42,7 @@ export function registerMangaIpc(
   const resolver = new MangaTitleResolver(getDriver(), api, (id) =>
     details.get(id),
   );
-  handleIpc("manga:resolve", (_e, p, selection) => {
+  handleIpc("manga:resolve", async (_e, p, selection) => {
     const provider = z.string().min(1).max(120).parse(p);
     const input = z
       .discriminatedUnion("kind", [
@@ -52,9 +58,12 @@ export function registerMangaIpc(
         }),
       ])
       .parse(selection);
-    return input.kind === "catalogue"
+    const book = await (input.kind === "catalogue"
       ? resolver.catalogue(provider, input.id)
-      : resolver.source(provider, input.source, input.id, input.title);
+      : resolver.source(provider, input.source, input.id, input.title));
+    if (input.kind === "catalogue" && book)
+      await emitAniList((sync) => sync.bindManga(provider, book.id, input.id));
+    return book;
   });
   handleIpc("manga:unread", async (_e, p, b, catalogue) => {
     const provider = z.string().min(1).max(120).parse(p);
@@ -89,7 +98,42 @@ export function registerMangaIpc(
     return page;
   });
   handleIpc("manga:sources", () => api.list());
-  handleIpc("manga:bookmarks", () => api.bookmarks());
+  handleIpc("manga:bookmarks", async () => {
+    const rows = (await api.bookmarks()).filter((row) =>
+      aniListMangaVisible(row.source, row.book.id),
+    );
+    const ids = new Set(
+      rows.map((row) => aniListMangaIdentity(row.source, row.book.id)),
+    );
+    for (const entry of aniListMangaEntries()) {
+      if (ids.has(entry.mediaId)) continue;
+      const title = {
+        id: entry.mediaId,
+        title:
+          entry.media.title.english ||
+          entry.media.title.romaji ||
+          entry.media.title.native ||
+          "Untitled",
+        genres: [],
+        origin: null,
+        status: null,
+        score: null,
+      };
+      api.registerCatalogueTitle(title);
+      const url = entry.media.coverImage?.large;
+      rows.push({
+        kind: "catalogue",
+        source: "anilist",
+        book: {
+          id: String(entry.mediaId),
+          title: title.title,
+          ...(url ? { cover: api.catalogueCover(entry.mediaId, url) } : {}),
+        },
+        savedAt: new Date(entry.updatedAt * 1000).toISOString(),
+      });
+    }
+    return rows;
+  });
   handleIpc("manga:bookmark", (_e, kind, source, id, saved) =>
     api.bookmark(
       z.enum(["source", "catalogue"]).parse(kind),
@@ -108,7 +152,12 @@ export function registerMangaIpc(
   handleIpc("manga:info", async (_e, p, id) => {
     const book = api.knownBook(text.parse(p), text.parse(id));
     const info = await details.source(book.title);
-    if (info) api.registerCatalogueTitle(info);
+    if (info) {
+      api.registerCatalogueTitle(info);
+      await emitAniList((sync) =>
+        sync.bindManga(text.parse(p), book.id, info.id),
+      );
+    }
     return info;
   });
   handleIpc("manga:details", async (_e, id) => {

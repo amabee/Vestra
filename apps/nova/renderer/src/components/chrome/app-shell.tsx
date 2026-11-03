@@ -32,9 +32,12 @@ export function AppShell() {
   const started = useRef(false);
   useEffect(
     () =>
-      bridge.anilistAccount.onChanged((value) =>
-        cache.setQueryData(["anilist-account"], value),
-      ),
+      bridge.anilistAccount.onChanged((value) => {
+        cache.setQueryData(["anilist-account"], value);
+        void cache.invalidateQueries({ queryKey: ["watchlist"] });
+        void cache.invalidateQueries({ queryKey: ["manga-bookmarks"] });
+        void cache.invalidateQueries({ queryKey: ["anilist-lists"] });
+      }),
     [cache],
   );
   useEffect(

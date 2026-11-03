@@ -171,6 +171,9 @@ interface RawBridge {
     resume: (hash: string) => Promise<unknown>;
   };
   anilistAccount: {
+    sync: () => Promise<unknown>;
+    lists: () => Promise<unknown>;
+    change: (value: unknown) => Promise<unknown>;
     status: () => Promise<unknown>;
     signIn: () => Promise<unknown>;
     cancelSignIn: () => Promise<unknown>;
@@ -726,6 +729,16 @@ export const bridge = {
     resume: (hash: string) => raw().torrents.resume(hash),
   },
   anilistAccount: {
+    sync: async () =>
+      (await raw().anilistAccount.sync()) as import("../../../shared/anilist-account").AniListAccountStatus,
+    lists: async () =>
+      (await raw().anilistAccount.lists()) as import("../../../shared/anilist-sync").AniListRemoteEntry[],
+    change: async (
+      value: Omit<import("../../../shared/anilist-sync").AniListChange, "at">,
+    ) =>
+      (await raw().anilistAccount.change(
+        value,
+      )) as import("../../../shared/anilist-account").AniListAccountStatus,
     status: async () =>
       (await raw().anilistAccount.status()) as import("../../../shared/anilist-account").AniListAccountStatus,
     signIn: async () =>
@@ -847,8 +860,13 @@ export const bridge = {
     add: async (
       item: MediaItem,
       status?: WatchlistStatus,
+      automatic = false,
     ): Promise<WatchlistEntry[]> =>
-      (await raw().watchlist.add({ item, status })) as WatchlistEntry[],
+      (await raw().watchlist.add({
+        item,
+        status,
+        automatic,
+      })) as WatchlistEntry[],
 
     remove: async (ref: MediaRef): Promise<WatchlistEntry[]> =>
       (await raw().watchlist.remove(ref)) as WatchlistEntry[],

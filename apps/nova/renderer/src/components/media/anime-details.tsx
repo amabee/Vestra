@@ -4,6 +4,7 @@ import {
   rememberAnimeSource,
 } from "./anime-source-preference";
 import { PlaylistPicker } from "./playlist-picker";
+import { AniListListControl } from "./anilist-list-control";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDuration } from "@vestra/core/format";
 import {
@@ -526,6 +527,14 @@ export function AnimeDetails() {
               <p role="alert" className="anime-error">
                 {library.error.message}
               </p>
+            )}
+            {data && (
+              <AniListListControl
+                type="ANIME"
+                source={data.source}
+                id={data.sourceId}
+                title={data.title}
+              />
             )}
           </div>
         </div>

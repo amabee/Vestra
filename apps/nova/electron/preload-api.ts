@@ -133,6 +133,9 @@ export const api = {
     resume: (hash: string) => invoke("torrents:resume", hash),
   },
   anilistAccount: {
+    sync: () => invoke("anilist-account:sync"),
+    lists: () => invoke("anilist-account:lists"),
+    change: (value: unknown) => invoke("anilist-account:change", value),
     status: () => invoke("anilist-account:status"),
     signIn: () => invoke("anilist-account:sign-in"),
     cancelSignIn: () => invoke("anilist-account:cancel-sign-in"),

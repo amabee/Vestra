@@ -5,10 +5,23 @@ import { getSettings } from "@vestra/storage";
 import { AniListAccount } from "./anilist-account";
 import { getDriver, resolveDataDir } from "./services";
 import { AniListBrowserLogin, isAniListCallback } from "./anilist-login";
+import { AniListLibrarySync } from "./anilist-library-sync";
+import { registerAniListSyncEvents } from "./anilist-sync-events";
+import { getMangaBookmarks } from "./csharp-providers";
+import { listChangeSchema } from "../shared/anilist-sync";
 
 let account: AniListAccount | null = null;
 let initialization: Promise<unknown> | null = null;
 let login: AniListBrowserLogin | null = null;
+let library: AniListLibrarySync | null = null;
+function getLibrarySync() {
+  return (library ??= new AniListLibrarySync(
+    getAniListAccount(),
+    getDriver(),
+    getMangaBookmarks,
+    broadcast,
+  ));
+}
 const ensureReady = () => (initialization ??= getAniListAccount().load());
 function getLogin() {
   return (login ??= new AniListBrowserLogin({
@@ -33,6 +46,10 @@ export async function handleAniListCallback(raw: string) {
   await app.whenReady();
   await ensureReady();
   const handled = await getLogin().complete(raw);
+  if (handled)
+    void getLibrarySync()
+      .sync(true)
+      .catch(() => undefined);
   broadcast();
   return handled;
 }
@@ -48,6 +65,7 @@ export function getAniListAccount() {
 }
 export function registerAniListAccountIpc() {
   const service = getAniListAccount();
+  registerAniListSyncEvents(getLibrarySync());
   void ensureReady();
   handleIpc("anilist-account:status", async () => {
     await ensureReady();
@@ -57,6 +75,9 @@ export function registerAniListAccountIpc() {
     await ensureReady();
     await getLogin().cancel();
     await service.connect(token);
+    void getLibrarySync()
+      .sync(true)
+      .catch(() => undefined);
     broadcast();
     return snapshot();
   });
@@ -70,6 +91,25 @@ export function registerAniListAccountIpc() {
   handleIpc("anilist-account:backup", async () => {
     await ensureReady();
     return service.backup();
+  });
+  handleIpc("anilist-account:sync", async () => {
+    await ensureReady();
+    await getLibrarySync().sync(true);
+    return snapshot();
+  });
+  handleIpc("anilist-account:lists", async () => {
+    await ensureReady();
+    return service.listMirror();
+  });
+  handleIpc("anilist-account:change", async (_e, raw) => {
+    await ensureReady();
+    const change = listChangeSchema.parse({ ...raw, at: Date.now() });
+    await service.queueListChange(change);
+    broadcast();
+    void getLibrarySync()
+      .sync(true)
+      .catch(() => undefined);
+    return snapshot();
   });
   handleIpc("anilist-account:sign-in", async () => {
     await ensureReady();
@@ -113,6 +153,7 @@ export async function startAniListAccount() {
   await ensureReady();
   const tick = async () => {
     try {
+      await getLibrarySync().sync();
       await service.backupIfDue(
         (await getSettings(getDriver())).sources.anilistAutoBackup,
       );

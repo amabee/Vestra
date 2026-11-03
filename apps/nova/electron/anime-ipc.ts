@@ -1,4 +1,6 @@
 import { handleIpc } from "./ipc-security";
+import { emitAniList, mergeAniListWatchlist } from "./anilist-sync-events";
+import { playlistCommandSchema } from "../shared/playlists";
 import { getAnimeInventories } from "./anime-inventories";
 import type { AnimeSourceEpisodes } from "../shared/anime";
 import {
@@ -46,7 +48,7 @@ export function registerAnimeIpc() {
   const playlists = new AnimePlaylists(getDriver);
   const schedule = new AnimeSchedule(async () => {
     const [watchlist, history, progress, lists] = await Promise.all([
-      getWatchlist(getDriver()),
+      getWatchlist(getDriver()).then(mergeAniListWatchlist),
       getHistory(getDriver()),
       getAllProgress(getDriver()),
       playlists.list(),
@@ -55,9 +57,15 @@ export function registerAnimeIpc() {
   });
   handleIpc("anime:schedule", (_e, query) => schedule.load(query));
   handleIpc("anime:playlists", () => playlists.list());
-  handleIpc("anime:playlist-command", (_e, command) =>
-    playlists.mutate(command),
-  );
+  handleIpc("anime:playlist-command", async (_e, raw) => {
+    const command = playlistCommandSchema.parse(raw);
+    const rows = await playlists.mutate(command);
+    if (command.action === "add")
+      void emitAniList((sync) =>
+        sync.watchlist(command.entry.item, "planned", true),
+      );
+    return rows;
+  });
   handleIpc("anime:open", async (_e, rawId, rawItem) => {
     const id = z.string().min(1).max(120).parse(rawId);
     const item = mediaItemSchema.parse(rawItem);
@@ -109,7 +117,7 @@ export function registerAnimeIpc() {
               row.item.source === ref.source &&
               row.item.sourceId === ref.sourceId,
           )?.item ??
-        (await getWatchlist(getDriver())).find(
+        mergeAniListWatchlist(await getWatchlist(getDriver())).find(
           (row) =>
             row.ref.source === ref.source && row.ref.sourceId === ref.sourceId,
         )?.snapshot ??

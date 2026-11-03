@@ -3,6 +3,7 @@ import {
   serializeExtensionChange,
 } from "./extension-updates";
 import { handleIpc } from "./ipc-security";
+import { emitAniList, mergeAniListWatchlist } from "./anilist-sync-events";
 import { registryFetchUrl } from "./extension-registry";
 import { getAnimeInventories } from "./anime-inventories";
 import { constants as fsConstants } from "node:fs";
@@ -224,6 +225,7 @@ const unpackedRequestSchema = z.object({
 const watchlistAddSchema = z.object({
   item: mediaItemSchema,
   status: watchlistStatusSchema.optional(),
+  automatic: z.boolean().optional(),
 });
 
 const historyAddSchema = z.object({
@@ -455,19 +457,38 @@ export function registerDataIpc(): void {
    * Watchlist
    * --------------------------------------------------------------------- */
 
-  handle("watchlist:list", () => getWatchlist(getDriver()));
+  handle("watchlist:list", async () =>
+    mergeAniListWatchlist(await getWatchlist(getDriver())),
+  );
 
-  handle("watchlist:add", (raw: unknown) => {
+  handle("watchlist:add", async (raw: unknown) => {
     const input = parse(watchlistAddSchema, raw, "watchlist entry");
-    return addToWatchlist(getDriver(), input.item, input.status);
+    const alreadySaved = mergeAniListWatchlist(
+      await getWatchlist(getDriver()),
+    ).some(
+      (row) =>
+        row.ref.source === input.item.source &&
+        row.ref.kind === input.item.kind &&
+        row.ref.sourceId === input.item.sourceId,
+    );
+    const rows = await addToWatchlist(getDriver(), input.item, input.status);
+    void emitAniList((sync) =>
+      sync.watchlist(
+        input.item,
+        input.status ?? "planned",
+        !alreadySaved && (input.status ?? "planned") === "planned",
+        input.automatic,
+      ),
+    );
+    return mergeAniListWatchlist(rows);
   });
 
-  handle("watchlist:remove", (raw: unknown) =>
-    removeFromWatchlist(
-      getDriver(),
-      parse(mediaRefSchema, raw, "media reference"),
-    ),
-  );
+  handle("watchlist:remove", async (raw: unknown) => {
+    const ref = parse(mediaRefSchema, raw, "media reference");
+    const rows = await removeFromWatchlist(getDriver(), ref);
+    void emitAniList((sync) => sync.remove(ref));
+    return mergeAniListWatchlist(rows);
+  });
 
   /* --------------------------------------------------------------------- *
    * Progress and history
@@ -481,10 +502,12 @@ export function registerDataIpc(): void {
     // settings rather than the repository default.
     const settings = await getSettings(getDriver());
 
-    return saveProgress(getDriver(), {
+    const saved = await saveProgress(getDriver(), {
       ...input,
       markWatchedAt: settings.playback.markWatchedAt,
     });
+    void emitAniList((sync) => sync.progress(saved));
+    return saved;
   });
 
   handle("progress:clear", (raw: unknown) =>
@@ -1105,7 +1128,7 @@ export function registerDataIpc(): void {
 
     const [settings, watchlist, files] = await Promise.all([
       getSettings(getDriver()),
-      getWatchlist(getDriver()),
+      getWatchlist(getDriver()).then(mergeAniListWatchlist),
       getLocalFiles(getDriver()),
     ]);
 

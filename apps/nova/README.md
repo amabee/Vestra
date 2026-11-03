@@ -21,6 +21,7 @@ Nova remains in the Vestra repository so existing release and updater URLs conti
 - Extension browsing, permission review, installation, reviewed updates and source diagnostics. Availability and playback depend on each upstream source; experimental listings are marked separately.
 - Searchable settings for application behavior, appearance, playback, connections, library/scanning, diagnostics and updates.
 - AniList browser sign-in from Settings or the account control at the bottom of the sidebar. Connected accounts show their avatar; account credentials and local list backups use OS-backed encrypted storage.
+- Connected AniList accounts sync anime watchlists and manga reading shelves in both directions. List additions, status changes and completed episode/numbered-chapter progress queue automatically; the queue and incoming list snapshot are encrypted per account. Settings shows pending work, retries, unmatched titles and a manual sync action. Anime and manga details include AniList status controls.
 - An optional qBittorrent connection for category-scoped download management. Nova does not install qBittorrent or provide an embedded torrent engine.
 - Stable Windows app updates through GitHub Releases, with manual checking, release notes, explicit download and restart/install actions.
 
@@ -114,6 +115,14 @@ StreamFlix remains excluded from Foundry's published registry and blocked in Nov
 - Packaged Electron fuses disable RunAsNode, Node options and Node inspector CLI flags, and enable ASAR-only loading with embedded integrity checking.
 
 These controls and automated tests do not constitute a complete penetration test or guarantee that every upstream provider or native dependency is vulnerability-free.
+
+## AniList list sync
+
+Connecting an account imports its anime and manga list snapshot into the Watchlist and manga Bookmarks views. Refreshes run while Nova is open, normally every five minutes; Settings → Application → Local account & AniList includes **Sync AniList now**, pending counts and retry details. Disconnecting removes the token, pending queue and imported snapshot from the active account without deleting local library data or existing backups.
+
+Watchlist statuses map to AniList planning/current/completed/paused/dropped. Playlist additions ensure the title exists on AniList without replacing its existing status; playlist names and order remain local. Manga bookmarks add a title to planning, and anime/manga information pages expose explicit AniList status controls. Removing a watchlist/reading-shelf title removes its AniList list entry. Removing a title from a named playlist only changes that local playlist.
+
+Completed episodes and integer-numbered chapters advance AniList progress; automatic updates preserve higher remote progress and mark completed only when AniList supplies a known total. Page positions, per-chapter completion flags and local episode history stay local; imported remote counts do not fabricate local playback positions. Scores, notes, privacy and custom-list memberships are preserved. Provider-only titles require one unique exact title/alias match, or a source selected from a known AniList catalogue title; ambiguous matches remain pending for review instead of writing to a guessed title.
 
 ## Updates and releases
 

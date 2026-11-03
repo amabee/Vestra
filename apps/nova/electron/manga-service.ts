@@ -1,6 +1,7 @@
 import { mangaImageHeaders } from "./manga-image-request";
 import { ChapterCompletions } from "./chapter-completions";
 import { createHash, randomUUID } from "node:crypto";
+import { emitAniList } from "./anilist-sync-events";
 import { z } from "zod";
 import type { MangaCoverCache } from "./manga-cover-cache";
 import type { MangaBookmarkRepository } from "./manga-bookmarks";
@@ -132,6 +133,14 @@ export class MangaService {
   async markChapters(p: string, b: string, read: boolean) {
     this.book(p, b);
     await this.completions.markAll(p, b, read);
+    const title = this.books.get(this.key(p, b))!.title;
+    const numbers = (this.chaptersByBook.get(this.key(p, b)) ?? []).flatMap(
+      (row) => (/^\d+$/.test(row.chapter) ? [Number(row.chapter)] : []),
+    );
+    if (read)
+      void emitAniList((sync) =>
+        sync.manga(p, b, title, true, Math.max(0, ...numbers)),
+      );
     return this.unread(p, b);
   }
   registerBookmarks(repository: MangaBookmarkRepository) {
@@ -220,7 +229,9 @@ export class MangaService {
       }
     }
     const write = this.writes.then(() =>
-      repository.set({ kind, source, id, title, cover }, saved),
+      repository.set({ kind, source, id, title, cover }, saved).then(() => {
+        void emitAniList((sync) => sync.manga(source, id, title, saved));
+      }),
     );
     this.writes = write.catch(() => undefined);
     return write;
@@ -680,6 +691,12 @@ export class MangaService {
     const result = this.writes.then(async () => {
       await repository.save(b, chapterId, page, count, title, cover);
       if (page === count - 1) await this.completions.complete(p, b, chapterId);
+      const label = this.chaptersByBook
+        .get(this.key(p, b))
+        ?.find((row) => row.id === chapterId)?.chapter;
+      const number =
+        page === count - 1 && label && /^\d+$/.test(label) ? Number(label) : 0;
+      void emitAniList((sync) => sync.manga(p, b, title, true, number));
     });
     this.writes = result.catch(() => undefined);
     return result;
