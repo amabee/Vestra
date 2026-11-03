@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router";
 import type { DiscoveryCategory } from "@vestra/extension-host";
 import type { MediaItem } from "@vestra/types";
+import { useSettings } from "@/lib/queries";
 import { bridge } from "@/lib/bridge";
 import { animeMessage } from "./anime-message";
 
@@ -24,6 +25,7 @@ export function AnimeSourceBrowse({
   categories?: readonly DiscoveryCategory[];
   renderCards: (items: MediaItem[]) => ReactNode;
 }) {
+  const { data: settings } = useSettings();
   const [params, setParams] = useSearchParams();
   const options = categories?.length
     ? categories
@@ -57,9 +59,15 @@ export function AnimeSourceBrowse({
       );
   }, [available, category, page, params, setParams]);
   const result = useQuery({
-    queryKey: ["anime-discovery", provider, category, page],
+    queryKey: [
+      "anime-discovery",
+      provider,
+      category,
+      page,
+      settings?.privacy.showAdultContent ?? false,
+    ],
     queryFn: () => bridge.anime.browse(provider, { category, page }),
-    enabled: available,
+    enabled: available && !!settings,
     staleTime: 120_000,
     retry: false,
   });

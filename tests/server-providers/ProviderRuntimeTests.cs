@@ -154,6 +154,38 @@ public sealed class ProviderRuntimeTests
         Assert.Equal(4, transport.Calls);
     }
 
+    [Fact]
+    public async Task MangaHasAnExplicitBoundedBudgetWithoutExtendingAnimeCalls()
+    {
+        const string source = """
+            class Provider {
+              getSettings(){ return {supportsMultiLanguage:false,supportsMultiScanlator:false,episodeServers:[]}; }
+              async search(opts){ return await (await fetch('https://fixture.example/search')).json(); }
+              async findChapters(id){return [];}
+              async findChapterPages(id){return [];}
+              async findEpisodes(id){return [];}
+              async findEpisodeServer(ep,server){return {};}
+            }
+            """;
+        var runtime = new ProviderRuntime(new DelayedSearchTransport(), new ProviderLimits(TimeoutMs: 200, MangaTimeoutMs: 2000));
+        await runtime.LoadAsync(new("manga-budget", source, ["fixture.example"], Type: "manga-provider"));
+        await runtime.LoadAsync(new("anime-budget", source, ["fixture.example"]));
+        Assert.Empty((await runtime.CallAsync("manga-budget", "search", [Json("{\"query\":\"Fixture\"}")])).EnumerateArray());
+        await Assert.ThrowsAnyAsync<Exception>(() => runtime.CallAsync("anime-budget", "search", [Json("{\"query\":\"Fixture\"}")]));
+        var bounded = new ProviderRuntime(new DelayedSearchTransport(), new ProviderLimits(MangaTimeoutMs: 200));
+        await bounded.LoadAsync(new("bounded", source, ["fixture.example"], Type: "manga-provider"));
+        await Assert.ThrowsAnyAsync<Exception>(() => bounded.CallAsync("bounded", "search", [Json("{\"query\":\"Fixture\"}")]));
+    }
+
+    private sealed class DelayedSearchTransport : IProviderTransport
+    {
+        public async Task<FetchResponse> FetchAsync(FetchRequest request, IReadOnlySet<string> hosts, CancellationToken ct)
+        {
+            await Task.Delay(400, ct);
+            return new FetchResponse(200, request.Url, [], "[]");
+        }
+    }
+
     private static JsonElement Json(string json) => JsonSerializer.Deserialize<JsonElement>(json);
 
     private sealed class FixtureTransport : IProviderTransport

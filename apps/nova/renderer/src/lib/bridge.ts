@@ -1,3 +1,7 @@
+import type {
+  ExtensionUpdateReview,
+  ExtensionUpdateSummary,
+} from "../../../shared/extension-updates";
 import type { PlaybackDiagnostic, SourceHealth } from "../../../shared/health";
 import { unwrapPlaybackReply } from "../../../shared/playback-errors";
 import type { AppUpdateState } from "../../../shared/updates";
@@ -123,6 +127,7 @@ interface RawBridge {
     sources: () => Promise<unknown>;
     recent: (p: string) => Promise<unknown>;
     search: (p: string, q: string) => Promise<unknown>;
+    searchPage: (p: string, q: string, page: number) => Promise<unknown>;
     chapters: (p: string, b: string) => Promise<unknown>;
     pages: (p: string, b: string, c: string) => Promise<unknown>;
     image: (h: string) => Promise<unknown>;
@@ -227,6 +232,9 @@ interface RawBridge {
     onChanged: (listener: () => void) => () => void;
   };
   extensions: {
+    checkUpdates: () => Promise<unknown>;
+    prepareUpdate: (id: string) => Promise<unknown>;
+    applyUpdate: (token: string, granted: string[]) => Promise<unknown>;
     setEnabled: (id: string, enabled: boolean) => Promise<unknown>;
     list: () => Promise<unknown>;
     call: (
@@ -628,6 +636,12 @@ export const bridge = {
       >,
     sources: async () =>
       (await raw().manga.sources()) as { id: string; name: string }[],
+    searchPage: async (p: string, q: string, page: number) =>
+      (await raw().manga.searchPage(
+        p,
+        q,
+        page,
+      )) as import("../../../shared/manga").MangaSearchPage,
     search: async (p: string, q: string) =>
       (await raw().manga.search(
         p,
@@ -933,6 +947,18 @@ export const bridge = {
   },
 
   extensions: {
+    checkUpdates: async (): Promise<ExtensionUpdateSummary[]> =>
+      (await raw().extensions.checkUpdates()) as ExtensionUpdateSummary[],
+    prepareUpdate: async (id: string): Promise<ExtensionUpdateReview> =>
+      (await raw().extensions.prepareUpdate(id)) as ExtensionUpdateReview,
+    applyUpdate: async (
+      token: string,
+      granted: string[],
+    ): Promise<InstalledExtension> =>
+      (await raw().extensions.applyUpdate(
+        token,
+        granted,
+      )) as InstalledExtension,
     setEnabled: (id: string, enabled: boolean) =>
       raw().extensions.setEnabled(id, enabled),
     list: async (): Promise<string[]> =>

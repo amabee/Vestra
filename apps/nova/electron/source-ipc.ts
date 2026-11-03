@@ -150,3 +150,8 @@ export function registerSourceIpc(): void {
     await manager.check(sourceId.parse(id));
   });
 }
+
+export async function checkProviderUpdates() {
+  await initialization;
+  return remoteService?.checkAll() ?? [];
+}

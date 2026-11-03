@@ -62,18 +62,27 @@ export function useLibraryEntries() {
 }
 
 export function useTrending(kind: MediaKind) {
+  const { data: settings } = useSettings();
   return useQuery({
-    queryKey: keys.trending(kind),
+    queryKey: [
+      ...keys.trending(kind),
+      settings?.privacy.showAdultContent ?? false,
+    ],
     queryFn: () => bridge.media.trending(kind),
+    enabled: !!settings,
     staleTime: 5 * 60_000,
   });
 }
 
 export function useSearch(query: string) {
+  const { data: settings } = useSettings();
   return useQuery({
-    queryKey: keys.search(query),
+    queryKey: [
+      ...keys.search(query),
+      settings?.privacy.showAdultContent ?? false,
+    ],
     queryFn: () => bridge.media.search(query),
-    enabled: query.trim().length > 0,
+    enabled: !!settings && query.trim().length > 0,
   });
 }
 

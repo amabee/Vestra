@@ -420,22 +420,72 @@ if (process.argv.includes("--live"))
     );
   });
 
-test("playback promotes an older plan, while a newer deliberate Plan to watch change wins",()=>{
- const a=item("promotion");
- const entry={...saved(a,"planned"),updatedAt:5};
- const progress={current:watch(a,.3,10)};
- assert.equal(animeHomeModel([entry],[],[],progress).continueWatching.length,1);
- entry.updatedAt=20;
- const model=animeHomeModel([entry],[],[],progress);
- assert.equal(model.continueWatching.length,0);assert.equal(model.groups.find(g=>g.status==="planned").items.length,1);
+test("playback promotes an older plan, while a newer deliberate Plan to watch change wins", () => {
+  const a = item("promotion");
+  const entry = { ...saved(a, "planned"), updatedAt: 5 };
+  const progress = { current: watch(a, 0.3, 10) };
+  assert.equal(
+    animeHomeModel([entry], [], [], progress).continueWatching.length,
+    1,
+  );
+  entry.updatedAt = 20;
+  const model = animeHomeModel([entry], [], [], progress);
+  assert.equal(model.continueWatching.length, 0);
+  assert.equal(
+    model.groups.find((g) => g.status === "planned").items.length,
+    1,
+  );
 });
 
-test("legacy progress can render from a recovered catalogue snapshot without inventing history",async()=>{
- const a=item("55"),progress={old:watch(a,.4,10)};
- assert.equal(animeHomeModel([],[],[],progress).continueWatching.length,0);
- assert.equal(animeHomeModel([],[],[],progress,[a]).continueWatching[0].item.sourceId,"55");
- let count=0;
- const explore=new AnimeExplore(async(_query,variables)=>{count++;assert.deepEqual(variables.ids,[55]);return {Page:{media:[rawAnime(55)]}};});
- const snapshots=await explore.snapshots([55,55]);assert.equal(snapshots[0].sourceId,"55");await explore.snapshots([55]);assert.equal(count,1);
- await assert.rejects(explore.snapshots([-1]));
+test("legacy progress can render from a recovered catalogue snapshot without inventing history", async () => {
+  const a = item("55"),
+    progress = { old: watch(a, 0.4, 10) };
+  assert.equal(animeHomeModel([], [], [], progress).continueWatching.length, 0);
+  assert.equal(
+    animeHomeModel([], [], [], progress, [a]).continueWatching[0].item.sourceId,
+    "55",
+  );
+  let count = 0;
+  const explore = new AnimeExplore(async (_query, variables) => {
+    count++;
+    assert.deepEqual(variables.ids, [55]);
+    return { Page: { media: [rawAnime(55)] } };
+  });
+  const snapshots = await explore.snapshots([55, 55]);
+  assert.equal(snapshots[0].sourceId, "55");
+  await explore.snapshots([55]);
+  assert.equal(count, 1);
+  await assert.rejects(explore.snapshots([-1]));
+});
+
+test("anime discovery honors adult visibility and separates cached results when toggled", async () => {
+  let include = false;
+  const calls = [];
+  const service = new AnimeExplore(
+    async (query, variables) => {
+      assert.match(query, /isAdult:\$isAdult/);
+      calls.push(variables.isAdult);
+      return {
+        GenreCollection: ["Action", "Hentai"],
+        trending: {
+          media: [rawAnime(1), rawAnime(2, "FINISHED", { isAdult: true })],
+        },
+        topSeason: { media: [] },
+      };
+    },
+    undefined,
+    async () => include,
+  );
+  let page = await service.load({ search: "Fixture" });
+  assert.equal(page.sections[0].items.length, 1);
+  assert.deepEqual(page.genres, ["Action"]);
+  include = true;
+  page = await service.load({ search: "Fixture" });
+  assert.equal(page.sections[0].items.length, 2);
+  assert.deepEqual(page.genres, ["Action", "Hentai"]);
+  assert.equal(page.sections[0].items[1].item.isAdult, true);
+  include = false;
+  page = await service.load({ search: "Fixture" });
+  assert.equal(page.sections[0].items.length, 1);
+  assert.deepEqual(calls, [false, undefined]);
 });

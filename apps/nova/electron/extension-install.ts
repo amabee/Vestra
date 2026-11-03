@@ -23,12 +23,12 @@ export async function prepareExtensionReview(
     headers: { Accept: "application/json" },
     body: null,
     timeoutMs: 20000,
-    maxBytes: 65536,
+    maxBytes: 2 * 1048576,
   });
   if (response.status !== 200)
     throw new Error(`The extension manifest returned HTTP ${response.status}.`);
-  if (Buffer.byteLength(response.body, "utf8") > 65536)
-    throw new Error("The extension manifest exceeds 64 KiB.");
+  if (Buffer.byteLength(response.body, "utf8") > 2 * 1048576)
+    throw new Error("The extension manifest exceeds 2 MiB.");
   let document: Record<string, unknown>;
   try {
     document = JSON.parse(response.body);

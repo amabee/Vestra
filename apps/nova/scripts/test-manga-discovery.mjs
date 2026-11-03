@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, test } from "node:test";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 const nova = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const scratch = await mkdtemp(join(tmpdir(), "vestra-manga-discovery-"));
 after(() => rm(scratch, { recursive: true, force: true }));
@@ -61,6 +61,7 @@ test("origin, genre, publication, ordering and page filters reach GraphQL as var
     page: 3,
   });
   assert.deepEqual(variables, {
+    isAdult: false,
     page: 3,
     sort: ["SCORE_DESC", "POPULARITY_DESC"],
     country: "KR",
@@ -84,9 +85,9 @@ test("discovery upgrades old thumbnail caches and chooses the largest artwork", 
   await new MangaDiscovery(driver, () => randomUUID(), request).browse({});
   await driver.write(
     "manga-discovery-v1",
-    await driver.read("manga-discovery-v2"),
+    await driver.read("manga-discovery-v3"),
   );
-  await driver.remove("manga-discovery-v2");
+  await driver.remove("manga-discovery-v3");
   const upgraded = structuredClone(data);
   upgraded.Page.media[0].coverImage.extraLarge =
     "https://images.example/extraLarge.jpg";
@@ -258,3 +259,87 @@ if (process.argv.includes("--live"))
       worker.stop();
     }
   });
+
+test("adult manga discovery follows visibility and uses separate caches across restarts", async () => {
+  const driver = new MemoryDriver();
+  let adult = false;
+  const calls = [];
+  const request = async (variables) => {
+    calls.push(variables.isAdult);
+    return {
+      ...data,
+      GenreCollection: ["Action", "Hentai"],
+      Page: {
+        ...data.Page,
+        media: [
+          data.Page.media[0],
+          { ...data.Page.media[0], id: 2, isAdult: true },
+        ],
+      },
+    };
+  };
+  const service = new MangaDiscovery(
+    driver,
+    () => "cover",
+    request,
+    undefined,
+    async () => adult,
+  );
+  assert.equal((await service.browse({})).items.length, 1);
+  adult = true;
+  const page = await service.browse({});
+  assert.equal(page.items.length, 2);
+  assert.ok(page.genres.includes("Hentai"));
+  adult = false;
+  assert.equal((await service.browse({})).items.length, 1);
+  const restarted = new MangaDiscovery(
+    driver,
+    () => "cover",
+    request,
+    undefined,
+    async () => adult,
+  );
+  assert.equal((await restarted.browse({})).items.length, 1);
+  assert.deepEqual(calls, [false, undefined]);
+});
+
+test("empty catalogues cached by the old null adult filter are ignored", async () => {
+  const driver = new MemoryDriver();
+  const key = createHash("sha256")
+    .update(
+      JSON.stringify({
+        sort: "popular",
+        origin: "all",
+        genre: "",
+        status: "all",
+        page: 1,
+        includeAdult: true,
+      }),
+    )
+    .digest("hex");
+  const old = {
+    entries: [
+      {
+        key,
+        expires: Date.now() + 3600000,
+        data: { ...data, Page: { ...data.Page, media: [] } },
+      },
+    ],
+  };
+  await driver.write("manga-discovery-v2", old);
+  let requests = 0;
+  const service = new MangaDiscovery(
+    driver,
+    () => "cover",
+    async (variables) => {
+      requests++;
+      assert.equal(Object.hasOwn(variables, "isAdult"), false);
+      return data;
+    },
+    undefined,
+    async () => true,
+  );
+  assert.equal((await service.browse({})).items.length, 1);
+  assert.equal(requests, 1);
+  assert.deepEqual(await driver.read("manga-discovery-v2"), old);
+});

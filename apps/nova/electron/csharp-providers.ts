@@ -1,3 +1,4 @@
+import { mangaImageHeaders } from "./manga-image-request";
 import { probePlayableStream } from "./probe-stream";
 import { extractStreamplay, streamplayEmbed } from "./streamplay";
 import { resolveEpisodeServers } from "./episode-servers";
@@ -54,6 +55,7 @@ const configSchema = z.object({
 
 let worker: CSharpProviderSession | null = null;
 let animePool: CSharpAnimePool | null = null;
+let mangaPool: CSharpAnimePool | null = null;
 let imagePool: CSharpImagePool | null = null;
 let shuttingDown = false;
 const mangaRegistrations = new Set<string>();
@@ -89,9 +91,32 @@ function animeRuntime(): CSharpAnimePool {
       ),
   ));
 }
-export function fetchCSharpImage(request: unknown): Promise<unknown> {
+function mangaRuntime(): CSharpAnimePool {
+  if (shuttingDown) throw new Error("Source runtime is shutting down.");
+  return (mangaPool ??= new CSharpAnimePool(
+    () =>
+      new CSharpProviderSession(
+        workerTarget(),
+        resolve(resolveDataDir(), "csharp-provider-store"),
+      ),
+  ));
+}
+export function fetchCSharpImage(
+  request: unknown,
+  referer?: string,
+): Promise<unknown> {
   if (shuttingDown) throw new Error("Image runtime is shutting down.");
-  return (imagePool ??= createImagePool(workerTarget())).image(request);
+  const input = z
+    .object({
+      url: z.string().url(),
+      method: z.literal("GET").default("GET"),
+      headers: z.record(z.string(), z.string()).optional(),
+    })
+    .parse(request);
+  return (imagePool ??= createImagePool(workerTarget())).image({
+    ...input,
+    headers: mangaImageHeaders(input.headers, app.userAgentFallback, referer),
+  });
 }
 export function getMangaBookmarks(): MangaBookmarkRepository {
   return {
@@ -122,22 +147,42 @@ export async function activateCSharpSource(
     hosts: definition.hosts,
     preferences: definition.preferences,
   };
-  const client =
-    definition.type === "manga-provider" ? clientForSources() : null;
-  if (client)
-    await client.request({ kind: "load", provider: providerDefinition });
-  else await animeRuntime().load(providerDefinition);
-  const call = (method: string, args: unknown[], signal?: AbortSignal) =>
-    client
-      ? client.request({ kind: "call", providerId: id, method, args }, signal)
-      : animeRuntime().call(id, method, args, signal);
-  if (client) {
+  const runtime =
+    definition.type === "manga-provider" ? mangaRuntime() : animeRuntime();
+  await runtime.load(providerDefinition);
+  const call = async (
+    method: string,
+    args: unknown[],
+    signal?: AbortSignal,
+  ) => {
+    try {
+      return await runtime.call(id, method, args, signal);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Source request failed.";
+      if (
+        definition.type === "manga-provider" &&
+        /timed out|timeout|execution was canceled|exceeded its deadline/i.test(
+          message,
+        )
+      )
+        throw new Error(
+          `${definition.name}: ${method} exceeded its 30-second limit. Retry this source or try another extension.`,
+        );
+      throw new Error(`${definition.name}: ${message}`);
+    }
+  };
+  if (definition.type === "manga-provider") {
     getMangaService().register(
       id,
       definition.name,
       call,
-      fetchCSharpImage,
-      csharpMangaProgress(client, id),
+      (request) =>
+        fetchCSharpImage(
+          request,
+          definition.hosts[0] ? `https://${definition.hosts[0]}/` : undefined,
+        ),
+      csharpMangaProgress(clientForSources(), id),
     );
     mangaRegistrations.add(id);
     return;
@@ -246,7 +291,8 @@ export async function deactivateCSharpSource(sourceId: string): Promise<void> {
     getAdapterRegistry().unregister(registration.adapterId);
     registrations.delete(id);
   }
-  if (animePool?.has(id)) animePool.remove(id);
+  if (mangaPool?.has(id)) mangaPool.remove(id);
+  else if (animePool?.has(id)) animePool.remove(id);
   else {
     worker?.forget(id);
     if (worker) await worker.request({ kind: "unload", providerId: id });
@@ -255,6 +301,7 @@ export async function deactivateCSharpSource(sourceId: string): Promise<void> {
 
 export async function checkCSharpSource(sourceId: string): Promise<unknown> {
   const id = `csharp-${sourceId}`;
+  if (mangaPool?.has(id)) return mangaPool.call(id, "getSettings", []);
   if (animePool?.has(id)) return animePool.call(id, "getSettings", []);
   return clientForSources().request({
     kind: "call",
@@ -317,6 +364,8 @@ export function stopCSharpProviders(): void {
     getAdapterRegistry().unregister(entry.adapterId);
   }
   registrations.clear();
+  mangaPool?.stop();
+  mangaPool = null;
   animePool?.stop();
   animePool = null;
   worker?.stop();

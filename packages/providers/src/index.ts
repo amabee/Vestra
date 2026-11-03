@@ -39,6 +39,7 @@ export * from "./youtube";
 
 export interface RegistryOptions {
   driver: StorageDriver;
+  includeAdult?: () => Promise<boolean>;
   localStream: LocalFileAdapterOptions;
   /**
    * What this host can do. Defaults to a full host (Atlas / Nova).
@@ -67,7 +68,7 @@ export function createRegistries(options: RegistryOptions): Registries {
 
   const providers = new ProviderRegistry(host)
     .register(createTmdbProvider())
-    .register(createAnilistProvider())
+    .register(createAnilistProvider(options.includeAdult))
     .register(createYoutubeProvider())
     .register(createMediaServerProvider())
     .register(createLocalProvider(options.driver));
@@ -77,7 +78,9 @@ export function createRegistries(options: RegistryOptions): Registries {
   }
 
   /** Resolve details through the registry, keeping the adapter provider-agnostic. */
-  const resolveDetails = async (item: MediaItem): Promise<MediaDetails | null> => {
+  const resolveDetails = async (
+    item: MediaItem,
+  ): Promise<MediaDetails | null> => {
     const provider = providers.forRef(item);
     if (!provider?.capabilities.details || !provider.getDetails) return null;
 

@@ -429,3 +429,32 @@ if (process.argv.includes("--live"))
       worker.stop();
     }
   });
+
+test("adult manga metadata and negative title matches do not leak across visibility settings", async () => {
+  let adult = false;
+  const calls = [],
+    driver = new MemoryDriver();
+  const request = async (query, variables) => {
+    assert.match(query, /isAdult:\$isAdult/);
+    calls.push(variables.isAdult);
+    const media = { ...row, isAdult: true };
+    return query.includes("MangaSourceInfo")
+      ? { Page: { media: [media] } }
+      : { Media: media };
+  };
+  const service = new MangaDetails(
+    driver,
+    () => "cover",
+    request,
+    undefined,
+    async () => adult,
+  );
+  assert.equal(await service.source(row.title.english), null);
+  adult = true;
+  assert.ok(await service.source(row.title.english));
+  assert.ok(await service.get(row.id));
+  adult = false;
+  assert.equal(await service.get(row.id), null);
+  assert.equal(await service.source(row.title.english), null);
+  assert.deepEqual(calls, [false, undefined]);
+});

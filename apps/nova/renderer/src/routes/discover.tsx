@@ -19,7 +19,8 @@ import {
 } from "@/components/media/anime-hub-cards";
 
 export function DiscoverRoute() {
-  const { data: settings } = useSettings();
+  const settingsQuery = useSettings();
+  const { data: settings } = settingsQuery;
   const hub = useAnimeHub(),
     controls = useAnimeHubActions(hub.provider),
     watchlist = useWatchlist();
@@ -34,8 +35,13 @@ export function DiscoverRoute() {
     search: hub.params.get("q") ?? "",
   };
   const result = useQuery({
-    queryKey: ["anime-explore", query],
+    queryKey: [
+      "anime-explore",
+      query,
+      settings?.privacy.showAdultContent ?? false,
+    ],
     queryFn: () => bridge.anime.explore(query),
+    enabled: !!settings,
     retry: false,
     staleTime: 120000,
   });
@@ -80,7 +86,7 @@ export function DiscoverRoute() {
         lead="Seasonal standouts, new arrivals, and the next title worth saving."
         hub={hub}
       />
-      {result.isPending ? (
+      {result.isPending && !settingsQuery.error ? (
         <div
           className="hub-feature-skeleton"
           role="status"
@@ -295,7 +301,15 @@ export function DiscoverRoute() {
           {(controls.actions.error || controls.status.error)?.message}
         </p>
       )}
-      {result.error ? (
+      {settingsQuery.error ? (
+        <div className="hub-notice" role="alert">
+          <h2>Discovery settings could not be loaded</h2>
+          <p>{settingsQuery.error.message}</p>
+          <button onClick={() => void settingsQuery.refetch()}>
+            Retry settings
+          </button>
+        </div>
+      ) : result.error ? (
         <div className="hub-notice" role="alert">
           <h2>Discovery could not be loaded</h2>
           <p>{result.error.message}</p>

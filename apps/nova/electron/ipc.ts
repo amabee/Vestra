@@ -1,3 +1,7 @@
+import {
+  ExtensionUpdater,
+  serializeExtensionChange,
+} from "./extension-updates";
 import { handleIpc } from "./ipc-security";
 import { registryFetchUrl } from "./extension-registry";
 import { getAnimeInventories } from "./anime-inventories";
@@ -11,13 +15,18 @@ import { playbackDiagnostics } from "./playback-diagnostics";
 import { playbackFailureReply } from "../shared/playback-errors";
 import { join } from "node:path";
 import {
+  bundledManifestPath,
   listBundled,
   prepareBundled,
   BUNDLED_REGISTRY,
 } from "./bundled-extensions";
 import { tmdbSettingsStatus, saveTmdbSettings } from "./tmdb-settings";
 import { prepareExtensionReview } from "./extension-install";
-import { managedSourceSnapshot, prepareProviderExtension } from "./source-ipc";
+import {
+  managedSourceSnapshot,
+  prepareProviderExtension,
+  checkProviderUpdates,
+} from "./source-ipc";
 import { resolveCataloguePlayback } from "./catalogue-playback";
 import { getScreenService, screenSnapshot } from "./screen-ipc";
 import { randomUUID } from "node:crypto";
@@ -720,6 +729,43 @@ export function registerDataIpc(): void {
   });
 
   handle("extensions:installed", () => listInstalled(getDriver()));
+  const extensionUpdater = new ExtensionUpdater(
+    getDriver(),
+    transport,
+    async (record, source) => {
+      detachExtensionProvider(record.id);
+      detachStreamSourceProvider(record.id);
+      detachMangaSourceProvider(record.id);
+      await unloadExtension(record.id);
+      if (record.enabled === false) return;
+      const methods = await loadExtension({
+        extensionId: record.id,
+        source,
+        grant: record.grant,
+        role: record.manifest.role,
+        discovery: !!record.manifest.discovery,
+      });
+      getProviderRegistry().setEnabled(`ext-${record.id}`, true);
+      getStreamSourceRegistry().setEnabled(`ext-${record.id}`, true);
+      attachExtensionProvider(record, methods);
+      attachStreamSourceProvider(record, methods);
+      attachMangaSourceProvider(record, methods);
+    },
+    (id) => bundledManifestPath(bundledRoot(), id),
+  );
+  handle("extensions:updates", async () => [
+    ...(await extensionUpdater.checkAll()),
+    ...(await checkProviderUpdates()),
+  ]);
+  handle("extensions:prepare-update", (raw: unknown) =>
+    extensionUpdater.prepare(z.string().min(1).max(200).parse(raw)),
+  );
+  handle("extensions:apply-update", (rawToken: unknown, rawGranted: unknown) =>
+    extensionUpdater.apply(
+      z.string().uuid().parse(rawToken),
+      z.array(z.string().max(100)).max(30).parse(rawGranted),
+    ),
+  );
 
   handle("extensions:registries", async () => {
     const settings = await getSettings(getDriver());
@@ -772,8 +818,17 @@ export function registerDataIpc(): void {
           continue;
         }
 
-        const parsed = parseRegistry(JSON.parse(response.body));
+        const parsed = parseRegistry(
+          JSON.parse(response.body),
+          registryFetchUrl(registryUrl),
+        );
         rejected += parsed.rejected;
+        if (!parsed.entries.length)
+          errors.push({
+            registryUrl,
+            message:
+              "No usable registry entries or extension manifest were found. Check the URL and document format.",
+          });
 
         for (const entry of parsed.entries)
           entries.push({ ...entry, registryUrl });
@@ -826,93 +881,103 @@ export function registerDataIpc(): void {
    * `granted` is what the user agreed to, which may be less than the manifest
    * asked for. It is passed through untouched; the host attaches only these.
    */
-  handle("extensions:install", async (raw: unknown) => {
-    const input = parse(installRequestSchema, raw, "install request");
+  handle("extensions:install", async (raw: unknown) =>
+    serializeExtensionChange(async () => {
+      const input = parse(installRequestSchema, raw, "install request");
 
-    const plan = await prepareInstall(input.candidate, transport);
+      const plan = await prepareInstall(input.candidate, transport);
 
-    // Re-read rather than trusting the plan that came back over IPC: the
-    // renderer could return anything, and the permissions being granted have
-    // to be checked against the manifest that is actually being installed.
-    const granted = plan.manifest.permissions.filter((permission) =>
-      input.granted.includes(permission),
-    );
-
-    const { record, source } = await completeInstall(plan, granted, transport);
-
-    await saveInstalled(getDriver(), record, source);
-    const methods = await loadExtension({
-      extensionId: record.id,
-      source,
-      grant: record.grant,
-      role: record.manifest.role,
-      discovery: !!record.manifest.discovery,
-    });
-
-    getProviderRegistry().setEnabled(`ext-${record.id}`, true);
-    getStreamSourceRegistry().setEnabled(`ext-${record.id}`, true);
-    attachExtensionProvider(record, methods);
-    attachStreamSourceProvider(record, methods);
-    attachMangaSourceProvider(record, methods);
-
-    return record;
-  });
-
-  handle("extensions:enabled", async (rawId: unknown, rawEnabled: unknown) => {
-    const id = z.string().min(1).max(120).parse(rawId);
-    const enabled = z.boolean().parse(rawEnabled);
-    const driver = getDriver();
-    const record = (await listInstalled(driver)).find((row) => row.id === id);
-    if (!record) throw new Error("This extension is no longer installed.");
-    if (!enabled) {
-      await setInstalledEnabled(driver, id, false);
-      getProviderRegistry().setEnabled(`ext-${id}`, false);
-      getStreamSourceRegistry().setEnabled(`ext-${id}`, false);
-      detachExtensionProvider(id);
-      detachStreamSourceProvider(id);
-      detachMangaSourceProvider(id);
-      await unloadExtension(id);
-      return;
-    }
-    const source = await readSource(driver, record);
-    if (!source)
-      throw new Error(
-        "The installed extension failed its fingerprint check. Reinstall it before enabling.",
+      // Re-read rather than trusting the plan that came back over IPC: the
+      // renderer could return anything, and the permissions being granted have
+      // to be checked against the manifest that is actually being installed.
+      const granted = plan.manifest.permissions.filter((permission) =>
+        input.granted.includes(permission),
       );
-    const methods = await loadExtension({
-      extensionId: id,
-      source,
-      grant: record.grant,
-      role: record.manifest.role,
-      discovery: !!record.manifest.discovery,
-    });
-    try {
+
+      const { record, source } = await completeInstall(
+        plan,
+        granted,
+        transport,
+      );
+
+      await saveInstalled(getDriver(), record, source);
+      const methods = await loadExtension({
+        extensionId: record.id,
+        source,
+        grant: record.grant,
+        role: record.manifest.role,
+        discovery: !!record.manifest.discovery,
+      });
+
       getProviderRegistry().setEnabled(`ext-${record.id}`, true);
       getStreamSourceRegistry().setEnabled(`ext-${record.id}`, true);
       attachExtensionProvider(record, methods);
       attachStreamSourceProvider(record, methods);
       attachMangaSourceProvider(record, methods);
-      await setInstalledEnabled(driver, id, true);
-    } catch (error) {
+
+      return record;
+    }),
+  );
+
+  handle("extensions:enabled", async (rawId: unknown, rawEnabled: unknown) =>
+    serializeExtensionChange(async () => {
+      const id = z.string().min(1).max(120).parse(rawId);
+      const enabled = z.boolean().parse(rawEnabled);
+      const driver = getDriver();
+      const record = (await listInstalled(driver)).find((row) => row.id === id);
+      if (!record) throw new Error("This extension is no longer installed.");
+      if (!enabled) {
+        await setInstalledEnabled(driver, id, false);
+        getProviderRegistry().setEnabled(`ext-${id}`, false);
+        getStreamSourceRegistry().setEnabled(`ext-${id}`, false);
+        detachExtensionProvider(id);
+        detachStreamSourceProvider(id);
+        detachMangaSourceProvider(id);
+        await unloadExtension(id);
+        return;
+      }
+      const source = await readSource(driver, record);
+      if (!source)
+        throw new Error(
+          "The installed extension failed its fingerprint check. Reinstall it before enabling.",
+        );
+      const methods = await loadExtension({
+        extensionId: id,
+        source,
+        grant: record.grant,
+        role: record.manifest.role,
+        discovery: !!record.manifest.discovery,
+      });
+      try {
+        getProviderRegistry().setEnabled(`ext-${record.id}`, true);
+        getStreamSourceRegistry().setEnabled(`ext-${record.id}`, true);
+        attachExtensionProvider(record, methods);
+        attachStreamSourceProvider(record, methods);
+        attachMangaSourceProvider(record, methods);
+        await setInstalledEnabled(driver, id, true);
+      } catch (error) {
+        detachExtensionProvider(id);
+        detachStreamSourceProvider(id);
+        detachMangaSourceProvider(id);
+        await unloadExtension(id);
+        throw error;
+      }
+    }),
+  );
+
+  handle("extensions:uninstall", async (raw: unknown) =>
+    serializeExtensionChange(async () => {
+      const id = parse(z.string().min(1).max(200), raw, "extension id");
+
       detachExtensionProvider(id);
       detachStreamSourceProvider(id);
       detachMangaSourceProvider(id);
       await unloadExtension(id);
-      throw error;
-    }
-  });
+      await removeInstalled(getDriver(), id);
 
-  handle("extensions:uninstall", async (raw: unknown) => {
-    const id = parse(z.string().min(1).max(200), raw, "extension id");
-
-    detachExtensionProvider(id);
-    detachStreamSourceProvider(id);
-    detachMangaSourceProvider(id);
-    await unloadExtension(id);
-    await removeInstalled(getDriver(), id);
-
-    return listInstalled(getDriver());
-  });
+      return listInstalled(getDriver());
+    }),
+  );
 
   /**
    * Review a folder on disk as an extension.
@@ -941,33 +1006,35 @@ export function registerDataIpc(): void {
    * the permissions being granted have to be checked against the manifest that
    * is actually on disk.
    */
-  handle("extensions:install-unpacked", async (raw: unknown) => {
-    const input = parse(unpackedRequestSchema, raw, "install request");
+  handle("extensions:install-unpacked", async (raw: unknown) =>
+    serializeExtensionChange(async () => {
+      const input = parse(unpackedRequestSchema, raw, "install request");
 
-    const plan = await prepareUnpacked(input.folder);
-    const granted = plan.manifest.permissions.filter((permission) =>
-      input.granted.includes(permission),
-    );
+      const plan = await prepareUnpacked(input.folder);
+      const granted = plan.manifest.permissions.filter((permission) =>
+        input.granted.includes(permission),
+      );
 
-    const { record, source } = await completeUnpacked(plan, granted);
+      const { record, source } = await completeUnpacked(plan, granted);
 
-    await saveInstalled(getDriver(), record, source);
-    const methods = await loadExtension({
-      extensionId: record.id,
-      source,
-      grant: record.grant,
-      role: record.manifest.role,
-      discovery: !!record.manifest.discovery,
-    });
+      await saveInstalled(getDriver(), record, source);
+      const methods = await loadExtension({
+        extensionId: record.id,
+        source,
+        grant: record.grant,
+        role: record.manifest.role,
+        discovery: !!record.manifest.discovery,
+      });
 
-    getProviderRegistry().setEnabled(`ext-${record.id}`, true);
-    getStreamSourceRegistry().setEnabled(`ext-${record.id}`, true);
-    attachExtensionProvider(record, methods);
-    attachStreamSourceProvider(record, methods);
-    attachMangaSourceProvider(record, methods);
+      getProviderRegistry().setEnabled(`ext-${record.id}`, true);
+      getStreamSourceRegistry().setEnabled(`ext-${record.id}`, true);
+      attachExtensionProvider(record, methods);
+      attachStreamSourceProvider(record, methods);
+      attachMangaSourceProvider(record, methods);
 
-    return record;
-  });
+      return record;
+    }),
+  );
 
   /* --------------------------------------------------------------------- *
    * Diagnostics — lets the shell prove the bridge works before a UI exists.

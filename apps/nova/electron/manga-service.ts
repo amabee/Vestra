@@ -1,3 +1,4 @@
+import { mangaImageHeaders } from "./manga-image-request";
 import { ChapterCompletions } from "./chapter-completions";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -51,6 +52,7 @@ const chapterSchema = z.object({
   id: z.string().min(1).max(4096),
   title: z.string(),
   chapter: z.string(),
+  url: z.string().url().optional(),
   index: z.number().int().nonnegative(),
   language: z.string().optional(),
   scanlator: z.string().optional(),
@@ -81,7 +83,7 @@ export class MangaService {
   private books = new Map<string, MangaBook>();
   private artwork = new Map<string, MangaArtwork>();
   private covers = new Map<string, MangaArtwork & { providerId: string }>();
-  private chaptersByBook = new Map<string, MangaChapter[]>();
+  private chaptersByBook = new Map<string, z.infer<typeof chapterSchema>[]>();
   private handles = new Map<
     string,
     { providerId: string; url: string; headers: Record<string, string> }
@@ -395,15 +397,40 @@ export class MangaService {
     return null;
   }
   async search(id: string, query: string): Promise<MangaBook[]> {
+    return (await this.searchPage(id, query, 1, false)).items;
+  }
+  async searchPage(
+    id: string,
+    query: string,
+    page = 1,
+    paginated = true,
+  ): Promise<import("../shared/manga").MangaSearchPage> {
+    z.number().int().min(1).max(1000).parse(page);
     const provider = this.provider(id);
-    const rows = z
-      .array(searchBookSchema)
-      .max(2000)
-      .parse(await provider.call("search", [{ query, year: 0 }]));
+    const response = z
+      .union([
+        z.array(searchBookSchema).max(2000),
+        z.object({
+          items: z.array(searchBookSchema).max(2000),
+          hasMore: z.boolean(),
+        }),
+      ])
+      .parse(
+        await provider.call("search", [
+          {
+            query,
+            year: 0,
+            ...(paginated ? { page, limit: 100, paginated: true } : {}),
+          },
+        ]),
+      );
+    const rows = Array.isArray(response) ? response : response.items;
+    const hasMore =
+      page < 1000 &&
+      (Array.isArray(response) ? rows.length > 0 : response.hasMore);
     if (this.providers.get(id) !== provider)
       throw new Error("Manga source changed. Reopen the library.");
-    // Leave room for recent titles and another small result set in the grant cache.
-    const managed = rows.slice(0, 400).map((row) => {
+    const managed = rows.map((row) => {
       let artwork: MangaArtwork | undefined;
       if (row.image) {
         try {
@@ -417,7 +444,7 @@ export class MangaService {
       return this.remember(id, row, artwork);
     });
     if (this.coverCache) this.warm(managed);
-    return managed;
+    return { items: managed, hasMore, page };
   }
   async chapters(id: string, book: string): Promise<MangaChapter[]> {
     const key = this.book(id, book);
@@ -442,7 +469,7 @@ export class MangaService {
     );
     if (this.providers.get(id) !== provider)
       throw new Error("Manga source changed. Reopen the library.");
-    return rows;
+    return rows.map(({ url: _url, ...chapter }) => chapter);
   }
   cover(id: string, book: string, refresh = false): Promise<MangaBook> {
     const key = this.book(id, book);
@@ -525,7 +552,13 @@ export class MangaService {
       this.handles.set(handle, {
         providerId: id,
         url: row.url,
-        headers: row.headers ?? {},
+        headers: mangaImageHeaders(
+          row.headers ?? {},
+          undefined,
+          this.chaptersByBook.get(key)?.find((entry) => entry.id === chapter)
+            ?.url,
+          false,
+        ),
       });
       return { handle, index: row.index };
     });
@@ -571,11 +604,25 @@ export class MangaService {
             .regex(/^[A-Za-z0-9+/]*={0,2}$/),
         })
         .parse(
-          await provider.image({
-            url: r.url,
-            method: "GET",
-            headers: r.headers,
-          }),
+          await provider
+            .image({
+              url: r.url,
+              method: "GET",
+              headers: r.headers,
+            })
+            .catch((error: unknown) => {
+              const name = catalogue
+                ? "AniList"
+                : (this.providers.get(r.providerId)?.name ?? r.providerId);
+              const host = new URL(r.url).hostname;
+              const message =
+                error instanceof Error
+                  ? error.message
+                  : "Image request failed.";
+              throw new Error(
+                `${name} image (${host}): ${message}${/HTTP 403/.test(message) ? " The image host refused this request; its source headers or session may need updating." : ""}`,
+              );
+            }),
         );
       if (!valid())
         throw new Error("Manga source changed. Reopen the chapter.");

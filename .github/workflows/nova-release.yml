@@ -45,6 +45,11 @@ jobs:
       - run: pnpm test:anilist:login
       - run: pnpm test:updater:ui
       - run: pnpm test:extensions:install
+      - run: pnpm test:extensions:updates
+      - run: pnpm test:sources:remote
+      - run: pnpm test:anilist:visibility
+      - run: pnpm test:ipc:queries
+      - run: pnpm test:manga:pagination
       - run: pnpm audit --audit-level=low
       - run: pnpm --filter @vestra/nova build:electron
       - run: pnpm test:security

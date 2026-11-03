@@ -19,7 +19,7 @@ const MEDIA_FIELDS = `
 `;
 
 export const SEARCH_ANIME_QUERY = `
-  query SearchAnime($search: String!, $page: Int = 1, $perPage: Int = 20, $isAdult: Boolean = false) {
+  query SearchAnime($search: String!, $page: Int = 1, $perPage: Int = 20, $isAdult: Boolean) {
     Page(page: $page, perPage: $perPage) {
       pageInfo { total currentPage lastPage hasNextPage }
       media(search: $search, type: ANIME, sort: SEARCH_MATCH, isAdult: $isAdult) {
@@ -30,10 +30,10 @@ export const SEARCH_ANIME_QUERY = `
 `;
 
 export const TRENDING_ANIME_QUERY = `
-  query TrendingAnime($page: Int = 1, $perPage: Int = 20) {
+  query TrendingAnime($page: Int = 1, $perPage: Int = 20, $isAdult: Boolean) {
     Page(page: $page, perPage: $perPage) {
       pageInfo { total currentPage lastPage hasNextPage }
-      media(type: ANIME, sort: TRENDING_DESC, isAdult: false) {
+      media(type: ANIME, sort: TRENDING_DESC, isAdult: $isAdult) {
         ${MEDIA_FIELDS}
       }
     }
@@ -41,10 +41,10 @@ export const TRENDING_ANIME_QUERY = `
 `;
 
 export const POPULAR_ANIME_QUERY = `
-  query PopularAnime($page: Int = 1, $perPage: Int = 20) {
+  query PopularAnime($page: Int = 1, $perPage: Int = 20, $isAdult: Boolean) {
     Page(page: $page, perPage: $perPage) {
       pageInfo { total currentPage lastPage hasNextPage }
-      media(type: ANIME, sort: POPULARITY_DESC, isAdult: false) {
+      media(type: ANIME, sort: POPULARITY_DESC, isAdult: $isAdult) {
         ${MEDIA_FIELDS}
       }
     }

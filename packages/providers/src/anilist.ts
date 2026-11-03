@@ -3,7 +3,9 @@ import { isAnilistConfigured } from "@vestra/config";
 import type { MetadataProvider } from "@vestra/provider-sdk";
 
 /** AniList — anime. Public GraphQL, so it needs no credentials. */
-export function createAnilistProvider(): MetadataProvider {
+export function createAnilistProvider(
+  includeAdult: () => Promise<boolean> = async () => false,
+): MetadataProvider {
   return {
     id: "anilist",
     name: "Anime",
@@ -16,6 +18,7 @@ export function createAnilistProvider(): MetadataProvider {
       return anilist.searchAnime(query.query, {
         page: query.page,
         perPage: query.perPage,
+        includeAdult: await includeAdult(),
       });
     },
 
@@ -24,7 +27,9 @@ export function createAnilistProvider(): MetadataProvider {
     },
 
     async getTrending(kind) {
-      return kind === "anime" ? anilist.getTrendingAnime(1, 20) : [];
+      return kind === "anime"
+        ? anilist.getTrendingAnime(1, 20, await includeAdult())
+        : [];
     },
   };
 }

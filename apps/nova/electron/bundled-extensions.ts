@@ -76,3 +76,8 @@ export async function listBundled(root: string) {
   }
   return { entries, errors };
 }
+
+export function bundledManifestPath(root: string, id: string): string | null {
+  const name = SOURCES.find((name) => "vestra-" + name === id);
+  return name ? join(root, name, "manifest.json") : null;
+}

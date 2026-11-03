@@ -4,6 +4,7 @@ import type { MangaInformation } from "../shared/manga";
 import { fetchMangaGraphQL } from "./manga-discovery";
 
 const rowSchema = z.object({
+  isAdult: z.boolean().nullish(),
   id: z.number().int().positive(),
   title: z.object({
     english: z.string().nullish(),
@@ -26,9 +27,9 @@ const rowSchema = z.object({
   volumes: z.number().int().nonnegative().nullable(),
   startDate: z.object({ year: z.number().nullable() }).nullish(),
 });
-const fields = `id title{english romaji native} description(asHtml:false) bannerImage coverImage{extraLarge large} genres countryOfOrigin status averageScore chapters volumes startDate{year}`;
-const byId = `query MangaInfo($id:Int!){Media(id:$id,type:MANGA,isAdult:false){${fields}}}`;
-const byTitle = `query MangaSourceInfo($search:String!){Page(perPage:10){media(type:MANGA,isAdult:false,search:$search){${fields}}}}`;
+const fields = `id isAdult title{english romaji native} description(asHtml:false) bannerImage coverImage{extraLarge large} genres countryOfOrigin status averageScore chapters volumes startDate{year}`;
+const byId = `query MangaInfo($id:Int!,$isAdult:Boolean){Media(id:$id,type:MANGA,isAdult:$isAdult){${fields}}}`;
+const byTitle = `query MangaSourceInfo($search:String!,$isAdult:Boolean){Page(perPage:10){media(type:MANGA,isAdult:$isAdult,search:$search){${fields}}}}`;
 const normalise = (value: string) =>
   value
     .normalize("NFKC")
@@ -56,6 +57,7 @@ export class MangaDetails {
     private cover: (id: number, url: string) => string,
     private request = fetchMangaGraphQL,
     private banner?: (id: number, url: string) => string,
+    private includeAdult: () => Promise<boolean> = async () => false,
   ) {}
   private load() {
     return (this.loading ??= (async () => {
@@ -120,35 +122,51 @@ export class MangaDetails {
   async get(id: number): Promise<MangaInformation | null> {
     z.number().int().positive().parse(id);
     await this.load();
+    const includeAdult = await this.includeAdult();
     const cached = this.rows.get(id);
-    if (cached && cached.expires > Date.now()) return this.dto(cached.row);
-    return this.run(`id:${id}`, async () => {
-      const data = z
-        .object({ Media: rowSchema.nullable() })
-        .parse(await this.request(byId, { id }));
+    if (cached && cached.expires > Date.now())
+      return includeAdult || !cached.row.isAdult ? this.dto(cached.row) : null;
+    return this.run(`id:${includeAdult}:${id}`, async () => {
+      const data = z.object({ Media: rowSchema.nullable() }).parse(
+        await this.request(byId, {
+          id,
+          ...(includeAdult ? {} : { isAdult: false }),
+        }),
+      );
       if (data.Media && data.Media.id !== id)
         throw new Error("Catalogue returned a different manga.");
-      return data.Media ? this.remember(data.Media) : null;
+      return data.Media && (includeAdult || !data.Media.isAdult)
+        ? this.remember(data.Media)
+        : null;
     });
   }
   async source(title: string): Promise<MangaInformation | null> {
     await this.load();
+    const includeAdult = await this.includeAdult();
     const exact = normalise(title);
-    if (this.matches.has(exact)) {
-      const id = this.matches.get(exact);
+    const key = `${includeAdult}:${exact}`;
+    if (this.matches.has(key)) {
+      const id = this.matches.get(key);
       return id ? this.get(id) : null;
     }
-    return this.run(`title:${exact}`, async () => {
+    return this.run(`title:${key}`, async () => {
       const data = z
         .object({ Page: z.object({ media: z.array(rowSchema).max(10) }) })
-        .parse(await this.request(byTitle, { search: title.slice(0, 500) }));
-      const matches = data.Page.media.filter((row) =>
-        [row.title.english, row.title.romaji, row.title.native].some(
-          (name) => name && normalise(name) === exact,
-        ),
+        .parse(
+          await this.request(byTitle, {
+            search: title.slice(0, 500),
+            ...(includeAdult ? {} : { isAdult: false }),
+          }),
+        );
+      const matches = data.Page.media.filter(
+        (row) =>
+          (includeAdult || !row.isAdult) &&
+          [row.title.english, row.title.romaji, row.title.native].some(
+            (name) => name && normalise(name) === exact,
+          ),
       );
       const row = matches.length === 1 ? matches[0] : undefined;
-      this.matches.set(exact, row?.id ?? null);
+      this.matches.set(key, row?.id ?? null);
       if (this.matches.size > 128)
         this.matches.delete(this.matches.keys().next().value!);
       return row ? this.remember(row) : null;

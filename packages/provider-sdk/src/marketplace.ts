@@ -22,16 +22,7 @@ export const EXTENSION_TYPES = [
 export const extensionTypeSchema = z.enum(EXTENSION_TYPES);
 export type ExtensionType = z.infer<typeof extensionTypeSchema>;
 
-/**
- * Why a given extension type is or is not installable.
- *
- * Two different things get conflated if this is a bare boolean. `plugin` and
- * `custom-source` are supported and merely waiting on the sandbox. The three
- * provider types are not waiting on anything: they resolve content by scraping
- * sites that redistribute without a licence, which is the one thing Vestra has
- * decided not to do. Saying "no runtime for this yet" would imply a gap that
- * will be filled.
- */
+/** Runtime types; per-manifest language and format checks refine this at review. */
 export const EXTENSION_TYPE_SUPPORT: Record<
   ExtensionType,
   { supported: boolean; reason: string }
@@ -71,7 +62,8 @@ export const marketplaceEntrySchema = z.object({
   version: z.string().default("0.0.0"),
   author: z.string().default(""),
   description: z.string().default(""),
-  type: extensionTypeSchema,
+  type: z.string().min(1).max(80),
+  unsupportedReason: z.string().max(500).optional(),
   /** Implementation language, e.g. "typescript". */
   language: z.string().default(""),
   /** Content language, e.g. "en", "multi". */
@@ -104,27 +96,95 @@ export const marketplaceEntrySchema = z.object({
 });
 
 export type MarketplaceEntry = z.infer<typeof marketplaceEntrySchema>;
+export function extensionSupport(
+  entry: Pick<MarketplaceEntry, "type" | "unsupportedReason">,
+) {
+  const support = Object.hasOwn(EXTENSION_TYPE_SUPPORT, entry.type)
+    ? EXTENSION_TYPE_SUPPORT[entry.type as ExtensionType]
+    : undefined;
+  return entry.unsupportedReason
+    ? { supported: false, reason: entry.unsupportedReason }
+    : (support ?? {
+        supported: false,
+        reason: `The ${entry.type} extension type has no Vestra runtime.`,
+      });
+}
 
 /**
  * Parse a registry document, skipping entries that don't validate.
  * Returns the good entries plus a count of what was rejected.
  */
-export function parseRegistry(input: unknown): {
+export function parseRegistry(
+  input: unknown,
+  origin?: string,
+): {
   entries: MarketplaceEntry[];
   rejected: number;
 } {
-  if (!Array.isArray(input)) return { entries: [], rejected: 0 };
+  const object =
+    input && typeof input === "object" && !Array.isArray(input)
+      ? (input as Record<string, unknown>)
+      : null;
+  const singleton =
+    !!object &&
+    !Array.isArray(object.extensions) &&
+    !Array.isArray(object.entries) &&
+    typeof object.id === "string" &&
+    typeof object.name === "string";
+  const rows = Array.isArray(input)
+    ? input
+    : Array.isArray(object?.extensions)
+      ? object.extensions
+      : Array.isArray(object?.entries)
+        ? object.entries
+        : singleton
+          ? [object]
+          : null;
+  if (!rows) return { entries: [], rejected: 1 };
 
   const entries: MarketplaceEntry[] = [];
   let rejected = 0;
 
-  for (const raw of input) {
-    const parsed = marketplaceEntrySchema.safeParse(raw);
+  for (const raw of rows.slice(0, 5000)) {
+    const row =
+      raw && typeof raw === "object" && !Array.isArray(raw)
+        ? (raw as Record<string, unknown>)
+        : {};
+    const type =
+      typeof row.type === "string"
+        ? row.type
+        : row.sdkVersion
+          ? row.role === "manga-source"
+            ? "manga-provider"
+            : row.role === "stream-source"
+              ? "onlinestream-provider"
+              : "custom-source"
+          : "unknown";
+    const language =
+      typeof row.language === "string" ? row.language.toLowerCase() : "";
+    let unsupportedReason: string | undefined;
+    if (!EXTENSION_TYPES.includes(type as ExtensionType))
+      unsupportedReason = `The ${type} extension type has no Vestra runtime.`;
+    else if (language && !["javascript", "typescript"].includes(language))
+      unsupportedReason = `${language} extensions are not supported; Vestra imports JavaScript and TypeScript.`;
+    else if (
+      !row.sdkVersion &&
+      typeof row.payload === "string" &&
+      ["plugin", "custom-source", "anime-torrent-provider"].includes(type)
+    )
+      unsupportedReason = `Seanime ${type} APIs are not implemented in Vestra. This source is listed for visibility.`;
+    const parsed = marketplaceEntrySchema.safeParse({
+      ...row,
+      type,
+      language,
+      unsupportedReason,
+      ...(singleton && origin ? { manifestURI: origin } : {}),
+    });
     if (parsed.success) entries.push(parsed.data);
     else rejected += 1;
   }
 
-  return { entries, rejected };
+  return { entries, rejected: rejected + Math.max(0, rows.length - 5000) };
 }
 
 /* =============================================================================
@@ -209,7 +269,7 @@ export function analyzeTrust(entry: MarketplaceEntry): TrustReport {
   const health = healthOf(entry);
   const hasPayload = entry.payloadURI.length > 0;
   const pinned = isPinnedRef(entry.payloadURI);
-  const supported = SUPPORTED_EXTENSION_TYPES.includes(entry.type);
+  const supported = extensionSupport(entry).supported;
 
   const warnings: string[] = [];
 

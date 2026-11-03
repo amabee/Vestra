@@ -23,6 +23,7 @@ import { Link, useSearchParams } from "react-router";
 import { bridge } from "@/lib/bridge";
 import {
   keys,
+  useSettings,
   useProgress,
   useTrending,
   useWatchlist,
@@ -93,11 +94,16 @@ export function AnimeWorkspace() {
     actions.variables?.provider,
     actions.cancel,
   ]);
+  const settingsQuery = useSettings();
   const trending = useTrending("anime");
   const search = useQuery({
-    queryKey: ["anime-catalogue-search", query],
+    queryKey: [
+      "anime-catalogue-search",
+      query,
+      settingsQuery.data?.privacy.showAdultContent ?? false,
+    ],
     queryFn: () => bridge.media.search(query, ["anime"]),
-    enabled: !!query,
+    enabled: !!query && !!settingsQuery.data,
     retry: false,
   });
   const watchlist = useWatchlist();
@@ -345,7 +351,15 @@ export function AnimeWorkspace() {
               </h2>
               {query && <span>{unique.length} titles</span>}
             </div>
-            {(query ? search.isPending : trending.isPending) ? (
+            {settingsQuery.error ? (
+              <div className="anime-hub-empty" role="alert">
+                <h3>Discovery settings could not be loaded</h3>
+                <p>{settingsQuery.error.message}</p>
+                <button onClick={() => void settingsQuery.refetch()}>
+                  Retry settings
+                </button>
+              </div>
+            ) : (query ? search.isPending : trending.isPending) ? (
               <AnimeGridSkeleton />
             ) : (query ? search.error : trending.error) ? (
               <div className="anime-hub-empty" role="alert">
@@ -373,6 +387,23 @@ export function AnimeWorkspace() {
                 </p>
               </div>
             )}
+            {!query &&
+              trending.data
+                ?.filter((group) => group.error)
+                .map((group) => (
+                  <div
+                    key={group.providerId}
+                    role="alert"
+                    className="anime-hub-feedback"
+                  >
+                    <span>
+                      {group.providerName}: {group.error}
+                    </span>
+                    <button onClick={() => void trending.refetch()}>
+                      Retry discovery
+                    </button>
+                  </div>
+                ))}
             {query &&
               search.data?.groups
                 .filter((group) => group.error)

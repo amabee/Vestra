@@ -18,7 +18,7 @@ interface Job {
   cleanup: () => void;
 }
 
-/** One guest runtime per active anime provider; bounded, idle workers are reusable slots. */
+/** One guest runtime per active provider; bounded, idle workers are reusable slots. */
 export class CSharpAnimePool {
   private entries = new Map<string, Entry>();
   private queue: Job[] = [];
@@ -29,7 +29,7 @@ export class CSharpAnimePool {
     private capacity = 4,
   ) {
     if (!Number.isInteger(capacity) || capacity < 1)
-      throw new Error("Invalid anime worker capacity.");
+      throw new Error("Invalid provider worker capacity.");
   }
 
   has(id: string) {
@@ -37,9 +37,8 @@ export class CSharpAnimePool {
   }
 
   async load(definition: Definition): Promise<unknown> {
-    if (this.stopped) throw new Error("Anime runtime is shutting down.");
-    if (this.has(definition.id))
-      throw new Error("Anime provider is already loaded.");
+    if (this.stopped) throw new Error("Source runtime is shutting down.");
+    if (this.has(definition.id)) throw new Error("Source is already loaded.");
     const entry: Entry = {
       definition: structuredClone(definition),
       busy: false,
@@ -62,9 +61,7 @@ export class CSharpAnimePool {
   ): Promise<unknown> {
     const entry = this.entries.get(id);
     if (!entry)
-      return Promise.reject(
-        new Error("Anime provider is disabled or unavailable."),
-      );
+      return Promise.reject(new Error("Source is disabled or unavailable."));
     const command = structuredClone({
       kind: "call",
       providerId: id,
@@ -84,11 +81,11 @@ export class CSharpAnimePool {
     signal?: AbortSignal,
   ): Promise<unknown> {
     if (this.stopped)
-      return Promise.reject(new Error("Anime runtime is shutting down."));
+      return Promise.reject(new Error("Source runtime is shutting down."));
     if (signal?.aborted) return Promise.reject(signal.reason);
     if (this.queue.length >= 64)
       return Promise.reject(
-        new Error("Too many anime requests. Retry shortly."),
+        new Error("Too many provider requests. Retry shortly."),
       );
     return new Promise((resolve, reject) => {
       const abort = () => {
@@ -117,7 +114,9 @@ export class CSharpAnimePool {
   ) {
     clearTimeout(entry.idle);
     if (entry.busy && entry.session)
-      console.info(`[nova] anime worker released during a request: ${reason}`);
+      console.info(
+        `[nova] provider worker released during a request: ${reason}`,
+      );
     entry.session?.stop(new Error(`C# provider worker stopped (${reason}).`));
     entry.session = undefined;
   }
@@ -171,10 +170,10 @@ export class CSharpAnimePool {
       }
       // Disabling a provider during startup must not dispatch the queued call.
       if (this.entries.get(entry.definition.id) !== entry)
-        throw new Error("Anime provider was disabled.");
+        throw new Error("Source was disabled.");
       const result = await job.run(entry.session, loaded);
       if (this.entries.get(entry.definition.id) !== entry)
-        throw new Error("Anime provider was disabled.");
+        throw new Error("Source was disabled.");
       job.resolve(result);
     } catch (error) {
       job.reject(error);
@@ -205,7 +204,7 @@ export class CSharpAnimePool {
     this.release(entry, this.stopped ? "shutdown" : "disabled");
     for (const job of this.queue.filter((row) => row.entry === entry)) {
       job.cleanup();
-      job.reject(new Error("Anime provider was disabled."));
+      job.reject(new Error("Source was disabled."));
     }
     this.queue = this.queue.filter((row) => row.entry !== entry);
     this.pump();

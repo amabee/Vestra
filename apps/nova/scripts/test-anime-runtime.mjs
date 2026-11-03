@@ -379,3 +379,33 @@ if (process.argv.includes("--native"))
       pool.stop();
     }
   });
+
+test("manga pool keeps a cancelled source isolated from another source and subsequent calls", async () => {
+  const f = fakePool(2);
+  try {
+    await f.pool.load({ id: "slow-manga", type: "manga-provider" });
+    await f.pool.load({ id: "fast-manga", type: "manga-provider" });
+    const gate = deferred();
+    f.gates.set("slow-manga:search", gate);
+    const abort = new AbortController();
+    const slow = f.pool.call(
+      "slow-manga",
+      "search",
+      [{ query: "Fixture" }],
+      abort.signal,
+    );
+    const rejected = assert.rejects(slow);
+    assert.equal(
+      await f.pool.call("fast-manga", "search", [{ query: "Fixture" }]),
+      "fast-manga",
+    );
+    abort.abort();
+    await rejected;
+    assert.equal(
+      await f.pool.call("fast-manga", "findChapters", ["book"]),
+      "fast-manga",
+    );
+  } finally {
+    f.pool.stop();
+  }
+});

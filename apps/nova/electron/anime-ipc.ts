@@ -1,7 +1,12 @@
 import { handleIpc } from "./ipc-security";
 import { getAnimeInventories } from "./anime-inventories";
 import type { AnimeSourceEpisodes } from "../shared/anime";
-import { getWatchlist, getHistory, getAllProgress } from "@vestra/storage";
+import {
+  getSettings,
+  getWatchlist,
+  getHistory,
+  getAllProgress,
+} from "@vestra/storage";
 import { mediaRefSchema, mediaItemSchema } from "@vestra/types";
 import { z } from "zod";
 import { resolveCataloguePlayback } from "./catalogue-playback";
@@ -23,11 +28,18 @@ export function registerAnimeIpc() {
     return value;
   };
   handleIpc("anime:inventories", () => inventories.list());
-  const explore = new AnimeExplore();
+  const includeAdult = async () =>
+    (await getSettings(getDriver())).privacy.showAdultContent;
+  const explore = new AnimeExplore(undefined, undefined, includeAdult);
   handleIpc("anime:snapshots", (_e, ids) => explore.snapshots(ids));
   handleIpc("anime:explore", (_e, query) => explore.load(query));
   const service = new AnimeService(getStreamSourceRegistry());
-  const discovery = new AnimeDiscovery(getStreamSourceRegistry(), service);
+  const discovery = new AnimeDiscovery(
+    getStreamSourceRegistry(),
+    service,
+    undefined,
+    includeAdult,
+  );
   handleIpc("anime:browse", (_e, id, query) =>
     discovery.browse(z.string().min(1).max(120).parse(id), query),
   );

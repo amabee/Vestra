@@ -84,7 +84,11 @@
     "extensions:verify": "node apps/nova/scripts/foundry-snapshot.mjs --check",
     "extensions:sync": "node apps/nova/scripts/foundry-snapshot.mjs --sync",
     "extensions:update": "node apps/nova/scripts/foundry-snapshot.mjs --update",
-    "test:foundry": "node --test apps/nova/scripts/test-foundry-snapshot.mjs && node apps/nova/scripts/test-bundled-extensions.mjs"
+    "test:foundry": "node --test apps/nova/scripts/test-foundry-snapshot.mjs && node apps/nova/scripts/test-bundled-extensions.mjs",
+    "test:extensions:updates": "node apps/nova/scripts/test-extension-updates.mjs",
+    "test:anilist:visibility": "node apps/nova/scripts/test-anilist-visibility.mjs",
+    "test:ipc:queries": "node apps/nova/scripts/test-ipc-queries.mjs",
+    "test:manga:pagination": "node apps/nova/scripts/test-manga-pagination.mjs"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",

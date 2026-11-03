@@ -1,3 +1,4 @@
+import type { ExtensionUpdateSummary } from "../shared/extension-updates";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
@@ -11,7 +12,8 @@ const manifestSchema = sourceOptions.extend({
   hosts: sourceOptions.shape.hosts.default([]),
   preferences: sourceOptions.shape.preferences.default({}),
   version: z.string().trim().min(1).max(80),
-  payloadURI: secureSourceUrl,
+  payloadURI: secureSourceUrl.optional(),
+  payload: z.string().max(1048576).optional(),
   language: z.enum(["javascript", "typescript"]).optional(),
   sha256: z
     .string()
@@ -45,6 +47,7 @@ export class RemoteSourceService {
     url: string,
     updatingId?: string,
     providedManifest?: unknown,
+    stageReview = true,
   ): Promise<RemoteSourcePlan> {
     const manifestUrl = secureSourceUrl.parse(url);
     const current = await this.manager.list();
@@ -57,7 +60,7 @@ export class RemoteSourceService {
       providedManifest ??
         JSON.parse(
           new TextDecoder("utf-8", { fatal: true }).decode(
-            await this.bytes(manifestUrl, 65536),
+            await this.bytes(manifestUrl, 2 * 1048576),
           ),
         ),
     );
@@ -69,14 +72,23 @@ export class RemoteSourceService {
       throw new Error(
         "That source is already installed. Use Check for updates on its existing entry.",
       );
-    const bytes = await this.bytes(manifest.payloadURI, 1048576);
+    if (!manifest.payload?.trim() && !manifest.payloadURI)
+      throw new Error(
+        "The manifest needs inline payload code or a public HTTPS payloadURI.",
+      );
+    const bytes = manifest.payload?.trim()
+      ? Buffer.from(manifest.payload, "utf8")
+      : await this.bytes(manifest.payloadURI!, 1048576);
+    if (bytes.byteLength > 1048576)
+      throw new Error("Source artifact exceeds 1 MiB.");
     const digest = hash(bytes);
     if (manifest.sha256 && manifest.sha256.toLowerCase() !== digest)
       throw new Error("Downloaded script does not match the manifest SHA256.");
     const source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     const filename =
       manifest.language === "typescript" ||
-      /\.ts$/i.test(new URL(manifest.payloadURI).pathname)
+      (!!manifest.payloadURI &&
+        /\.ts$/i.test(new URL(manifest.payloadURI).pathname))
         ? "provider.ts"
         : "provider.js";
     const suggestedHosts: string[] = [];
@@ -105,7 +117,8 @@ export class RemoteSourceService {
       version: manifest.version,
       currentVersion: old?.remote?.version,
       manifestUrl,
-      payloadUrl: manifest.payloadURI,
+      payloadUrl: manifest.payload?.trim() ? manifestUrl : manifest.payloadURI!,
+      inlinePayload: !!manifest.payload?.trim(),
       sha256: digest,
       checksumVerified: !!manifest.sha256,
       hosts,
@@ -117,25 +130,65 @@ export class RemoteSourceService {
         old.remote?.version !== manifest.version ||
         old.remote?.sha256 !== digest,
     };
-    for (const [key, stage] of this.staged)
-      if (stage.expires < this.now()) this.staged.delete(key);
-    if (this.staged.size >= 4)
-      this.staged.delete(this.staged.keys().next().value!);
-    this.staged.set(token, {
-      plan,
-      source,
-      filename,
-      old,
-      options: sourceOptions.parse(manifest),
-      expires: this.now() + 600000,
-    });
+    if (stageReview) {
+      for (const [key, stage] of this.staged)
+        if (stage.expires < this.now()) this.staged.delete(key);
+      if (this.staged.size >= 4)
+        this.staged.delete(this.staged.keys().next().value!);
+      this.staged.set(token, {
+        plan,
+        source,
+        filename,
+        old,
+        options: sourceOptions.parse(manifest),
+        expires: this.now() + 600000,
+      });
+    }
     return plan;
   }
-  async check(id: string): Promise<RemoteSourcePlan> {
+  async check(id: string, stageReview = true): Promise<RemoteSourcePlan> {
     const row = (await this.manager.list()).find((row) => row.id === id);
     if (!row?.remote)
       throw new Error("This source was not installed from a manifest URL.");
-    return this.prepare(row.remote.manifestUrl, id);
+    return this.prepare(row.remote.manifestUrl, id, undefined, stageReview);
+  }
+  async checkAll(): Promise<ExtensionUpdateSummary[]> {
+    const result: ExtensionUpdateSummary[] = [];
+    for (const row of (await this.manager.list()).slice(0, 100)) {
+      const base = {
+        id: row.id,
+        name: row.name,
+        kind: "provider" as const,
+        currentVersion: row.remote?.version ?? "local",
+      };
+      if (!row.remote) {
+        result.push({
+          ...base,
+          status: "local",
+          message: "This source has no remote manifest URL.",
+        });
+        continue;
+      }
+      try {
+        const plan = await this.check(row.id, false);
+        result.push({
+          ...base,
+          status: plan.changed ? "available" : "current",
+          version: plan.version,
+          message: plan.changed
+            ? "An update is available in Compatibility."
+            : "Installed script is current.",
+        });
+      } catch (error) {
+        result.push({
+          ...base,
+          status: "error",
+          message:
+            error instanceof Error ? error.message : "Update check failed.",
+        });
+      }
+    }
+    return result;
   }
   async apply(token: string, selectedHosts: unknown): Promise<void> {
     const stage = this.staged.get(z.string().uuid().parse(token));

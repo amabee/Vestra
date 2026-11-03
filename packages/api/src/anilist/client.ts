@@ -68,27 +68,49 @@ export async function searchAnime(
 
   const data = await anilistQuery<AnilistPageResponse>(
     SEARCH_ANIME_QUERY,
-    { search, page, perPage, isAdult: includeAdult },
+    { search, page, perPage, ...(includeAdult ? {} : { isAdult: false }) },
     CACHE_TTL.search,
   );
 
   const media = data.Page?.media ?? [];
 
   return {
-    items: media.map(normaliseAnime),
+    items: media
+      .filter((row) => includeAdult || !row.isAdult)
+      .map(normaliseAnime),
     totalResults: data.Page?.pageInfo?.total ?? media.length,
     hasMore: data.Page?.pageInfo?.hasNextPage ?? false,
   };
 }
 
-export async function getTrendingAnime(page = 1, perPage = 20): Promise<MediaItem[]> {
-  const data = await anilistQuery<AnilistPageResponse>(TRENDING_ANIME_QUERY, { page, perPage });
-  return (data.Page?.media ?? []).map(normaliseAnime);
+export async function getTrendingAnime(
+  page = 1,
+  perPage = 20,
+  includeAdult = false,
+): Promise<MediaItem[]> {
+  const data = await anilistQuery<AnilistPageResponse>(TRENDING_ANIME_QUERY, {
+    page,
+    perPage,
+    ...(includeAdult ? {} : { isAdult: false }),
+  });
+  return (data.Page?.media ?? [])
+    .filter((row) => includeAdult || !row.isAdult)
+    .map(normaliseAnime);
 }
 
-export async function getPopularAnime(page = 1, perPage = 20): Promise<MediaItem[]> {
-  const data = await anilistQuery<AnilistPageResponse>(POPULAR_ANIME_QUERY, { page, perPage });
-  return (data.Page?.media ?? []).map(normaliseAnime);
+export async function getPopularAnime(
+  page = 1,
+  perPage = 20,
+  includeAdult = false,
+): Promise<MediaItem[]> {
+  const data = await anilistQuery<AnilistPageResponse>(POPULAR_ANIME_QUERY, {
+    page,
+    perPage,
+    ...(includeAdult ? {} : { isAdult: false }),
+  });
+  return (data.Page?.media ?? [])
+    .filter((row) => includeAdult || !row.isAdult)
+    .map(normaliseAnime);
 }
 
 export async function getAnimeDetails(id: string): Promise<MediaDetails> {
@@ -104,7 +126,9 @@ export async function getAnimeDetails(id: string): Promise<MediaDetails> {
   );
 
   if (!data.Media) {
-    throw new ProviderError("anilist", `Anime ${id} was not found.`, { status: 404 });
+    throw new ProviderError("anilist", `Anime ${id} was not found.`, {
+      status: 404,
+    });
   }
 
   return normaliseAnimeDetails(data.Media);

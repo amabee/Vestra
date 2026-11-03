@@ -1,3 +1,4 @@
+import { getSettings } from "@vestra/storage";
 import { handleIpc } from "./ipc-security";
 import { z } from "zod";
 import { getDriver, resolveDataDir } from "./services";
@@ -23,11 +24,14 @@ export function registerMangaIpc(
   const api = getMangaService();
   api.registerCatalogueImages(image);
   api.registerBookmarks(bookmarks);
+  const includeAdult = async () =>
+    (await getSettings(getDriver())).privacy.showAdultContent;
   const details = new MangaDetails(
     getDriver(),
     (id, url) => api.catalogueCover(id, url),
     undefined,
     (id, url) => api.catalogueBanner(id, url),
+    includeAdult,
   );
   const resolver = new MangaTitleResolver(getDriver(), api, (id) =>
     details.get(id),
@@ -67,8 +71,12 @@ export function registerMangaIpc(
   handleIpc("manga:mark-chapters", (_e, p, b, read) =>
     api.markChapters(text.parse(p), text.parse(b), z.boolean().parse(read)),
   );
-  const discovery = new MangaDiscovery(getDriver(), (id, url) =>
-    api.catalogueCover(id, url),
+  const discovery = new MangaDiscovery(
+    getDriver(),
+    (id, url) => api.catalogueCover(id, url),
+    undefined,
+    undefined,
+    includeAdult,
   );
   handleIpc("manga:discover", async (_e, filters) => {
     const page = await discovery.browse(filters);
@@ -112,6 +120,13 @@ export function registerMangaIpc(
     api.refreshCatalogueCover(z.number().int().positive().parse(id)),
   );
   handleIpc("manga:recent", (_e, p) => api.recent(text.parse(p)));
+  handleIpc("manga:search-page", (_e, p, q, page) =>
+    api.searchPage(
+      text.parse(p),
+      z.string().trim().min(1).max(500).parse(q),
+      z.number().int().min(1).max(1000).parse(page),
+    ),
+  );
   handleIpc("manga:search", (_e, p, q) =>
     api.search(text.parse(p), z.string().trim().min(1).max(500).parse(q)),
   );
