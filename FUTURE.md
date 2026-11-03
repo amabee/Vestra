@@ -79,14 +79,13 @@ it yet.
 
 ---
 
-## `packages/ui` and `apps/pulse`
+## `packages/ui` and Pulse
 
 `packages/ui` is orphaned — it was shared between the deleted web app and Nova,
 and Nova now has its own components. It should either be deleted or become the
 real shared component library.
 
-`apps/pulse` is an empty Expo scaffold. It should not grow until there is an
-API contract for it to consume.
+The mobile planning scaffold lives in [Vestra Pulse](https://github.com/amabee/Pulse), outside this workspace. Its API contract and actual Expo application are future work; this extraction does not imply that a mobile backend or app has been implemented.
 
 ---
 

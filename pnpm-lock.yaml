@@ -272,8 +272,6 @@ importers:
         specifier: 'catalog:'
         version: 5.0.14(@types/react@19.2.18)(react@19.2.8)
 
-  apps/pulse: {}
-
   packages/api:
     dependencies:
       '@vestra/config':

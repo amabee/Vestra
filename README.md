@@ -5,13 +5,13 @@ media in one place, with a dark, cinematic interface.
 
 Vestra is a monorepo (one folder holding several related apps and shared code):
 
-| App                         | Folder        | Stack                 | Status      |
-| --------------------------- | ------------- | --------------------- | ----------- |
-| **Vestra Nova** — desktop   | `apps/nova`   | Electron 43, React 19 | Working     |
-| **Vestra Server** — backend | `apps/server` | C# (.NET)             | Working     |
-| **Vestra Pulse** — mobile   | `apps/pulse`  | React Native / Expo   | Early stage |
+| App                         | Location                                                     | Stack                 | Status        |
+| --------------------------- | ------------------------------------------------------------ | --------------------- | ------------- |
+| **Vestra Nova** — desktop   | `apps/nova`                                                  | Electron 43, React 19 | Working       |
+| **Vestra Server** — backend | `apps/server`                                                | C# (.NET)             | Working       |
+| **Vestra Pulse** — mobile   | [Separate Pulse repository](https://github.com/amabee/Pulse) | Expo planned          | Scaffold only |
 
-**Vestra Server** is the C# backend, with its own provider tests. **Vestra Pulse** is the mobile app, still at an early stage.
+**Vestra Nova** stays in this repository with its backend and shared runtime so desktop releases and updater URLs remain unchanged. **Vestra Server** is the C# backend, with its own provider tests. The mobile planning scaffold is now maintained independently in [Vestra Pulse](https://github.com/amabee/Pulse); it is not an implemented mobile app yet. The existing documentation project remains unchanged.
 
 ## Quick start
 
@@ -109,7 +109,7 @@ vestra/
 ├─ apps/
 │  ├─ nova/          Electron desktop app (main, preload, renderer)
 │  ├─ server/        C# backend and provider tests
-│  └─ pulse/         Mobile app (early stage)
+│  └─ docs/          Existing Astro documentation site
 ├─ packages/
 │  ├─ types/         Shared data shapes (Zod schemas)
 │  ├─ config/        Settings, constants, navigation
@@ -168,7 +168,7 @@ fix(ui): keep switch knob inside its track
 build(deps): pin typescript to 6.x for eslint compatibility
 ```
 
-Scopes: `nova` `server` `pulse` · `types` `config` `api` `storage` `core` `ui` ·
+Scopes: `nova` `server` · `types` `config` `api` `storage` `core` `ui` ·
 `eslint` `tsconfig` `tailwind` · `deps` `ci` `release`.
 
 A template is wired up through `commit.template`. Run `git commit` with no `-m`
@@ -176,12 +176,12 @@ to see the full list.
 
 ### Tags
 
-| Pattern           | Meaning                   |
-| ----------------- | ------------------------- |
-| `v<x.y.z>`        | Repository-wide milestone |
-| `nova-v<x.y.z>`   | Vestra Nova release       |
-| `server-v<x.y.z>` | Vestra Server release     |
-| `pulse-v<x.y.z>`  | Vestra Pulse release      |
+| Pattern           | Meaning                                                                                               |
+| ----------------- | ----------------------------------------------------------------------------------------------------- |
+| `v<x.y.z>`        | Repository-wide milestone                                                                             |
+| `nova-v<x.y.z>`   | Vestra Nova release                                                                                   |
+| `server-v<x.y.z>` | Vestra Server release                                                                                 |
+| `pulse-v<x.y.z>`  | Pulse releases belong in [Pulse](https://github.com/amabee/Pulse); historical tags here are preserved |
 
 Tags are annotated and record what actually shipped, including what did not:
 `git tag -n20 nova-v0.1.0`.
