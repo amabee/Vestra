@@ -20,7 +20,7 @@
     "package:dir": "pnpm run publish:worker && pnpm run build && electron-builder --win --x64 --dir",
     "typecheck": "tsc --noEmit -p tsconfig.electron.json && tsc --noEmit -p renderer/tsconfig.json",
     "clean": "rimraf dist-electron dist-renderer release .turbo",
-    "release:build": "pnpm run fetch:mpv && pnpm run publish:worker && pnpm run build && electron-builder --win nsis --x64 --publish never --config.forceCodeSigning=true"
+    "release:build": "pnpm run fetch:mpv && pnpm run publish:worker && pnpm run build && electron-builder --win nsis --x64 --publish never"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.24",
