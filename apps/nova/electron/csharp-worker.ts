@@ -21,6 +21,7 @@ interface PendingCall {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
   cleanup: () => void;
+  maxResponseChars: number;
 }
 
 /** Private stdio bridge. The renderer never receives a port, script or handle. */
@@ -106,7 +107,10 @@ export class CSharpProviderWorker {
           clearTimeout(timer);
           signal?.removeEventListener("abort", abort);
         };
-        this.pending = { id, resolve, reject, cleanup };
+        this.pending = { id, resolve, reject, cleanup,
+          // 8 MiB of image bytes plus base64 and JSON framing.
+          maxResponseChars: command.kind === "image" ? 12_582_912 : 4_194_304,
+        };
         signal?.addEventListener("abort", abort, { once: true });
         const line = JSON.stringify({ ...command, id }) + "\n";
         if (Buffer.byteLength(line) > 2_097_152) {
@@ -129,7 +133,7 @@ export class CSharpProviderWorker {
 
   private receive(chunk: string): void {
     this.buffer += chunk;
-    if (this.buffer.length > 4_194_304) {
+    if (this.buffer.length > (this.pending?.maxResponseChars ?? 4_194_304)) {
       this.stop(
         new Error("C# provider worker response exceeds protocol limit."),
       );

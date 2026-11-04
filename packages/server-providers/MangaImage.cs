@@ -2,10 +2,12 @@ namespace Vestra.Providers;
 
 public static class MangaImage
 {
+    public const int MaxBytes = 8 * 1024 * 1024;
+
     public static object Encode(BinaryFetchResponse response)
     {
         if(response.Status is <200 or >=300)throw new InvalidOperationException($"Page image HTTP {response.Status}.");
-        if(response.Body.Length is 0 or >2097152)throw new InvalidOperationException("Page image must be 1 byte to 2 MiB.");
+        if(response.Body.Length is 0 or >MaxBytes)throw new InvalidOperationException("Page image must be 1 byte to 8 MiB.");
         var mime=response.Headers.GetValueOrDefault("Content-Type")?.Split(';')[0].Trim().ToLowerInvariant();
         // Some source CDNs deliver real raster bytes as generic binary data.
         // Sniff only known raster signatures; never accept HTML or SVG here.

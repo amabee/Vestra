@@ -27,4 +27,19 @@ public class MangaImageTests
         var response=new BinaryFetchResponse(200,"https://fixture.example/page",new(){["Content-Type"]="application/octet-stream"},Encoding.UTF8.GetBytes(body),"OK");
         Assert.Throws<InvalidOperationException>(()=>MangaImage.Encode(response));
     }
+    [Theory]
+    [InlineData(3 * 1024 * 1024)]
+    [InlineData(MangaImage.MaxBytes)]
+    public void AcceptsBoundedLargeRasterPages(int size)
+    {
+        var bytes=new byte[size]; bytes[0]=0xff; bytes[1]=0xd8; bytes[2]=0xff;
+        var result=JsonSerializer.SerializeToElement(MangaImage.Encode(new(200,"https://fixture.example/page",new(){["Content-Type"]="application/octet-stream"},bytes,"OK")));
+        Assert.Equal(size,Convert.FromBase64String(result.GetProperty("data").GetString()!).Length);
+    }
+
+    [Fact]
+    public void RejectsImagesAboveTheHostLimit()
+    {
+        Assert.Throws<InvalidOperationException>(()=>MangaImage.Encode(new(200,"https://fixture.example/page",new(){["Content-Type"]="image/jpeg"},new byte[MangaImage.MaxBytes+1],"OK")));
+    }
 }
