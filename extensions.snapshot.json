@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "repository": "amabee/Foundry",
-  "revision": "e5fa9e35d4e99753929f0f96d1a1fa25df5df26f",
+  "revision": "0cd0e27b70471917402decd68c90cc4c5b66691b",
   "files": [
     {
       "path": "extensions/README.md",
@@ -229,7 +229,7 @@
     },
     {
       "path": "extensions/asurascans/README.md",
-      "sha256": "69b6dfca65e8c8f03c73a1956168d739238deb2f6801f0ab94255c7f8ddd7e4e"
+      "sha256": "bf21f3bcef41408b1b0390c9b7fb9c1a844b5f96a267959ca7ce1142275fc235"
     },
     {
       "path": "extensions/asurascans/icon.webp",
@@ -237,15 +237,15 @@
     },
     {
       "path": "extensions/asurascans/index.js",
-      "sha256": "7a8f861d787ba6b95fb21cf89a7ed3b3f0edff82398031664029029d184b4870"
+      "sha256": "2941479f6037b0d2f9c57aa5eeead8a94ce35a58b6241d819a87d3786e6cb037"
     },
     {
       "path": "extensions/asurascans/manifest.json",
-      "sha256": "708b9c2eb9ac04c82e4cfea85e1cc4d269048e979aa8c4612b61c7f3b6d5045d"
+      "sha256": "53c4f2aa70678cb7a4b7e49755701041487d248cbff3ebcc74f2dd3edc038b18"
     },
     {
       "path": "extensions/asurascans/src/source.js",
-      "sha256": "976628ebb4b64629cf2e7a5c799da543b2b4da8ce43c6ea78c2d6613edaf4df2"
+      "sha256": "b108a12c37f9e251895092c448b57146493f4a320ef12290e92ac8af990bb4ce"
     },
     {
       "path": "extensions/atsumaru/README.md",
@@ -809,7 +809,7 @@
     },
     {
       "path": "extensions/registry.json",
-      "sha256": "6e9a04b90cc2df61116a07aec559f0d676b0330e28c8fab911b06a47e3028ce7"
+      "sha256": "9e65f240a4897338c91d4b09919dff6a340532e4f80e81337ca1e46b35e1fedf"
     },
     {
       "path": "extensions/shiro/README.md",

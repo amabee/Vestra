@@ -140,7 +140,7 @@ try {
       recent: async () => ({entries:[{book:{id:'recent-a',title:'A Quiet Journey',cover:'cover-recent'},progress:{chapterId:'one',page:13,updatedAt:'2026-10-29T16:00:00Z'}},{book:{id:'recent-b',title:'City of Lanterns'},progress:{chapterId:'one',page:3,updatedAt:'2026-10-29T12:00:00Z'}},{book:{id:'recent-c',title:'After the Rain',cover:'cover-broken'},progress:{chapterId:'one',page:0,updatedAt:'2026-10-28T16:00:00Z'}}],unreadable:0,truncated:false}),
       chapters: async (provider,book) => {const f=window.readerFixture;f.chapterCalls??=[];f.chapterCalls.push({provider,book}); if(f.chapterFailure)throw new Error("Chapter failure"); if(f.chapterEmpty)return [];return [{id:'one',title:'Chapter 1',chapter:'1',index:0},{id:'two',title:'Chapter 2',chapter:'2',index:1}];},
       progress: async (_p,b) => readerFixture.progressFailure ? Promise.reject(new Error('Saved progress unavailable')) : readerFixture.progressOverride ?? (b==='recent-a'?{chapterId:'one',page:13,updatedAt:'2026-10-29T16:00:00Z'}:null),
-      pages: async (_p,_b,c) => {const f=readerFixture;f.pageLoads=(f.pageLoads??0)+1;const prefix=f.expirePages?((f.pageGeneration=(f.pageGeneration??0)+1)===1?'expired-':'fresh-'):'';return Array.from({length:40},(_,index)=>({handle:prefix+c+'-'+index,index}));},
+      pages: async (_p,_b,c) => {const f=readerFixture;f.pageLoads=(f.pageLoads??0)+1;if(f.pageFailure)throw Error("Error invoking remote method 'manga:pages': Error: getPages() failed: AsuraScans has locked this chapter for early access.");if(f.pageEmpty)return [];if(f.holdPages)await new Promise(resolve=>f.releasePages=resolve);const prefix=f.expirePages?((f.pageGeneration=(f.pageGeneration??0)+1)===1?'expired-':'fresh-'):'';return Array.from({length:40},(_,index)=>({handle:prefix+c+'-'+index,index}));},
       image: async (handle) => { const f=window.readerFixture; f.calls.push(handle);if(handle.startsWith('expired-'))throw new Error('Page image HTTP 403.'); if(handle==='cover-broken'||handle==='fixture-cover-3')return 'data:image/png;base64,AAE='; if(f.slow===handle) await new Promise(resolve=>{f.releaseSlow=resolve;}); if(f.fail && handle==='one-5') throw new Error('Fixture image failure'); return ${JSON.stringify("data:image/png;base64," + png.toString("base64"))}; },
       save: async (_p,b,c,page) => { window.readerFixture.saves.push({provider:_p,book:b,chapter:c,page}); },
     }}};
@@ -469,6 +469,29 @@ try {
         await until('document.querySelector(".manga-info__provider")?.textContent==="Manga source" && document.querySelector(".manga-info__chapter")');
         assert.equal(await run('!!document.querySelector("section[aria-label^=Reading]")'),false);
         console.log('PASS expired image links refresh in place, failed sources can be changed inside the reader, and saved source choices skip the picker');
+        await run('readerFixture.holdPages=true;readerFixture.choose("notice-loading")');
+        await until('document.querySelector("[data-reader-notice] [role=status]")?.textContent.includes("Loading pages")');
+        const noticeVisible = '(()=>{const e=document.querySelector("[data-reader-notice] p"),h=document.querySelector("[data-reader-title]").closest("header");if(!e||!h)return false;const r=e.getBoundingClientRect(),b=h.getBoundingClientRect();const hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return r.top>=b.bottom&&r.bottom<=innerHeight&&!!hit&&e.contains(hit);})()';
+        assert(await run(noticeVisible),'loading message must be visible below header');
+        await run('readerFixture.holdPages=false;readerFixture.releasePages();readerFixture.pageFailure=true;readerFixture.choose("notice-failure")');
+        await until('document.querySelector("[data-reader-notice] [role=alert]")?.textContent.includes("locked this chapter")');
+        assert(await run(noticeVisible),'chapter failure and Retry must be visible below header');
+        assert.equal(await run('document.querySelector("[data-reader-notice]").textContent.includes("remote method")'),false);
+        require('node:fs').mkdirSync(${JSON.stringify(join(nova, "release/screenshots"))},{recursive:true});
+        await win.webContents.capturePage().then(i=>require('node:fs').writeFileSync(${JSON.stringify(join(nova, "release/screenshots/reader-locked-visible.png"))},i.toPNG()));
+        await run('[...document.querySelectorAll("[data-reader-notice] button")].find(e=>e.textContent.trim()==="Choose chapter").click()');
+        await until('document.getElementById("reader-chapters")');
+        await run('document.querySelector("#reader-chapters button[aria-label^=Close]").click()');
+
+        await run('readerFixture.pageFailure=false;[...document.querySelectorAll("[data-reader-notice] button")].find(e=>e.textContent.trim()==="Retry").click()');
+        await until('document.querySelector("img[alt^=Page]")?.naturalHeight>0');
+        await run('readerFixture.pageEmpty=true;readerFixture.choose("notice-empty")');
+        await until('document.querySelector("[data-reader-notice]")?.textContent.includes("This chapter has no pages")');
+        assert(await run(noticeVisible),'empty state must be visible below header');
+        require('node:fs').mkdirSync(${JSON.stringify(join(nova, "release/screenshots"))},{recursive:true});
+        await win.webContents.capturePage().then(i=>require('node:fs').writeFileSync(${JSON.stringify(join(nova, "release/screenshots/reader-empty-visible.png"))},i.toPNG()));
+        console.log('PASS loading, locked-chapter errors, retry and empty pages stay visible below the reader header');
+
         win.destroy(); app.exit(0);
       } catch(error) {console.error(error);win.destroy();app.exit(1);}
     });

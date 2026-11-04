@@ -15,7 +15,23 @@ import { useReaderChrome } from "@/lib/use-reader-chrome";
 import type { MangaBook } from "../../../shared/manga";
 
 const errorText = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
+  (error instanceof Error ? error.message : String(error))
+    .replace(/^Error invoking remote method '[^']+': (?:Error: )?/, "")
+    .replace(/^(?:getPages|findChapterPages)\(\) failed: /, "");
+
+/** Status content must remain in the viewport below the overlaid reader header. */
+function ReaderNotice({ children }: { children: ReactNode }) {
+  return (
+    <div
+      data-reader-notice
+      className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 pb-24 pt-20"
+    >
+      <div className="max-w-xl rounded-xl border border-white/10 bg-neutral-900 p-6 text-center text-sm leading-relaxed text-neutral-200">
+        {children}
+      </div>
+    </div>
+  );
+}
 export function MangaRoute() {
   return (
     <MangaLibrary
@@ -268,42 +284,48 @@ export function BookReader({
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {chapters.error && (
-            <p role="alert">
-              {errorText(chapters.error)}{" "}
-              <button
-                className="btn btn-sm"
-                onClick={() => void chapters.refetch()}
-              >
-                Retry chapters
-              </button>
-            </p>
+            <ReaderNotice>
+              <p role="alert">
+                {errorText(chapters.error)}{" "}
+                <button
+                  className="btn btn-sm"
+                  onClick={() => void chapters.refetch()}
+                >
+                  Retry chapters
+                </button>
+              </p>
+            </ReaderNotice>
           )}
           {progress.error && (
-            <p role="alert">
-              Could not read saved progress: {errorText(progress.error)}{" "}
-              <button
-                className="btn btn-sm"
-                onClick={() => void progress.refetch()}
-              >
-                Retry saved progress
-              </button>
-            </p>
+            <ReaderNotice>
+              <p role="alert">
+                Could not read saved progress: {errorText(progress.error)}{" "}
+                <button
+                  className="btn btn-sm"
+                  onClick={() => void progress.refetch()}
+                >
+                  Retry saved progress
+                </button>
+              </p>
+            </ReaderNotice>
           )}
           {chapters.isPending || progress.isPending ? (
-            <p role="status" className="py-5">
-              Loading chapters…
-            </p>
+            <ReaderNotice>
+              <p role="status">Loading chapters…</p>
+            </ReaderNotice>
           ) : progress.error ? null : missingChapter ? (
-            <p role="alert" className="p-6">
-              The saved chapter is no longer available in this selection. Your
-              reading position has been kept.{" "}
-              <button
-                className="btn btn-sm"
-                onClick={() => setChaptersOpen(true)}
-              >
-                Choose chapter
-              </button>
-            </p>
+            <ReaderNotice>
+              <p role="alert">
+                The saved chapter is no longer available in this selection. Your
+                reading position has been kept.{" "}
+                <button
+                  className="btn btn-sm"
+                  onClick={() => setChaptersOpen(true)}
+                >
+                  Choose chapter
+                </button>
+              </p>
+            </ReaderNotice>
           ) : ordered.length ? (
             <>
               <ChapterReader
@@ -323,6 +345,7 @@ export function BookReader({
                 settingsOpen={settingsOpen}
                 onSettingsChange={changeSettings}
                 onChangeSource={onChangeSource}
+                onChooseChapter={() => setChaptersOpen(true)}
                 chapterControl={
                   <button
                     className="btn btn-ghost btn-sm max-w-44"
@@ -348,15 +371,17 @@ export function BookReader({
             </>
           ) : (
             !chapters.error && (
-              <p className="py-5">
-                No chapters match the current selection.{" "}
-                <button
-                  className="btn btn-sm"
-                  onClick={() => void chapters.refetch()}
-                >
-                  Refresh chapters
-                </button>
-              </p>
+              <ReaderNotice>
+                <p>
+                  No chapters match the current selection.{" "}
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => void chapters.refetch()}
+                  >
+                    Refresh chapters
+                  </button>
+                </p>
+              </ReaderNotice>
             )
           )}
         </div>
@@ -375,6 +400,7 @@ function ChapterReader({
   settingsOpen,
   chapterControl,
   onChangeSource,
+  onChooseChapter,
 }: {
   provider: string;
   book: string;
@@ -386,6 +412,7 @@ function ChapterReader({
   settingsOpen: boolean;
   chapterControl: ReactNode;
   onChangeSource?: () => void;
+  onChooseChapter: () => void;
 }) {
   const position = useRef(start);
   const rememberPosition = useCallback((page: number) => {
@@ -404,32 +431,41 @@ function ChapterReader({
   };
   if (pages.isPending || pages.isFetching)
     return (
-      <p role="status">
-        {pages.data ? "Refreshing chapter…" : "Loading pages…"}
-      </p>
+      <ReaderNotice>
+        <p role="status">
+          {pages.data ? "Refreshing chapter…" : "Loading pages…"}
+        </p>
+      </ReaderNotice>
     );
   if (pages.error)
     return (
-      <p role="alert">
-        {errorText(pages.error)}{" "}
-        <button className="btn btn-sm" onClick={reload}>
-          Retry
-        </button>
-        {onChangeSource && (
-          <button className="btn btn-sm ml-2" onClick={onChangeSource}>
-            Change source
+      <ReaderNotice>
+        <p role="alert">
+          {errorText(pages.error)}{" "}
+          <button className="btn btn-sm" onClick={reload}>
+            Retry
           </button>
-        )}
-      </p>
+          <button className="btn btn-sm ml-2" onClick={onChooseChapter}>
+            Choose chapter
+          </button>
+          {onChangeSource && (
+            <button className="btn btn-sm ml-2" onClick={onChangeSource}>
+              Change source
+            </button>
+          )}
+        </p>
+      </ReaderNotice>
     );
   if (!pages.data.length)
     return (
-      <p>
-        This chapter has no pages.{" "}
-        <button className="btn btn-sm" onClick={reload}>
-          Refresh chapter
-        </button>
-      </p>
+      <ReaderNotice>
+        <p>
+          This chapter has no pages.{" "}
+          <button className="btn btn-sm" onClick={reload}>
+            Refresh chapter
+          </button>
+        </p>
+      </ReaderNotice>
     );
   return (
     <PageReader
