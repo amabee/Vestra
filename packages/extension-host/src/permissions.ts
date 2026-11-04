@@ -36,6 +36,11 @@ export const PERMISSION_DESCRIPTORS: Record<
     title: "Use source sessions",
     risk: "Can send its own API authorization and source headers to the hosts you allow. This does not expose your browser cookies or signed-in accounts.",
   },
+  "network:cookies": {
+    permission: "network:cookies",
+    title: "Send extension cookies",
+    risk: "Can send cookies it creates to the hosts you allow, including public episode selectors or a source session. It cannot read your browser cookies or signed-in accounts.",
+  },
   "library:read": {
     permission: "library:read",
     title: "Read your library index",

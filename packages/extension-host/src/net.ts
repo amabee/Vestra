@@ -246,7 +246,8 @@ export function createBrokeredFetch(
       const name = key.toLowerCase();
       if (
         !ALLOWED_REQUEST_HEADERS.has(name) &&
-        !(can(grant, "network:session") && SESSION_REQUEST_HEADERS.has(name))
+        !(can(grant, "network:session") && SESSION_REQUEST_HEADERS.has(name)) &&
+        !(name === "cookie" && can(grant, "network:cookies"))
       )
         continue;
       if (

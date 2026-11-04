@@ -7,7 +7,7 @@ import {
   SourceChallengedError,
   type GuardedTransport,
 } from "./net";
-import type { PermissionGrant } from "./permissions";
+import { grantCoversRequest, type PermissionGrant } from "./permissions";
 
 /**
  * Detection only. Vestra does not solve challenges, so what is asserted here
@@ -115,6 +115,60 @@ describe("isChallengeResponse", () => {
 });
 
 describe("brokeredFetch challenge handling", () => {
+  it("requires a separate cookie grant and keeps it scoped to approved HTTPS hosts", async () => {
+    const calls: Record<string, string>[] = [];
+    const transport: GuardedTransport = {
+      request: async (input) => {
+        calls.push(input.headers);
+        return { status: 200, headers: {}, body: "ok" };
+      },
+    };
+    expect(
+      grantCoversRequest(
+        { ...grant, granted: ["network", "network:session"] },
+        ["network", "network:cookies"],
+        grant.allowedHosts,
+      ),
+    ).toBe(false);
+    const cookieGrant: PermissionGrant = {
+      ...grant,
+      granted: ["network", "network:cookies"],
+    };
+    const fetch = createBrokeredFetch(cookieGrant, transport)!;
+    await fetch({
+      url: "https://example.com/gate.php",
+      headers: {
+        Cookie: "key=public-selector",
+        Authorization: "not-granted",
+        Host: "elsewhere.example",
+      },
+    });
+    expect(calls).toEqual([{ cookie: "key=public-selector" }]);
+    await expect(
+      fetch({
+        url: "https://unapproved.example/gate.php",
+        headers: { Cookie: "key=public-selector" },
+      }),
+    ).rejects.toThrow(/hosts you allowed/);
+    await expect(
+      fetch({
+        url: "http://example.com/gate.php",
+        headers: { Cookie: "key=public-selector" },
+      }),
+    ).rejects.toThrow(/https/);
+    await expect(
+      fetch({
+        url: "https://example.com/gate.php",
+        headers: { Cookie: "key=value\r\nHost: evil" },
+      }),
+    ).rejects.toThrow(/header value/);
+    cookieGrant.granted = ["network"];
+    await fetch({
+      url: "https://example.com/gate.php",
+      headers: { Cookie: "key=public-selector" },
+    });
+    expect(calls[1]).toEqual({});
+  });
   it("keeps session headers opt-in and never forwards Cookie or Host", async () => {
     const calls: Record<string, string>[] = [];
     const transport: GuardedTransport = {
