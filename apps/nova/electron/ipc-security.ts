@@ -7,7 +7,13 @@ import {
   type WebContents,
 } from "electron";
 
-type WindowRole = "main" | "player";
+type WindowRole = "main" | "player" | "splash";
+export const SPLASH_CHANNELS = new Set([
+  "startup:state",
+  "startup:continue",
+  "startup:retry",
+  "startup:quit",
+]);
 const trustedWindows = new WeakMap<
   WebContents,
   { role: WindowRole; document: string }
@@ -68,7 +74,8 @@ export function assertTrustedSender(
     !event.senderFrame ||
     event.senderFrame !== event.sender.mainFrame ||
     !isTrustedDocument(event.senderFrame.url, policy.document) ||
-    (policy.role === "player" && !PLAYER_CHANNELS.has(channel))
+    (policy.role === "player" && !PLAYER_CHANNELS.has(channel)) ||
+    (policy.role === "splash" && !SPLASH_CHANNELS.has(channel))
   ) {
     throw new Error("This request is not permitted from this window.");
   }

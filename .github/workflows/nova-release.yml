@@ -52,6 +52,8 @@ jobs:
       - run: pnpm test:ipc:queries
       - run: pnpm test:manga:pagination
       - run: pnpm test:reliability
+      - run: pnpm test:screen
+      - run: node apps/nova/scripts/test-playback-errors.mjs
       - run: pnpm test:manga:navigation
       - run: pnpm test:manga:preload
       - run: node apps/nova/scripts/test-manga-information.mjs
@@ -84,6 +86,9 @@ jobs:
       - run: pnpm test:settings:integrations:ui
       - run: node apps/nova/scripts/test-anilist-sync-ui.mjs
       - run: pnpm test:reliability:ui
+      - run: pnpm test:startup
+      - run: pnpm test:startup:ui
+      - run: pnpm test:screen:ui
       - run: node apps/nova/scripts/test-reader-ui.mjs
       - name: Smoke-test packaged worker and compiler
         run: node apps/nova/scripts/test-packaged-worker.mjs --resources apps/nova/release/win-unpacked/resources

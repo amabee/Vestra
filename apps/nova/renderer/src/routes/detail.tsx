@@ -32,6 +32,8 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { Notice, Page, SectionRule } from "@/components/layout/page";
 import { bridge } from "@/lib/bridge";
 import { usePlayer } from "@/lib/player-store";
+import { ReportProblem } from "@/components/report-problem";
+import { playbackIssue } from "../../../shared/playback-errors";
 import {
   keys,
   useBookmarks,
@@ -646,7 +648,7 @@ function MediaDetailsRoute() {
           ) : sources.error ? (
             <div>
               <Notice
-                title="Could not resolve sources"
+                title={playbackIssue(sources.error).title}
                 body={(sources.error as Error).message}
               />
               <button
@@ -655,6 +657,19 @@ function MediaDetailsRoute() {
               >
                 Retry episodes
               </button>
+              <ReportProblem
+                area="Movies and Series source matching"
+                source={selectedSource ?? source}
+                error={sources.error}
+              />
+              {(kind === "movie" || kind === "tv") && (
+                <Link
+                  className="btn btn-sm"
+                  to={`${kind === "movie" ? "/films" : "/series"}?${new URLSearchParams({ source: selectedSource ?? source ?? "" })}`}
+                >
+                  Browse this source
+                </Link>
+              )}
             </div>
           ) : (sources.data ?? []).length === 0 ? (
             <>

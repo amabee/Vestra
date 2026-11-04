@@ -366,6 +366,38 @@ test("Provider switching rejects a wrong remake or ambiguous edition", async () 
   );
 });
 
+test("KissKH year suffixes match the same release but never a wrong remake or ambiguous edition", async () => {
+  const f = fixture();
+  const target = { ...item(), title: "Love in Disguise", year: 2026 };
+  const register = (rows) => {
+    f.registry.unregister("ext-kisskh");
+    f.registry.register({
+      ...f.source,
+      id: "ext-kisskh",
+      search: async () => rows,
+      getEpisodes: async (id) => [{ id: "episode", animeId: id, number: 1 }],
+    });
+  };
+  register([{ id: "tv|13788", title: "Love in Disguise (2026)", kind: "tv" }]);
+  const result = await f.service.open(target, "ext-kisskh");
+  assert.equal(result.item.sourceId, "tv|13788");
+  assert.equal(result.queue.length, 1);
+  register([{ id: "wrong", title: "Love in Disguise (2025)", kind: "tv" }]);
+  await assert.rejects(f.service.open(target, "ext-kisskh"), /no exact match/);
+  register([
+    { id: "wrong", title: "Love in Disguise (2025)", year: 2026, kind: "tv" },
+  ]);
+  await assert.rejects(f.service.open(target, "ext-kisskh"), /no exact match/);
+  register([
+    { id: "one", title: "Love in Disguise (2026)", kind: "tv" },
+    { id: "two", title: "Love in Disguise", year: 2026, kind: "tv" },
+  ]);
+  await assert.rejects(
+    f.service.open(target, "ext-kisskh"),
+    /Multiple source editions/,
+  );
+});
+
 test("Long feeds keep earlier title snapshots available for details", async () => {
   const f = fixture({
     browse: async (_category, { page }) => ({

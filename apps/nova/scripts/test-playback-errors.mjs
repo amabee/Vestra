@@ -11,7 +11,7 @@ const scratch = await mkdtemp(join(tmpdir(), "vestra-playback-errors-"));
 after(() => rm(scratch, { recursive: true, force: true }));
 await build({
   stdin: {
-    contents: `export * from './shared/playback-errors';export {bridge} from './renderer/src/lib/bridge';`,
+    contents: `export * from './shared/playback-errors';export {bridge} from './renderer/src/lib/bridge';export {problemReportUrl} from './renderer/src/lib/problem-report';`,
     resolveDir: nova,
   },
   bundle: true,
@@ -19,8 +19,13 @@ await build({
   format: "cjs",
   outfile: join(scratch, "test.cjs"),
 });
-const { bridge, playbackIssue, playbackFailureReply, unwrapPlaybackReply } =
-  createRequire(import.meta.url)(join(scratch, "test.cjs"));
+const {
+  bridge,
+  playbackIssue,
+  playbackFailureReply,
+  unwrapPlaybackReply,
+  problemReportUrl,
+} = createRequire(import.meta.url)(join(scratch, "test.cjs"));
 test("provider details and arbitrary errors never leak through playback replies", () => {
   for (const [raw, code] of [
     [
@@ -30,6 +35,14 @@ test("provider details and arbitrary errors never leak through playback replies"
     ["C# provider worker exited (1).", "interrupted"],
     ["C# provider operation exceeded its deadline.", "timeout"],
     ["fetch failed ECONNRESET", "network"],
+    [
+      "This provider has no exact match for this title and release year. Try another provider.",
+      "title-match",
+    ],
+    [
+      "Multiple source editions match this title. Choose a title in source search.",
+      "title-match",
+    ],
     [
       "No scraper implemented for embed host: https://secret.example/token",
       "unavailable",
@@ -51,6 +64,38 @@ test("provider details and arbitrary errors never leak through playback replies"
   assert.throws(
     () => unwrapPlaybackReply({ playbackFailure: "toString" }),
     /Try again/,
+  );
+});
+
+test("GitHub reports use a fixed issue draft and never include raw errors or credentials", () => {
+  const url = new URL(
+    problemReportUrl(
+      {
+        area: "Source matching",
+        source: "ext-vestra-kisskh",
+        error: Error(
+          "https://private.example/video?token=secret C:\\Users\\private\\file Authorization: Bearer secret",
+        ),
+      },
+      "0.2.5",
+      "win32",
+    ),
+  );
+  assert.equal(
+    url.origin + url.pathname,
+    "https://github.com/amabee/Vestra/issues/new",
+  );
+  assert.equal(
+    url.searchParams.get("title"),
+    "[Bug] Source matching (ext-vestra-kisskh)",
+  );
+  const body = url.searchParams.get("body");
+  assert.match(body, /Nova: 0.2.5/);
+  assert.match(body, /Platform: win32/);
+  assert.match(body, /Error code: unknown/);
+  assert.doesNotMatch(
+    body,
+    /private\.example|Users|secret|Authorization|Bearer|token=/,
   );
 });
 test("renderer bridge preserves successful replies and unwraps each playback failure", async () => {

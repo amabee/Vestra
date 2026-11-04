@@ -1,5 +1,10 @@
 /** Public playback failures contain a stable code, never provider URLs or stack traces. */
 const messages = {
+  "title-match": {
+    title: "This source couldn't match the title",
+    message:
+      "No unique matching title and release year was found. Search for the title in this source's own browse page, or choose another source.",
+  },
   interrupted: {
     title: "Playback was interrupted",
     message:
@@ -45,6 +50,8 @@ export function playbackIssue(error: unknown): {
       (key) => messages[key].message === text,
     );
     if (known) code = known;
+    else if (/no exact match|multiple source editions match/i.test(text))
+      code = "title-match";
     else if (/timed? out|timeout|deadline|time limit/i.test(text))
       code = "timeout";
     else if (
