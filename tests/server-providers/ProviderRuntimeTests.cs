@@ -127,6 +127,23 @@ public sealed class ProviderRuntimeTests
     public void RejectsNonPublicAddresses(string address) => Assert.False(ProviderHttpTransport.IsPublicAddress(IPAddress.Parse(address)));
 
     [Theory]
+    [InlineData("192.0.0.1")]
+    [InlineData("192.0.0.255")]
+    [InlineData("192.0.2.1")]
+    [InlineData("192.0.2.255")]
+    [InlineData("::ffff:192.0.0.1")]
+    public void KeepsSpecialPurposeRangesBlocked(string address) => Assert.False(ProviderHttpTransport.IsPublicAddress(IPAddress.Parse(address)));
+
+    [Theory]
+    [InlineData("192.0.1.1")]
+    [InlineData("192.0.3.1")]
+    [InlineData("192.0.77.2")]
+    [InlineData("192.0.78.24")]
+    [InlineData("192.2.1.1")]
+    [InlineData("::ffff:192.0.77.2")]
+    public void AllowsPublicCdnAddresses(string address) => Assert.True(ProviderHttpTransport.IsPublicAddress(IPAddress.Parse(address)));
+
+    [Theory]
     [InlineData("http://fixture.example/")]
     [InlineData("https://fixture.example:444/")]
     [InlineData("https://other.example/")]

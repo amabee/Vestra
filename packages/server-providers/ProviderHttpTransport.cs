@@ -116,7 +116,8 @@ public sealed class ProviderHttpTransport : IProviderTransport, IDisposable
         return b[0] is not (0 or 10 or 127) && b[0] < 224 &&
             !(b[0] == 100 && b[1] is >= 64 and <= 127) &&
             !(b[0] == 169 && b[1] == 254) && !(b[0] == 172 && b[1] is >= 16 and <= 31) &&
-            !(b[0] == 192 && (b[1] == 168 || b[1] == 0 || b[1] == 2)) &&
+            // IETF protocol assignments and TEST-NET-1 are /24s, not /16s.
+            !(b[0] == 192 && (b[1] == 168 || b[1] == 0 && b[2] is 0 or 2)) &&
             !(b[0] == 198 && (b[1] is 18 or 19 || b[1] == 51 && b[2] == 100)) &&
             !(b[0] == 203 && b[1] == 0 && b[2] == 113);
     }

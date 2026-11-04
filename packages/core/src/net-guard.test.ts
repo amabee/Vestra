@@ -46,6 +46,13 @@ describe("isBlockedAddress", () => {
     }
   });
 
+  it("keeps IETF and documentation /24 blocks separate from public CDN addresses", () => {
+    for (const address of ["192.0.0.1", "192.0.0.255", "192.0.2.1", "192.0.2.255", "::ffff:c000:1", "::ffff:c000:201"])
+      expect(isBlockedAddress(address), address).toBe(true);
+    for (const address of ["192.0.1.1", "192.0.3.1", "192.0.77.2", "192.0.78.24", "::ffff:c000:4d02"])
+      expect(isBlockedAddress(address), address).toBe(false);
+  });
+
   it("blocks loopback", () => {
     for (const address of ["127.0.0.1", "127.1.2.3", "::1"]) {
       expect(isBlockedAddress(address), address).toBe(true);
