@@ -8,6 +8,7 @@ import {
   Copy,
 } from "lucide-react";
 import { bridge } from "@/lib/bridge";
+import { ReportProblem } from "@/components/report-problem";
 import {
   PlaybackFailure,
   playbackIssue,
@@ -194,6 +195,7 @@ export function PlaybackDiagnosticsPanel() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-serif text-2xl">Playback diagnostics</h2>
         <div className="flex gap-2">
+          <ReportProblem area="Playback" />
           <button
             className="btn btn-ghost btn-sm"
             onClick={() => void events.refetch()}

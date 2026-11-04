@@ -17,6 +17,14 @@ const invoke = (channel: string, ...args: unknown[]): Promise<unknown> =>
   ipcRenderer.invoke(channel, ...args);
 
 export const api = {
+  startup: {
+    ready: (warnings: number) => invoke("startup:renderer-ready", warnings),
+    onSourcesReady: (listener: () => void) => {
+      const handler = () => listener();
+      ipcRenderer.on("startup:sources-ready", handler);
+      return () => ipcRenderer.removeListener("startup:sources-ready", handler);
+    },
+  },
   updates: {
     state: () => invoke("updates:state"),
     check: () => invoke("updates:check"),

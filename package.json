@@ -9,6 +9,8 @@
     "node": ">=22.0.0"
   },
   "scripts": {
+    "test:startup": "node apps/nova/scripts/test-startup.mjs",
+    "test:startup:ui": "node apps/nova/scripts/test-startup-ui.mjs",
     "build:app": "dotnet build apps/server/Vestra.Server.csproj -c Release --nologo && pnpm --filter @vestra/nova build",
     "build:server": "dotnet build apps/server/Vestra.Server.csproj -c Release --nologo",
     "test:server": "dotnet test tests/server-providers/Vestra.Providers.Tests.csproj -c Release --nologo",

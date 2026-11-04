@@ -40,6 +40,7 @@ export default defineConfig({
       input: {
         main: path.join(rendererRoot, "index.html"),
         overlay: path.join(rendererRoot, "overlay.html"),
+        splash: path.join(rendererRoot, "splash.html"),
       },
     },
   },

@@ -1,0 +1,25 @@
+:root {
+  --color-paper: oklch(96% 0.015 85);
+  --color-paper-2: oklch(92% 0.025 85);
+  --color-ink: oklch(23% 0.021 45);
+  --color-muted: oklch(45% 0.025 45);
+  --color-rule: oklch(83% 0.025 85);
+  --color-accent: oklch(52% 0.175 33);
+  --color-accent-ink: oklch(98% 0.008 85);
+  --color-sticker: oklch(88% 0.135 90);
+  --color-sticker-ink: oklch(28% 0.05 55);
+  --color-focus: oklch(48% 0.17 33);
+  --color-warning: oklch(43% 0.08 55);
+  --color-clear: transparent;
+  --font-display: "Inter Variable", system-ui, sans-serif;
+  --font-body: "Inter Variable", system-ui, sans-serif;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2.5rem;
+  --radius-small: 0.5rem;
+  --radius-sticker: 0.9rem;
+  --dur-short: 180ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}

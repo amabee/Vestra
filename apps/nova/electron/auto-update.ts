@@ -3,7 +3,11 @@ import { app, BrowserWindow, type IpcMainInvokeEvent } from "electron";
 import { autoUpdater } from "electron-updater";
 import { UpdateController } from "./update-controller";
 
-export function initAutoUpdate(window: () => BrowserWindow | null): void {
+export function initAutoUpdate(
+  window: () => BrowserWindow | null,
+  onState?: (state: import("../shared/updates").AppUpdateState) => void,
+  checkImmediately = false,
+): UpdateController {
   // Portable launches and source runs have no installed NSIS upgrade target.
   const enabled =
     app.isPackaged &&
@@ -13,6 +17,7 @@ export function initAutoUpdate(window: () => BrowserWindow | null): void {
     enabled ? autoUpdater : null,
     app.getVersion(),
     (state) => {
+      onState?.(state);
       const target = window();
       if (target && !target.isDestroyed())
         target.webContents.send("updates:changed", state);
@@ -42,5 +47,7 @@ export function initAutoUpdate(window: () => BrowserWindow | null): void {
     return controller.install();
   });
   app.once("will-quit", () => controller.dispose());
-  controller.start();
+  onState?.(controller.snapshot());
+  controller.start(checkImmediately ? 0 : 30000);
+  return controller;
 }

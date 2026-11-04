@@ -21,6 +21,17 @@ function normaliseTitle(value: string): string {
     .trim();
 }
 
+/** A source's parenthesized release year is metadata, not part of the name. */
+function titleIdentity(title: string, year?: number | null) {
+  const suffix = /\s+\((\d{4})\)\s*$/.exec(title);
+  const suffixYear = suffix ? Number(suffix[1]) : undefined;
+  return {
+    title: normaliseTitle(suffix ? title.slice(0, suffix.index) : title),
+    year: year ?? suffixYear,
+    conflictingYear: !!(year && suffixYear && year !== suffixYear),
+  };
+}
+
 /** One episode identity is reused for both initial extraction and mirror recovery. */
 export function registerSourceEpisode(
   source: StreamSourceProvider,
@@ -73,7 +84,7 @@ export async function matchSourceAnime(
       (title): title is string =>
         typeof title === "string" && title.trim().length > 0,
     )
-    .map(normaliseTitle);
+    .map((title) => titleIdentity(title, item.year).title);
 
   if (itemTitles.length === 0) return null;
 
@@ -94,12 +105,17 @@ export async function matchSourceAnime(
     const matches = [
       ...new Map(
         candidates
-          .filter(
-            (candidate) =>
-              itemTitles.includes(normaliseTitle(candidate.title)) &&
+          .filter((candidate) => {
+            const identity = titleIdentity(candidate.title, candidate.year);
+            const target = titleIdentity(item.title, item.year);
+            return (
+              !identity.conflictingYear &&
+              !target.conflictingYear &&
+              itemTitles.includes(identity.title) &&
               (!candidate.kind || candidate.kind === item.kind) &&
-              (!candidate.year || !item.year || candidate.year === item.year),
-          )
+              (!identity.year || !target.year || identity.year === target.year)
+            );
+          })
           .map((candidate) => [candidate.id, candidate]),
       ).values(),
     ];

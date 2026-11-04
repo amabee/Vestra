@@ -66,6 +66,10 @@ export interface BrowseResult {
  */
 
 interface RawBridge {
+  startup: {
+    ready: (warnings: number) => Promise<unknown>;
+    onSourcesReady: (listener: () => void) => () => void;
+  };
   screen: {
     sources: (kind: string) => Promise<unknown>;
     browse: (query: unknown) => Promise<unknown>;
@@ -491,6 +495,11 @@ export interface SurfaceRect {
 }
 
 export const bridge = {
+  startup: {
+    ready: (warnings: number) => raw().startup.ready(warnings),
+    onSourcesReady: (listener: () => void) =>
+      raw().startup.onSourcesReady(listener),
+  },
   screen: {
     sources: (kind: import("../../../shared/screen").ScreenKind) =>
       raw().screen.sources(kind) as Promise<

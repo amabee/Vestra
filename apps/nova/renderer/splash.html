@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Vestra Nova is getting your saved stories ready."
+    />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'"
+    />
+    <title>Starting Vestra Nova</title>
+    <link rel="stylesheet" href="./src/splash/splash.css" />
+  </head>
+  <body>
+    <main class="splash" aria-labelledby="heading">
+      <header class="splash-top">
+        <span class="greeting">A little company for your stories.</span>
+        <button
+          id="quit"
+          class="icon-button"
+          aria-label="Quit Vestra"
+          title="Quit Vestra"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="m7 7 10 10M17 7 7 17" />
+          </svg>
+        </button>
+      </header>
+      <section class="welcome">
+        <div class="mascot-stage">
+          <span class="hello" aria-hidden="true">Hey, you!</span>
+          <img
+            class="mascot"
+            src="./src/resources/icon/mascot.png"
+            width="1024"
+            height="1024"
+            alt="Vestra Nova's smiling mascot leaning on the orange wordmark"
+          />
+        </div>
+        <div class="welcome-copy">
+          <h1 id="heading">Getting your <br />world ready.</h1>
+          <p id="message" role="status" aria-live="polite">
+            Finding where you left off.
+          </p>
+          <progress
+            id="progress"
+            max="4"
+            value="0"
+            aria-label="Startup tasks completed"
+          ></progress>
+          <ol class="steps" aria-label="Startup progress">
+            <li data-step="config">
+              <span>Your setup</span><small>Loading</small>
+            </li>
+            <li data-step="cache">
+              <span>Saved stories</span><small>Next</small>
+            </li>
+            <li data-step="extensions">
+              <span>Your sources</span><small>Next</small>
+            </li>
+            <li data-step="updates">
+              <span>App updates</span><small>Next</small>
+            </li>
+          </ol>
+        </div>
+      </section>
+      <footer class="splash-bottom">
+        <span id="version">Vestra Nova</span>
+        <div class="actions">
+          <button id="motion" class="text-button" aria-pressed="false">
+            Pause motion
+          </button>
+          <button id="continue" class="primary-button" hidden>Open Nova</button>
+          <button id="retry" class="primary-button" hidden>Restart Nova</button>
+        </div>
+      </footer>
+      <noscript
+        ><p class="no-script">
+          Startup couldn’t load. Close and restart Nova.
+        </p></noscript
+      >
+    </main>
+    <script type="module" src="/src/splash/splash.ts"></script>
+  </body>
+</html>

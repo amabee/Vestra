@@ -2,7 +2,7 @@ import { DiscoverRoute } from "@/routes/discover";
 import { ScheduleRoute } from "@/routes/schedule";
 import { createQueryClient } from "@/lib/query-client";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { StrictMode, Suspense, lazy } from "react";
+import { StrictMode, Suspense, lazy, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { createHashRouter, RouterProvider, Navigate } from "react-router";
 
@@ -20,6 +20,8 @@ import { HomeRoute } from "@/routes/home";
 import { MangaRoute } from "@/routes/manga";
 
 import "@/styles/theme.css";
+import { bridge } from "@/lib/bridge";
+import { warmStartupCache } from "@/lib/startup-cache";
 
 /**
  * Renderer entry.
@@ -123,10 +125,37 @@ const router = createHashRouter([
 const container = document.querySelector("#root");
 if (!container) throw new Error("Root element is missing from index.html.");
 
-createRoot(container).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
-  </StrictMode>,
+function StartupReady({ warnings }: { warnings: number }) {
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      void bridge.startup.ready(warnings).catch(() => undefined);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [warnings]);
+  useEffect(
+    () =>
+      bridge.startup.onSourcesReady(() => {
+        for (const key of [
+          "screen-sources",
+          "screen-feed",
+          "anime-sources",
+          "manga-sources",
+          "providers",
+        ])
+          void queryClient.invalidateQueries({ queryKey: [key] });
+      }),
+    [],
+  );
+  return null;
+}
+
+void warmStartupCache(queryClient).then((warnings) =>
+  createRoot(container).render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+        <StartupReady warnings={warnings} />
+      </QueryClientProvider>
+    </StrictMode>,
+  ),
 );

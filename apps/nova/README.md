@@ -15,12 +15,14 @@ Nova remains in the Vestra repository so existing release and updater URLs conti
 
 ## Implemented features
 
+- A mascot startup splash shows settings, saved-data hydration, installed sources and the app update check before opening Nova. Slow sources and update checks continue in the background; updates still require explicit download and installation. Animation can be paused and respects reduced-motion settings.
 - Home, discovery, anime search/details, weekly schedule, films/series and manga browsing/reading. Manga search queries all enabled sources, presents cards without extension badges, loads more results as you scroll and combines Continue Reading across extensions. Catalogue titles check available reading editions before opening source-specific chapters.
 - Continue Reading opens the saved manga chapter/page directly. Catalogue reading sources are remembered per title; selecting an edition opens the reader in one click. Reader failures offer image retry, chapter refresh and source changes without returning to the library. Saved-progress errors and missing chapters require recovery or an explicit chapter choice before recording a new position.
 - Playback retries retain the last confirmed position. The failure screen links directly to source selection; anime recovery carries the numbered episode and season and resumes only when the replacement source contains that exact episode.
 - Local library scanning, saved lists, watch history, progress and episode/chapter completion records.
 - Native playback controls, audio/subtitle selection, subtitle appearance, skip controls and source-supported quality choices.
 - Extension browsing, permission review, installation, reviewed updates and source diagnostics. Availability and playback depend on each upstream source; experimental listings are marked separately.
+- Movies/Series provider switching recognizes parenthesized release years while rejecting wrong remakes and ambiguous matches. Source failures link to the provider's browse page. Report problem opens a GitHub issue draft with the app version, source and public error code; raw errors and credentials are excluded.
 - Searchable settings for application behavior, appearance, playback, connections, library/scanning, diagnostics and updates.
 - AniList browser sign-in from Settings or the account control at the bottom of the sidebar. Connected accounts show their avatar; account credentials and local list backups use OS-backed encrypted storage.
 - Connected AniList accounts sync anime watchlists and manga reading shelves in both directions. List additions, status changes and completed episode/numbered-chapter progress queue automatically; the queue and incoming list snapshot are encrypted per account. Settings shows pending work, retries, unmatched titles and a manual sync action. Anime and manga details include AniList status controls.

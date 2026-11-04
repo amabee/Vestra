@@ -12,6 +12,7 @@ import {
   registerTorrentIpc,
 } from "./qbittorrent-settings";
 import { initAutoUpdate } from "./auto-update";
+import { createStartupWindow } from "./startup-window";
 import { loadTmdbSettings } from "./tmdb-settings";
 import { join } from "node:path";
 
@@ -130,6 +131,17 @@ registerMediaProtocolScheme();
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+let startup: ReturnType<typeof createStartupWindow> | null = null;
+function focusApp() {
+  if (startup && !startup.gate.snapshot().opened) {
+    startup.focus();
+    return;
+  }
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
 
 /**
  * Where the application icon lives at runtime.
@@ -153,13 +165,19 @@ function appIconPath(): string {
 const DEV_SERVER_URL = "http://localhost:5273";
 
 function loadRenderer(window: BrowserWindow): void {
+  const failed = (error: unknown) => {
+    console.error("[nova] renderer could not load", error);
+    startup?.gate.fail();
+  };
   if (isDev) {
-    void window.loadURL(DEV_SERVER_URL);
+    void window.loadURL(DEV_SERVER_URL).catch(failed);
     window.webContents.openDevTools({ mode: "detach" });
     return;
   }
 
-  void window.loadFile(join(__dirname, "../dist-renderer/index.html"));
+  void window
+    .loadFile(join(__dirname, "../dist-renderer/index.html"))
+    .catch(failed);
 }
 
 function createWindow(): BrowserWindow {
@@ -206,9 +224,11 @@ function createWindow(): BrowserWindow {
    * when unmaximised.
    */
   window.once("ready-to-show", () => {
+    if (startup && !startup.gate.snapshot().opened) return;
     window.maximize();
     window.show();
   });
+  window.webContents.on("render-process-gone", () => startup?.gate.fail());
 
   // Surface renderer logs in the terminal. Without this the renderer's console
   // is only visible in devtools, which makes a headless run impossible to
@@ -252,8 +272,7 @@ function createTray(): void {
       {
         label: "Open Vestra",
         click: () => {
-          mainWindow?.show();
-          mainWindow?.focus();
+          focusApp();
         },
       },
       { type: "separator" },
@@ -262,6 +281,10 @@ function createTray(): void {
   );
 
   tray.on("click", () => {
+    if (startup && !startup.gate.snapshot().opened) {
+      startup.focus();
+      return;
+    }
     if (mainWindow?.isVisible()) mainWindow.hide();
     else mainWindow?.show();
   });
@@ -326,9 +349,7 @@ app.on("open-url", (event, url) => {
   void handleAniListCallback(url)
     .then((handled) => {
       if (handled && mainWindow) {
-        mainWindow.show();
-        if (mainWindow.isMinimized()) mainWindow.restore();
-        mainWindow.focus();
+        focusApp();
       }
     })
     .catch(() => undefined);
@@ -341,34 +362,60 @@ if (!gotLock) {
   app.on("second-instance", (_event, commandLine) => {
     const callback = commandLine.find(isAniListCallback);
     if (callback) void handleAniListCallback(callback).catch(() => undefined);
-    if (mainWindow) {
-      mainWindow.show();
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
-    }
+    focusApp();
   });
 
-  void app.whenReady().then(async () => {
-    await loadTmdbSettings();
-    await loadQbittorrentSettings();
-    registerTorrentIpc();
-    registerIpc();
-    registerAniListAccountIpc();
-    registerMediaProtocolHandler();
-    registerMangaIpc(fetchCSharpImage, getMangaBookmarks());
-    registerAnimeIpc();
-    registerScreenIpc();
-    registerSourceIpc();
+  void app
+    .whenReady()
+    .then(async () => {
+      startup = createStartupWindow({
+        icon: appIconPath(),
+        rendererRoot: join(__dirname, "../dist-renderer"),
+        main: () => mainWindow,
+        ...(isDev ? { devUrl: DEV_SERVER_URL } : {}),
+      });
+      await startup.shown;
+      await loadTmdbSettings();
+      await loadQbittorrentSettings();
+      registerTorrentIpc();
+      registerIpc();
+      registerAniListAccountIpc();
+      registerMediaProtocolHandler();
+      registerMangaIpc(fetchCSharpImage, getMangaBookmarks());
+      registerAnimeIpc();
+      registerScreenIpc();
+      registerSourceIpc();
 
-    mainWindow = createWindow();
-    const callback = process.argv.find(isAniListCallback);
-    if (callback) void handleAniListCallback(callback).catch(() => undefined);
-    createTray();
-    startLibraryRefresh();
-    void startAniListAccount();
-    initAutoUpdate(() => mainWindow);
+      startup.gate.step("config", "ready");
+      startup.gate.step("cache", "loading");
 
-    /*
+      mainWindow = createWindow();
+      const callback = process.argv.find(isAniListCallback);
+      if (callback) void handleAniListCallback(callback).catch(() => undefined);
+      createTray();
+      startLibraryRefresh();
+      void startAniListAccount().catch((error) =>
+        console.warn("[nova] account startup could not finish", error),
+      );
+      initAutoUpdate(
+        () => mainWindow,
+        (state) => {
+          startup?.gate.update(
+            state.phase === "checking" || state.phase === "idle"
+              ? "checking"
+              : state.phase === "error"
+                ? "offline"
+                : state.phase === "disabled"
+                  ? "disabled"
+                  : state.phase === "current"
+                    ? "current"
+                    : "available",
+          );
+        },
+        true,
+      );
+
+      /*
       Fill in runtimes and stills for anything indexed without them.
 
       Started here rather than during a scan: it opens every file, which takes
@@ -380,57 +427,72 @@ if (!gotLock) {
       each time, and a library of several hundred files would otherwise ask it
       to do so several hundred times in a row.
     */
-    let announced = 0;
+      let announced = 0;
 
-    void backfillMediaInfo(getDriver(), (done, total) => {
-      const now = Date.now();
-      if (done < total && now - announced < 1000) return;
+      void backfillMediaInfo(getDriver(), (done, total) => {
+        const now = Date.now();
+        if (done < total && now - announced < 1000) return;
 
-      announced = now;
-      mainWindow?.webContents.send("library:changed");
-    })
-      .then((filled) => {
-        if (filled > 0) console.info(`[nova] filled in ${filled} file(s)`);
-        return pruneThumbnails(getDriver());
+        announced = now;
+        mainWindow?.webContents.send("library:changed");
       })
-      .catch((error: unknown) => {
-        console.warn("[nova] could not read media details", error);
-      });
+        .then((filled) => {
+          if (filled > 0) console.info(`[nova] filled in ${filled} file(s)`);
+          return pruneThumbnails(getDriver());
+        })
+        .catch((error: unknown) => {
+          console.warn("[nova] could not read media details", error);
+        });
 
-    // Extensions are not required for the app to work, so a failure here is
-    // reported and moved past rather than blocking startup.
-    void loadInstalledExtensions(resolveDataDir()).then(
-      (report) => {
-        for (const skipped of report.skipped) {
-          console.warn(
-            `[nova] skipped extension ${skipped.id}: ${skipped.reason}`,
+      // Extensions are not required for the app to work, so a failure here is
+      // reported and moved past rather than blocking startup.
+      startup.gate.step("extensions", "loading");
+      void loadInstalledExtensions(resolveDataDir())
+        .then((report) => {
+          for (const skipped of report.skipped) {
+            console.warn(
+              `[nova] skipped extension ${skipped.id}: ${skipped.reason}`,
+            );
+          }
+          if (report.loaded.length > 0) {
+            console.info(`[nova] loaded ${report.loaded.length} extension(s)`);
+          }
+
+          // Anything that searches becomes a provider, so its results appear
+          // alongside the built-in ones rather than nowhere. Stream sources go
+          // to their own registry; each call ignores records that are not its
+          // role, so both run over the same list.
+          for (const record of report.records) {
+            attachExtensionProvider(record, report.methods[record.id] ?? []);
+            attachStreamSourceProvider(record, report.methods[record.id] ?? []);
+            attachMangaSourceProvider(record, report.methods[record.id] ?? []);
+          }
+          startup?.gate.step(
+            "extensions",
+            report.skipped.length ? "warning" : "ready",
           );
-        }
-        if (report.loaded.length > 0) {
-          console.info(`[nova] loaded ${report.loaded.length} extension(s)`);
-        }
+          mainWindow?.webContents.send("startup:sources-ready");
+        })
+        .catch((error: unknown) => {
+          console.error("[nova] could not start the extension worker", error);
+          startup?.gate.step("extensions", "warning");
+        });
 
-        // Anything that searches becomes a provider, so its results appear
-        // alongside the built-in ones rather than nowhere. Stream sources go
-        // to their own registry; each call ignores records that are not its
-        // role, so both run over the same list.
-        for (const record of report.records) {
-          attachExtensionProvider(record, report.methods[record.id] ?? []);
-          attachStreamSourceProvider(record, report.methods[record.id] ?? []);
-          attachMangaSourceProvider(record, report.methods[record.id] ?? []);
+      app.on("activate", () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+          mainWindow = createWindow();
         }
-      },
-      (error: unknown) => {
-        console.error("[nova] could not start the extension worker", error);
-      },
-    );
-
-    app.on("activate", () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
-        mainWindow = createWindow();
-      }
+      });
+    })
+    .catch((error: unknown) => {
+      console.error("[nova] startup could not finish", error);
+      if (startup) startup.gate.fail();
+      else
+        dialog.showErrorBox(
+          "Vestra couldn't start",
+          "Restart Vestra and try again.",
+        );
     });
-  });
 
   // Killing the worker disposes every isolate with it.
   app.on("will-quit", stopExtensionWorker);

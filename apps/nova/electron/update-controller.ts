@@ -118,11 +118,11 @@ export class UpdateController {
     this.state = { ...this.state, ...patch };
     this.publish(this.snapshot());
   }
-  start() {
+  start(initialDelayMs = 30000) {
     if (!this.engine || this.startup || this.interval || this.disposed) return;
     this.startup = setTimeout(() => {
       void this.check();
-    }, 30000);
+    }, initialDelayMs);
     this.interval = setInterval(
       () => {
         void this.check();
