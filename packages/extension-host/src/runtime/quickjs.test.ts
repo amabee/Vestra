@@ -22,7 +22,12 @@ const EXAMPLE = path.join(
 
 const OPEN_LIBRARY_RESPONSE = JSON.stringify({
   docs: [
-    { key: "/works/OL893415W", title: "Dune", first_publish_year: 1965, cover_i: 8231583 },
+    {
+      key: "/works/OL893415W",
+      title: "Dune",
+      first_publish_year: 1965,
+      cover_i: 8231583,
+    },
     { key: "/works/OL27448W", title: "Dune Messiah", first_publish_year: 1969 },
     { nope: true },
   ],
@@ -32,15 +37,26 @@ function bridge(overrides: Partial<HostBridge> = {}): HostBridge {
   return {
     extensionId: "test",
     log: () => undefined,
-    fetch: async () => ({ status: 200, headers: {}, body: OPEN_LIBRARY_RESPONSE }),
+    fetch: async () => ({
+      status: 200,
+      headers: {},
+      body: OPEN_LIBRARY_RESPONSE,
+    }),
     ...overrides,
   };
 }
 
 /** Loads a snippet as an extension and returns whatever `probe()` reports. */
-async function probe(source: string, host: HostBridge = bridge()): Promise<unknown> {
+async function probe(
+  source: string,
+  host: HostBridge = bridge(),
+): Promise<unknown> {
   const runtime = createQuickJSRuntime();
-  const loaded = await runtime.load({ extensionId: "probe", source, bridge: host });
+  const loaded = await runtime.load({
+    extensionId: "probe",
+    source,
+    bridge: host,
+  });
 
   try {
     return await loaded.call("probe", [], AbortSignal.timeout(10_000));
@@ -60,13 +76,22 @@ describe("running the reference extension", () => {
     });
 
     try {
-      const raw = await loaded.call("search", ["dune", { limit: 5 }], AbortSignal.timeout(10_000));
+      const raw = await loaded.call(
+        "search",
+        ["dune", { limit: 5 }],
+        AbortSignal.timeout(10_000),
+      );
       const { value, errors } = parseSearchResults(raw);
 
       expect(errors).toEqual([]);
-      expect(value?.map((item) => item.title)).toEqual(["Dune", "Dune Messiah"]);
+      expect(value?.map((item) => item.title)).toEqual([
+        "Dune",
+        "Dune Messiah",
+      ]);
       expect(value?.[0]?.year).toBe(1965);
-      expect(value?.[0]?.poster).toBe("https://covers.openlibrary.org/b/id/8231583-M.jpg");
+      expect(value?.[0]?.poster).toBe(
+        "https://covers.openlibrary.org/b/id/8231583-M.jpg",
+      );
       // The malformed third doc was dropped by the extension, not by us.
       expect(value).toHaveLength(2);
     } finally {
@@ -87,7 +112,11 @@ describe("running the reference extension", () => {
 
     try {
       await expect(
-        loaded.call("search", ["dune", { limit: 5 }], AbortSignal.timeout(10_000)),
+        loaded.call(
+          "search",
+          ["dune", { limit: 5 }],
+          AbortSignal.timeout(10_000),
+        ),
       ).rejects.toThrow(/needs internet access/);
     } finally {
       loaded.dispose();
@@ -175,7 +204,11 @@ describe("resource limits", () => {
       extensionId: "spin",
       source: `export function activate() { return { probe: () => { while (true) {} } }; }`,
       bridge: bridge(),
-      limits: { memoryBytes: 32 * 1024 * 1024, timeoutMs: 500, maxInstructions: 1_000_000 },
+      limits: {
+        memoryBytes: 32 * 1024 * 1024,
+        timeoutMs: 500,
+        maxInstructions: 1_000_000,
+      },
     });
 
     try {
@@ -198,7 +231,11 @@ describe("resource limits", () => {
         return { probe: () => { const held = []; for (;;) held.push(new Array(100000).fill("x")); } };
       }`,
       bridge: bridge(),
-      limits: { memoryBytes: 8 * 1024 * 1024, timeoutMs: 10_000, maxInstructions: 1_000_000 },
+      limits: {
+        memoryBytes: 8 * 1024 * 1024,
+        timeoutMs: 10_000,
+        maxInstructions: 1_000_000,
+      },
     });
 
     await expect(
@@ -261,5 +298,64 @@ describe("the host boundary", () => {
 
     // The function was dropped by JSON serialisation at the boundary.
     expect(seen[0]).toEqual({ url: "https://openlibrary.org/x" });
+  }, 30_000);
+});
+
+describe("unsettled host call cleanup", () => {
+  it("unloads a timed-out fetch and ignores its late completion without poisoning other isolates", async () => {
+    let complete!: (value: {
+      status: number;
+      headers: Record<string, string>;
+      body: string;
+    }) => void;
+    const waiting = new Promise<{
+      status: number;
+      headers: Record<string, string>;
+      body: string;
+    }>((resolve) => {
+      complete = resolve;
+    });
+    const runtime = createQuickJSRuntime();
+    const loaded = await runtime.load({
+      extensionId: "slow-host",
+      source: `export function activate({host}) { return { probe: async () => { await host.fetch({url:"https://example.com"}); return "late"; } }; }`,
+      bridge: bridge({ fetch: () => waiting }),
+      limits: {
+        memoryBytes: 32 * 1024 * 1024,
+        timeoutMs: 30,
+        maxInstructions: 1_000_000,
+      },
+    });
+    await expect(
+      loaded.call("probe", [], AbortSignal.timeout(5000)),
+    ).rejects.toThrow(/deadline/);
+    loaded.dispose();
+    complete({ status: 200, headers: {}, body: "late" });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(
+      await probe(
+        `export function activate() { return {probe: () => "healthy"}; }`,
+      ),
+    ).toBe("healthy");
+    runtime.disposeAll();
+  }, 30_000);
+
+  it("unloads an unresolved guest promise after cancellation", async () => {
+    const runtime = createQuickJSRuntime();
+    const loaded = await runtime.load({
+      extensionId: "cancel-pending",
+      source: `export function activate() { return {probe: () => new Promise(() => {})}; }`,
+      bridge: bridge(),
+    });
+    await expect(
+      loaded.call("probe", [], AbortSignal.timeout(30)),
+    ).rejects.toBeInstanceOf(ExtensionExecutionError);
+    loaded.dispose();
+    expect(
+      await probe(
+        `export function activate() { return {probe: () => "healthy"}; }`,
+      ),
+    ).toBe("healthy");
+    runtime.disposeAll();
   }, 30_000);
 });

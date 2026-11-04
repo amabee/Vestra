@@ -225,6 +225,123 @@ describe("connection-time DNS validation and bounded responses", () => {
     ).rejects.toThrow(/not a public/);
     expect(fixture.fetch).not.toHaveBeenCalled();
   });
+  it("follows only declared hosts, rechecks DNS and drops cookies and authorization across origins", async () => {
+    fixture.fetch
+      .mockResolvedValueOnce(
+        new Response(null, { status: 302, headers: { location: "/same" } }),
+      )
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { location: "https://cdn.example/video" },
+        }),
+      )
+      .mockResolvedValueOnce(new Response("ok"));
+    const response = await safeFetch({
+      url: "https://source.example/start",
+      allowedRedirectHosts: ["source.example", "cdn.example"],
+      headers: {
+        Cookie: "key=public",
+        Authorization: "Bearer source",
+        Referer: "https://source.example/",
+      },
+    });
+    expect(response.body).toBe("ok");
+    expect(response.url).toBe("https://cdn.example/video");
+    expect(fixture.fetch.mock.calls[1]![1].headers).toHaveProperty(
+      "Cookie",
+      "key=public",
+    );
+    expect(fixture.fetch.mock.calls[2]![1].headers).toEqual({
+      Referer: "https://source.example/",
+    });
+    expect(fixture.lookup.mock.calls.map((call) => call[0])).toEqual([
+      "source.example",
+      "source.example",
+      "cdn.example",
+    ]);
+    for (const [, init] of fixture.fetch.mock.calls)
+      expect(init).toMatchObject({
+        redirect: "manual",
+        dispatcher: expect.anything(),
+        credentials: "omit",
+      });
+  });
+  it("rejects unapproved, plaintext, credential-bearing and private redirect destinations before I/O", async () => {
+    for (const location of [
+      "https://other.example/video",
+      "http://cdn.example/video",
+      "https://user:secret@cdn.example/video",
+      "https://cdn.example:8443/video",
+      "https://127.0.0.1/video",
+    ]) {
+      fixture.fetch
+        .mockReset()
+        .mockResolvedValueOnce(
+          new Response(null, { status: 302, headers: { location } }),
+        );
+      await expect(
+        safeFetch({
+          url: "https://source.example/",
+          allowedRedirectHosts: ["source.example", "cdn.example", "127.0.0.1"],
+        }),
+      ).rejects.toThrow(/approved HTTPS|not a public/);
+      expect(fixture.fetch).toHaveBeenCalledTimes(1);
+    }
+    fixture.fetch
+      .mockReset()
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { location: "https://cdn.example/video" },
+        }),
+      );
+    fixture.lookup
+      .mockResolvedValueOnce([{ address: "8.8.8.8", family: 4 }])
+      .mockResolvedValueOnce([{ address: "10.0.0.1", family: 4 }]);
+    await expect(
+      safeFetch({
+        url: "https://source.example/",
+        allowedRedirectHosts: ["source.example", "cdn.example"],
+      }),
+    ).rejects.toThrow(/not a public|resolves to/);
+    expect(fixture.fetch).toHaveBeenCalledTimes(1);
+  });
+  it("bounds redirect loops and applies POST redirect method rules", async () => {
+    fixture.fetch.mockImplementation(
+      async () =>
+        new Response(null, { status: 302, headers: { location: "/again" } }),
+    );
+    await expect(
+      safeFetch({
+        url: "https://source.example/",
+        allowedRedirectHosts: ["source.example"],
+      }),
+    ).rejects.toThrow(/redirect limit/);
+    expect(fixture.fetch).toHaveBeenCalledTimes(6);
+    for (const [status, method, body] of [
+      [303, "GET", null],
+      [307, "POST", "fixture"],
+    ] as const) {
+      fixture.fetch
+        .mockReset()
+        .mockResolvedValueOnce(
+          new Response(null, { status, headers: { location: "/target" } }),
+        )
+        .mockResolvedValueOnce(new Response("ok"));
+      await safeFetch({
+        url: "https://source.example/",
+        method: "POST",
+        body: "fixture",
+        headers: { "Content-Type": "text/plain" },
+        allowedRedirectHosts: ["source.example"],
+      });
+      expect(fixture.fetch.mock.calls[1]![1]).toMatchObject({ method, body });
+      expect(fixture.fetch.mock.calls[1]![1].headers).toEqual(
+        status === 303 ? {} : { "Content-Type": "text/plain" },
+      );
+    }
+  });
   it("stops oversized chunked bodies early and counts UTF-8 bytes", async () => {
     let cancelled = false;
     fixture.fetch.mockImplementation(

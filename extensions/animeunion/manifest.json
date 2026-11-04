@@ -1,0 +1,22 @@
+{
+  "id": "vestra-animeunion",
+  "name": "AnimeUnion",
+  "version": "1.0.0",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": [
+    "anime"
+  ],
+  "permissions": [
+    "network",
+    "network:session"
+  ],
+  "hosts": [
+    "animeunion.tv",
+    "api.animeunion.tv"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://animeunion.tv",
+  "description": "Native Italian AnimeUnion source using the public API and bounded Svelte data decoding, stable IDs and separate sub/dub qualities."
+}

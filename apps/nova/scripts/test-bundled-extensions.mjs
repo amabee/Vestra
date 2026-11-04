@@ -37,14 +37,39 @@ try {
   const sourceRoot = join(root, "extensions");
   const catalogue = await m.listBundled(sourceRoot);
   assert.deepEqual(catalogue.errors, []);
-  assert.equal(catalogue.entries.length, 7);
-  assert.equal(new Set(catalogue.entries.map((e) => e.id)).size, 7);
+  assert.equal(catalogue.entries.length, 47);
+  assert.equal(new Set(catalogue.entries.map((e) => e.id)).size, 47);
   assert(
     catalogue.entries.some(
       (e) => e.id === "vestra-vixsrc" && e.kinds.includes("tv"),
     ),
   );
-  for (const name of ["vidlink", "desiflix"]) {
+  const anime = catalogue.entries.filter(
+    (e) =>
+      e.kinds.includes("anime") &&
+      ![
+        "vestra-moviebox",
+        "vestra-kisskh",
+        "vestra-internet-archive",
+        "vestra-streamflix",
+        "vestra-vidlink",
+        "vestra-desiflix",
+      ].includes(e.id),
+  );
+  assert.equal(anime.length, 17);
+  assert(anime.every((e) => e.type === "onlinestream-provider"));
+  assert.equal(
+    catalogue.entries.filter((e) => e.type === "manga-provider").length,
+    23,
+  );
+  for (const name of [
+    "vidlink",
+    "desiflix",
+    "animeav1",
+    "animeheaven",
+    "shiro",
+    "mangabuddy",
+  ]) {
     const e = catalogue.entries.find((e) => e.id === "vestra-" + name);
     assert.equal(e.registryUrl, "vestra:bundled");
     if (name === "vidlink") assert(e.tags.includes("experimental"));
@@ -57,7 +82,7 @@ try {
       );
     const { record, source } = await m.completeUnpacked(plan, plan.requested);
     assert.equal(record.id, e.id);
-    assert.equal(record.type, "custom-source");
+    assert.equal(record.type, e.type);
     assert.equal(record.registryUrl, "local:unpacked");
     const loaded = await m.createQuickJSRuntime().load({
       extensionId: record.id,
@@ -72,7 +97,9 @@ try {
     });
     try {
       const methods = await loaded.listMethods(AbortSignal.timeout(5000));
-      for (const method of ["search", "getEpisodes", "getStreams"])
+      for (const method of name === "mangabuddy"
+        ? ["search", "searchPage", "getChapters", "getPages"]
+        : ["search", "getEpisodes", "getStreams"])
         assert(methods.includes(method));
       if (name === "vidlink") assert(methods.includes("matchCatalogue"));
     } finally {
@@ -99,7 +126,7 @@ try {
   // Exercise the same source paths after copying the release resources.
   const packaged = join(scratch, "resources/extensions");
   await cp(sourceRoot, packaged, { recursive: true });
-  assert.equal((await m.listBundled(packaged)).entries.length, 7);
+  assert.equal((await m.listBundled(packaged)).entries.length, 47);
   const manifestPath = join(packaged, "vidlink/manifest.json");
   const bad = JSON.parse(await readFile(manifestPath, "utf8"));
   bad.id = "different";
@@ -109,10 +136,10 @@ try {
     /identity mismatch/,
   );
   const partial = await m.listBundled(packaged);
-  assert.equal(partial.entries.length, 6);
+  assert.equal(partial.entries.length, 46);
   assert.equal(partial.errors.length, 1);
   console.log(
-    "PASS: seven bundled listings, offline review/install, sandbox exports, experimental warnings, fixed identities, packaged paths and partial failure",
+    "PASS: 47 bundled listings, offline review/install, sandbox exports, experimental warnings, fixed identities, packaged paths and partial failure",
   );
 } finally {
   await rm(scratch, { recursive: true, force: true });

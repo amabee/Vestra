@@ -281,6 +281,7 @@ export interface SafeFetchResult {
   status: number;
   headers: Record<string, string>;
   body: string;
+  url?: string;
 }
 
 interface AttemptOptions {
@@ -290,6 +291,7 @@ interface AttemptOptions {
   body: string | null;
   timeoutMs: number;
   maxBytes: number;
+  allowedRedirectHosts?: readonly string[];
 }
 
 /** One request, start to finish, with its own timeout. */
@@ -325,19 +327,69 @@ async function attemptOnce(
     if (options.signal?.aborted) abort();
   });
   async function download(): Promise<SafeFetchResult> {
-    await assertPublicHost(parsed.hostname);
-    controller.signal.throwIfAborted();
-    const response = await fetchOrExplain(parsed, {
-      method,
-      headers,
-      body,
-      signal: controller.signal,
-      // Following a redirect would skip the address check for the hop that
-      // actually gets fetched, which is the usual way past a guard like this.
-      redirect: "error",
-      credentials: "omit",
-      referrerPolicy: "no-referrer",
-    });
+    let current = parsed,
+      currentMethod = method,
+      currentBody = body;
+    let currentHeaders = { ...headers };
+    const allowed =
+      options.allowedRedirectHosts &&
+      new Set(options.allowedRedirectHosts.map((host) => host.toLowerCase()));
+    let response: Response | undefined;
+    for (let hop = 0; hop <= 5; hop++) {
+      if (
+        allowed &&
+        (current.protocol !== "https:" ||
+          (current.port && current.port !== "443") ||
+          current.username ||
+          current.password ||
+          !allowed.has(current.hostname.toLowerCase()))
+      )
+        throw new BlockedAddressError(
+          "Redirect destination is outside the approved HTTPS hosts.",
+        );
+      await assertPublicHost(current.hostname);
+      controller.signal.throwIfAborted();
+      response = await fetchOrExplain(current, {
+        method: currentMethod,
+        headers: currentHeaders,
+        body: currentBody,
+        signal: controller.signal,
+        // Default callers still refuse redirects. Brokered requests receive
+        // only the host's exact grant list and validate every hop before I/O.
+        redirect: allowed ? "manual" : "error",
+        credentials: "omit",
+        referrerPolicy: "no-referrer",
+      });
+      if (!allowed || ![301, 302, 303, 307, 308].includes(response.status))
+        break;
+      const location = response.headers.get("location");
+      void response.body?.cancel().catch(() => undefined);
+      if (!location || hop === 5)
+        throw new BlockedAddressError(
+          "Source redirect limit exceeded or destination missing.",
+        );
+      const next = new URL(location, current);
+      if (next.origin !== current.origin)
+        currentHeaders = Object.fromEntries(
+          Object.entries(currentHeaders).filter(
+            ([key]) => !["authorization", "cookie"].includes(key.toLowerCase()),
+          ),
+        );
+      if (
+        response.status === 303 ||
+        (currentMethod === "POST" && [301, 302].includes(response.status))
+      ) {
+        currentMethod = "GET";
+        currentBody = null;
+        currentHeaders = Object.fromEntries(
+          Object.entries(currentHeaders).filter(
+            ([key]) => !key.toLowerCase().startsWith("content-"),
+          ),
+        );
+      }
+      current = next;
+    }
+    if (!response) throw new Error("Source did not respond.");
 
     const declared = Number.parseInt(
       response.headers.get("content-length") ?? "",
@@ -355,6 +407,7 @@ async function attemptOnce(
       status: response.status,
       headers: Object.fromEntries(response.headers.entries()),
       body: text,
+      url: current.href,
     };
   }
   try {
@@ -418,6 +471,8 @@ export async function safeFetch(
     body?: string | null;
     timeoutMs?: number;
     maxBytes?: number;
+    /** Exact extension grants supplied only by the host permission broker. */
+    allowedRedirectHosts?: readonly string[];
   },
   signal?: AbortSignal,
 ): Promise<SafeFetchResult> {
@@ -455,6 +510,7 @@ export async function safeFetch(
     timeoutMs,
     maxBytes,
     signal,
+    allowedRedirectHosts: input.allowedRedirectHosts,
   };
 
   for (let attempt = 0; ; attempt++) {

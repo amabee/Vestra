@@ -1,0 +1,21 @@
+{
+  "id": "vestra-shonen",
+  "name": "Shonen",
+  "version": "1.0.0",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": [
+    "anime"
+  ],
+  "permissions": [
+    "network",
+    "network:session"
+  ],
+  "hosts": [
+    "shonen.to"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://shonen.to",
+  "description": "Native Shonen anime source with stable episode identities, multiple renditions and subtitle tracks, using the public source API."
+}

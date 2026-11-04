@@ -1,0 +1,6 @@
+// Adapted from Seanime Providers (MIT), Copyright (c) 2025 Pal.
+import {elements,hasClass,links,text} from '../../../lib/anime-common.js';
+import {htmlAnime} from '../../../lib/anime-html.js';
+import {frames,extractPlayer} from '../../../lib/anime-embed.js';
+const ORIGIN='https://animesaturn.ro';
+export function activate(context){return htmlAnime({origin:ORIGIN,headers:{'User-Agent':'Mozilla/5.0'},searchPath:q=>'/?s='+encodeURIComponent(q),bookPattern:/^\/anime\/[a-z0-9_-]+\/?$/i,episodePattern:/^\/[a-z0-9_-]+-episode-\d+(?:\.\d+)?\/?$/i,cards:html=>elements(html,'article',a=>hasClass(a,'bs')),episodeLinks:html=>elements(html,'div',a=>hasClass(a,'eplister')).flatMap(b=>links(b.body)),number:a=>Number.parseFloat(text(elements(a.body,'div',a=>hasClass(a,'epl-num'))[0]?.body)),async streams(path,read,options){if(options.excludeServers?.includes('AnimeSaturn'))throw Error('No untried AnimeSaturn server remains.');const html=await read(path),player=elements(html,'div',a=>a.id==='pembed')[0],frame=frames(player?.body??'')[0];if(!frame)throw Error('AnimeSaturn player is missing.');return[await extractPlayer(frame,read,{origin:ORIGIN,hosts:['animesaturn.ro','cdn2.megaplay.su'],server:'AnimeSaturn'})];}},context);}

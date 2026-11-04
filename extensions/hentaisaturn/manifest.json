@@ -1,0 +1,22 @@
+{
+  "id": "vestra-hentaisaturn",
+  "name": "HentaiSaturn (18+)",
+  "version": "1.0.0",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": [
+    "anime"
+  ],
+  "permissions": [
+    "network",
+    "network:session"
+  ],
+  "hosts": [
+    "www.hentaisaturn.tv",
+    "play.hentaisaturn.tv"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://www.hentaisaturn.tv",
+  "description": "Native Italian adult anime source with source-owned episode identities and public playlist metadata decoding."
+}

@@ -1,0 +1,19 @@
+{
+  "id": "vestra-atsumaru",
+  "name": "Atsumaru",
+  "version": "1.0.1",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "manga-source",
+  "kinds": [],
+  "permissions": [
+    "network"
+  ],
+  "hosts": [
+    "atsu.moe",
+    "cdn.atsu.moe"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://atsu.moe",
+  "description": "Native English Atsumaru manga source with server-side paged search and source chapter/page identities."
+}

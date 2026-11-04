@@ -1,0 +1,37 @@
+{
+  "id": "vestra-xcomic",
+  "name": "xComic",
+  "version": "1.0.2",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "manga-source",
+  "kinds": [],
+  "permissions": [
+    "network"
+  ],
+  "hosts": [
+    "xcomic.me",
+    "cdn.mangabaka.dev",
+    "i00.img00.org",
+    "i00.img01.org",
+    "i00.img02.org",
+    "i01.img00.org",
+    "i01.img01.org",
+    "i02.img02.org",
+    "i03.img01.org",
+    "i04.img01.org",
+    "i05.img01.org",
+    "i06.img00.org",
+    "i06.img02.org",
+    "i07.img00.org",
+    "i07.img01.org",
+    "i07.img02.org",
+    "i08.img00.org",
+    "i08.img01.org",
+    "i09.img00.org",
+    "i09.img01.org"
+  ],
+  "author": "Vestra",
+  "homepage": "https://xcomic.me",
+  "description": "Native xComic English manga source with source-aware chapter selection and data-only Qwik/Next reader parsing."
+}

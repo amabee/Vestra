@@ -1,0 +1,23 @@
+{
+  "id": "vestra-shiro",
+  "name": "Shiro",
+  "version": "1.0.0",
+  "sdkVersion": "1.7.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": [
+    "anime"
+  ],
+  "permissions": [
+    "network",
+    "network:session",
+    "network:cookies"
+  ],
+  "hosts": [
+    "anv.to",
+    "graphql.anilist.co"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://anv.to",
+  "description": "Native Shiro source with independent sub/dub mirrors, public catalogue metadata and source-issued anonymous watch cookies."
+}

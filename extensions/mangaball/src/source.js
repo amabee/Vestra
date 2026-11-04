@@ -1,0 +1,13 @@
+// Adapted from Seanime Providers (MIT), Copyright (c) 2025 Pal.
+import {reader,pageOptions,asset,pages} from "../../../lib/manga-common.js";
+const ORIGIN="https://mangaball.com",HOSTS=["mangaball.com","bulbasaur.poke-black-and-white.net","cdn.mangaupdates.com"];
+function identity(value){if(typeof value!=="string"||!/^[a-z0-9_-]{1,200}$/i.test(value))throw Error("Invalid MangaBall identity.");return value;}
+export function activate({host}) {
+ const read=reader(host,ORIGIN);
+ async function post(path,body){const r=await host.fetch({url:ORIGIN+path,method:"POST",headers:{"Content-Type":"application/json",Referer:ORIGIN+"/"},body:JSON.stringify(body)});if(r.status!==200)throw Error(`MangaBall returned HTTP ${r.status}.`);const data=JSON.parse(r.body);if(data.status!=="success")throw Error("MangaBall returned an unsuccessful response.");return data;}
+ async function searchPage(query,options={}){const {page,limit}=pageOptions(options),keyword=String(query).trim().slice(0,500);if(!keyword)return{items:[],hasMore:false};const data=await post('/api/v1/title/search',{keyword,page,limit,adult_mode:"all"});if(!Array.isArray(data.data)||data.data.length>400)throw Error("Invalid MangaBall search results.");const last=data.pagination?.total_pages,current=data.pagination?.page;if(!Number.isInteger(last)||last<0||current!==page)throw Error("Invalid MangaBall search pagination.");return{items:data.data.map(row=>({id:identity(row._id??row.id),title:String(row.name).slice(0,500),cover:asset(row.image?.file??row.image?.cdn_mangaupdates,ORIGIN,HOSTS,ORIGIN+"/")})),hasMore:page<last};}
+ return{searchPage,async search(q,o={}){return(await searchPage(q,{...o,page:1})).items;},
+  async getChapters(value){const book=identity(value),data=await post('/api/v1/chapter/chapter-listing-by-title-id',{title_id:book}),found=new Map();if(!Array.isArray(data.data)||data.data.length>10000)throw Error("Invalid MangaBall chapter list.");for(const row of data.data){const id=identity(row.id??row._id);if(row.title_id&&row.title_id!==book)throw Error("MangaBall returned chapters for another title.");found.set(id,{id,title:String(row.name??`Chapter ${row.number}`).slice(0,500),number:String(row.chapter_number??row.number??"Special"),language:typeof row.lang==='string'?row.lang:undefined,scanlator:typeof row.group_name==='string'?row.group_name:undefined});}return[...found.values()].sort((a,b)=>Number(a.number)-Number(b.number)).map((row,index)=>({...row,index}));},
+  async getPages(value){const id=identity(value),data=await read('/api/v1/chapter-detail?chapter_id='+id,true);if(data.status!=="success")throw Error("MangaBall could not load this chapter.");return pages(data.data?.chapter?.pages,ORIGIN,HOSTS,ORIGIN+'/chapter-detail/'+id);},
+ };
+}

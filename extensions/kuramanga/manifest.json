@@ -1,0 +1,19 @@
+{
+  "id": "vestra-kuramanga",
+  "name": "KuraManga",
+  "version": "1.0.1",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "manga-source",
+  "kinds": [],
+  "permissions": [
+    "network"
+  ],
+  "hosts": [
+    "kuramanga.com",
+    "shadowabyss.com"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://kuramanga.com",
+  "description": "Native English KuraManga source with API search pagination, stable source identities and reader-only chapter images."
+}

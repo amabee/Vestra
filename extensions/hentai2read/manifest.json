@@ -1,0 +1,19 @@
+{
+  "id": "vestra-hentai2read",
+  "name": "Hentai2Read (18+)",
+  "version": "1.0.0",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "manga-source",
+  "kinds": [],
+  "permissions": [
+    "network"
+  ],
+  "hosts": [
+    "hentai2read.com",
+    "hentaicdn.com"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://hentai2read.com",
+  "description": "Native manga search, chapters and reader for Hentai2Read, with paged search."
+}

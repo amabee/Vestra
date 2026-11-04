@@ -28,7 +28,7 @@ export function validateLock(lock) {
     !/^[0-9a-f]{40}$/.test(lock.revision) ||
     !Array.isArray(lock.files) ||
     lock.files.length < 1 ||
-    lock.files.length > 100
+    lock.files.length > 256
   )
     throw Error("Invalid Foundry snapshot lock.");
   const seen = new Set();
@@ -182,7 +182,7 @@ async function syncSnapshot(revision) {
       .sort();
     if (
       !paths.length ||
-      paths.length > 100 ||
+      paths.length > 256 ||
       paths.some((path) => !allowedPath.test(path))
     )
       throw Error("Unexpected Foundry snapshot file inventory.");

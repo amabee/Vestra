@@ -26,6 +26,7 @@ const hostSchema = z
 export const extensionPermissionSchema = z.enum([
   "network",
   "network:session",
+  "network:cookies",
   "library:read",
   "progress:read",
 ]);
@@ -138,13 +139,14 @@ export const extensionManifestSchema = z
           "TMDb catalogue integration requires a Movies/TV stream source.",
       });
     if (
-      manifest.permissions.includes("network:session") &&
+      (manifest.permissions.includes("network:session") ||
+        manifest.permissions.includes("network:cookies")) &&
       !manifest.permissions.includes("network")
     )
       ctx.addIssue({
         code: "custom",
         path: ["permissions"],
-        message: "Source sessions also require network permission.",
+        message: "Source sessions and cookies also require network permission.",
       });
     if (
       manifest.discovery &&

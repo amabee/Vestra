@@ -1,6 +1,7 @@
 import {
   newQuickJSWASMModule,
   type QuickJSContext,
+  type QuickJSDeferredPromise,
   type QuickJSHandle,
   type QuickJSRuntime,
   type QuickJSWASMModule,
@@ -133,6 +134,7 @@ interface Instance {
   /** Set while a call is in flight; the interrupt handler enforces it. */
   deadline: number | null;
   disposed: boolean;
+  pendingHostCalls: Set<QuickJSDeferredPromise>;
 }
 
 export function createQuickJSRuntime(): ExtensionRuntime {
@@ -152,6 +154,7 @@ export function createQuickJSRuntime(): ExtensionRuntime {
       context: runtime.newContext(),
       deadline: null,
       disposed: false,
+      pendingHostCalls: new Set(),
     };
 
     runtime.setMemoryLimit(limits.memoryBytes);
@@ -177,12 +180,18 @@ export function createQuickJSRuntime(): ExtensionRuntime {
     try {
       installHostFunctions(instance, input.bridge);
 
-      const manifestHandle = context.newString(JSON.stringify({ id: input.extensionId }));
+      const manifestHandle = context.newString(
+        JSON.stringify({ id: input.extensionId }),
+      );
       context.setProp(context.global, "__manifestJson", manifestHandle);
       manifestHandle.dispose();
 
       // Parsed guest-side so the guest owns its object rather than sharing one.
-      evalGuest(instance, "globalThis.__manifest = JSON.parse(__manifestJson);", "prelude");
+      evalGuest(
+        instance,
+        "globalThis.__manifest = JSON.parse(__manifestJson);",
+        "prelude",
+      );
       evalGuest(instance, BOOTSTRAP, "vestra:bootstrap", true);
     } catch (error) {
       disposeInstance(instance);
@@ -216,12 +225,17 @@ export function createQuickJSRuntime(): ExtensionRuntime {
         );
 
         const parsed: unknown = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed.filter((v) => typeof v === "string") : [];
+        return Array.isArray(parsed)
+          ? parsed.filter((v) => typeof v === "string")
+          : [];
       },
 
       async call(method, args, signal) {
         if (instance.disposed) {
-          throw new ExtensionExecutionError(input.extensionId, "Extension has been unloaded.");
+          throw new ExtensionExecutionError(
+            input.extensionId,
+            "Extension has been unloaded.",
+          );
         }
 
         const raw = await invoke(
@@ -274,20 +288,25 @@ export function createQuickJSRuntime(): ExtensionRuntime {
 function installHostFunctions(instance: Instance, bridge: HostBridge): void {
   const { context } = instance;
 
-  const log = context.newFunction("__nativeLog", (levelHandle, messageHandle) => {
-    bridge.log(
-      toLogLevel(levelHandle ? context.getString(levelHandle) : "info"),
-      messageHandle ? context.getString(messageHandle) : "",
-    );
-    return context.undefined;
-  });
+  const log = context.newFunction(
+    "__nativeLog",
+    (levelHandle, messageHandle) => {
+      bridge.log(
+        toLogLevel(levelHandle ? context.getString(levelHandle) : "info"),
+        messageHandle ? context.getString(messageHandle) : "",
+      );
+      return context.undefined;
+    },
+  );
   context.setProp(context.global, "__nativeLog", log);
   log.dispose();
 
   if (bridge.fetch) {
     const { fetch: brokeredFetch } = bridge;
     attachAsync(instance, "__nativeFetch", async (payload) => {
-      const request = JSON.parse(payload) as Parameters<typeof brokeredFetch>[0];
+      const request = JSON.parse(payload) as Parameters<
+        typeof brokeredFetch
+      >[0];
       return JSON.stringify(await brokeredFetch(request));
     });
   }
@@ -323,18 +342,22 @@ function attachAsync(
   const { context, runtime } = instance;
 
   const handle = context.newFunction(name, (argHandle) => {
-    const payload = argHandle === undefined ? "{}" : context.getString(argHandle);
+    const payload =
+      argHandle === undefined ? "{}" : context.getString(argHandle);
     const promise = context.newPromise();
+    instance.pendingHostCalls.add(promise);
 
     implementation(payload).then(
       (result) => {
         if (instance.disposed) return;
+        instance.pendingHostCalls.delete(promise);
         const value = context.newString(result);
         promise.resolve(value);
         value.dispose();
       },
       (error: unknown) => {
         if (instance.disposed) return;
+        instance.pendingHostCalls.delete(promise);
         const message = context.newString(
           error instanceof Error ? error.message : "Host call failed.",
         );
@@ -343,10 +366,9 @@ function attachAsync(
       },
     );
 
-    // Settling queues a microtask inside the guest; nothing runs it but us.
-    void promise.settled.then(() => {
-      if (!instance.disposed) runtime.executePendingJobs();
-    });
+    // The invocation's drain loop owns guest execution and its deadline.
+    // Settling only queues work; a late host response must not run guest code
+    // outside that loop or after the isolate has been unloaded.
 
     return promise.handle;
   });
@@ -356,7 +378,10 @@ function attachAsync(
 }
 
 function toLogLevel(value: string): "debug" | "info" | "warn" | "error" {
-  return value === "debug" || value === "info" || value === "warn" || value === "error"
+  return value === "debug" ||
+    value === "info" ||
+    value === "warn" ||
+    value === "error"
     ? value
     : "info";
 }
@@ -365,12 +390,21 @@ function toLogLevel(value: string): "debug" | "info" | "warn" | "error" {
  * Evaluation
  * ========================================================================== */
 
-function evalGuest(instance: Instance, code: string, filename: string, asModule = false): void {
+function evalGuest(
+  instance: Instance,
+  code: string,
+  filename: string,
+  asModule = false,
+): void {
   const { context } = instance;
 
   instance.deadline = Date.now() + 10_000;
   try {
-    const result = context.evalCode(code, filename, asModule ? { type: "module" } : undefined);
+    const result = context.evalCode(
+      code,
+      filename,
+      asModule ? { type: "module" } : undefined,
+    );
     context.unwrapResult(result).dispose();
   } finally {
     instance.deadline = null;
@@ -443,17 +477,22 @@ async function callBootstrap(
     const pending = context.unwrapResult(called);
     handles.push(pending);
 
-    const value = context.unwrapResult(await drain(instance, pending, extensionId, method));
+    const value = context.unwrapResult(
+      await drain(instance, pending, extensionId, method),
+    );
     handles.push(value);
 
     return context.getString(value);
   } catch (error) {
     if (error instanceof ExtensionExecutionError) throw error;
 
-    const message = error instanceof Error ? error.message : "Extension call failed.";
+    const message =
+      error instanceof Error ? error.message : "Extension call failed.";
     throw new ExtensionExecutionError(
       extensionId,
-      signal.aborted ? `${method}() was cancelled.` : `${method}() failed: ${message}`,
+      signal.aborted
+        ? `${method}() was cancelled.`
+        : `${method}() failed: ${message}`,
     );
   } finally {
     signal.removeEventListener("abort", onAbort);
@@ -480,17 +519,18 @@ async function drain(
   pending: QuickJSHandle,
   extensionId: string,
   method: string,
-): Promise<ReturnType<QuickJSContext["resolvePromise"]> extends Promise<infer R> ? R : never> {
+): Promise<
+  Exclude<ReturnType<QuickJSContext["getPromiseState"]>, { type: "pending" }>
+> {
   const { context, runtime } = instance;
 
-  const settled = context.resolvePromise(pending);
-  let finished = false;
-  void settled.then(
-    () => (finished = true),
-    () => (finished = true),
-  );
-
-  while (!finished) {
+  for (;;) {
+    if (instance.disposed) {
+      throw new ExtensionExecutionError(
+        extensionId,
+        "Extension has been unloaded.",
+      );
+    }
     if (instance.deadline !== null && Date.now() > instance.deadline) {
       throw new ExtensionExecutionError(
         extensionId,
@@ -498,17 +538,25 @@ async function drain(
       );
     }
 
-    runtime.executePendingJobs();
-    // Hand control back to Node so an in-flight host call can resolve.
+    // Poll the VM-owned promise rather than installing native .then callbacks.
+    // Those callbacks otherwise survive a deadline and keep the entire VM alive.
+    const state = context.getPromiseState(pending);
+    if (state.type !== "pending") return state;
+    const jobs = runtime.executePendingJobs();
+    if (jobs.error) context.unwrapResult(jobs);
+    else jobs.dispose();
     await new Promise((resolve) => setImmediate(resolve));
   }
-
-  return settled;
 }
 
 function disposeInstance(instance: Instance): void {
   if (instance.disposed) return;
   instance.disposed = true;
+
+  // A host request can outlive the guest deadline. Release its resolver handles
+  // before freeing the context; its eventual completion checks disposed above.
+  for (const promise of instance.pendingHostCalls) promise.dispose();
+  instance.pendingHostCalls.clear();
 
   instance.runtime.removeInterruptHandler();
   instance.runtime.removeModuleLoader();

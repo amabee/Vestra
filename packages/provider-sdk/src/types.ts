@@ -231,6 +231,8 @@ export type ExtensionPermission =
   | "network"
   /** Extension-owned guest/API session headers; never browser account cookies. */
   | "network:session"
+  /** Send extension-owned Cookie headers; never read the browser's cookie jar. */
+  | "network:cookies"
   /** Read the user's local library index. */
   | "library:read"
   /** Read stored playback progress. */

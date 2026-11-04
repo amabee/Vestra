@@ -18,6 +18,8 @@ export interface GuardedTransport {
     body: string | null;
     timeoutMs: number;
     maxBytes: number;
+    /** Host-owned exact grants; never copied from the guest's request. */
+    allowedRedirectHosts?: readonly string[];
   }): Promise<{
     status: number;
     headers: Record<string, string>;
@@ -66,7 +68,7 @@ export const DEFAULT_NETWORK_LIMITS: NetworkLimits = {
 /**
  * Headers an extension may set.
  *
- * An allowlist rather than a blocklist. Cookie and Host remain unavailable.
+ * An allowlist rather than a blocklist. Host remains unavailable; Cookie needs its own grant.
  * Authorization and source headers require the separate session capability;
  * those values come from the extension, never a browser account or cookie jar.
  */
@@ -246,7 +248,8 @@ export function createBrokeredFetch(
       const name = key.toLowerCase();
       if (
         !ALLOWED_REQUEST_HEADERS.has(name) &&
-        !(can(grant, "network:session") && SESSION_REQUEST_HEADERS.has(name))
+        !(can(grant, "network:session") && SESSION_REQUEST_HEADERS.has(name)) &&
+        !(name === "cookie" && can(grant, "network:cookies"))
       )
         continue;
       if (
@@ -268,6 +271,7 @@ export function createBrokeredFetch(
       body,
       timeoutMs: limits.timeoutMs,
       maxBytes: limits.maxResponseBytes,
+      allowedRedirectHosts: [...grant.allowedHosts],
     });
 
     // Checked here rather than left to the extension: every extension would

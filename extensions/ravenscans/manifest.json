@@ -1,0 +1,21 @@
+{
+  "id": "vestra-ravenscans",
+  "name": "RavenScans",
+  "version": "1.0.1",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "manga-source",
+  "kinds": [],
+  "permissions": [
+    "network"
+  ],
+  "hosts": [
+    "ravenscans.org",
+    "i0.wp.com",
+    "i1.wp.com",
+    "i2.wp.com"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://ravenscans.org",
+  "description": "Native English RavenScans source with source search pages, stable chapter identities and reader-region images."
+}

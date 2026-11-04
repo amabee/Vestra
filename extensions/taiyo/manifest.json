@@ -1,0 +1,21 @@
+{
+  "id": "vestra-taiyo",
+  "name": "Taiyo (Portuguese Manga)",
+  "version": "1.0.1",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "manga-source",
+  "kinds": [],
+  "permissions": [
+    "network",
+    "network:session"
+  ],
+  "hosts": [
+    "taiyo.moe",
+    "cdn.taiyo.moe",
+    "meilisearch.taiyo.moe"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://taiyo.moe",
+  "description": "Native Portuguese Taiyo manga with complete chapter pagination. Uses only the public search key published by the website."
+}

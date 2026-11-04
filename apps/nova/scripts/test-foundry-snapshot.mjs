@@ -44,7 +44,7 @@ test("the real offline bundle matches its Foundry revision and immutable registr
   const registry = JSON.parse(
     await readFile(join(root, "extensions/registry.json"), "utf8"),
   );
-  assert.equal(registry.length, 6);
+  assert.equal(registry.length, 46);
   for (const entry of registry) {
     const manifest = new URL(entry.manifestURI);
     assert.equal(manifest.hostname, "raw.githubusercontent.com");
@@ -84,6 +84,17 @@ test("lock validation rejects traversal, mutable revisions, other repositories a
         /path/,
       );
     assert.throws(() => validateLock({ ...lock, revision: "main" }), /lock/);
+    assert.throws(
+      () =>
+        validateLock({
+          ...lock,
+          files: Array.from({ length: 257 }, (_, i) => ({
+            path: `extensions/source-${i}/index.js`,
+            sha256: "a".repeat(64),
+          })),
+        }),
+      /lock/,
+    );
     assert.throws(
       () => validateLock({ ...lock, repository: "other/repo" }),
       /lock/,

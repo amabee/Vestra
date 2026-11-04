@@ -1,0 +1,27 @@
+{
+  "id": "vestra-animetvplus",
+  "name": "AniTVPlus",
+  "version": "1.0.0",
+  "sdkVersion": "1.7.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": [
+    "anime"
+  ],
+  "permissions": [
+    "network",
+    "network:session"
+  ],
+  "hosts": [
+    "animetvplus.xyz",
+    "search.animetvplus.site",
+    "embed.animetvplus.site",
+    "edge.animetvplus.xyz",
+    "uqload.net",
+    "uqload.to",
+    "uqload.io"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://animetvplus.xyz",
+  "description": "Native AniTVPlus source with source season mapping, HLS resolution and bundle-relative subtitle metadata."
+}

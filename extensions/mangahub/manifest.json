@@ -1,0 +1,21 @@
+{
+  "id": "vestra-mangahub",
+  "name": "MangaHub (Russian)",
+  "version": "1.0.1",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "manga-source",
+  "kinds": [],
+  "permissions": [
+    "network"
+  ],
+  "hosts": [
+    "mangahub.ru",
+    "p1.statichub.org",
+    "ty2.statichub.org",
+    "fd1.statichub.org"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://mangahub.ru",
+  "description": "Native Russian manga source with full search pages, chapter lists and ordered reader images from MangaHub.ru."
+}

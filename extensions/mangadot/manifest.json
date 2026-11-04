@@ -1,0 +1,18 @@
+{
+  "id": "vestra-mangadot",
+  "name": "MangaDot",
+  "version": "1.0.1",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "manga-source",
+  "kinds": [],
+  "permissions": [
+    "network"
+  ],
+  "hosts": [
+    "mangadot.net"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://mangadot.net",
+  "description": "Experimental native multilingual MangaDot source. Direct API requests may require browser verification. No local solver or browser cookies."
+}

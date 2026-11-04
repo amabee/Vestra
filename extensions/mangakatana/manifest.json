@@ -1,0 +1,19 @@
+{
+  "id": "vestra-mangakatana",
+  "name": "MangaKatana",
+  "version": "1.0.1",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "manga-source",
+  "kinds": [],
+  "permissions": [
+    "network"
+  ],
+  "hosts": [
+    "mangakatana.com",
+    "i1.mangakatana.com"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://mangakatana.com",
+  "description": "Native English manga search, available chapters and reader with source referers and exact image host grants."
+}

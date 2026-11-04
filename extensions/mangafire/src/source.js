@@ -1,0 +1,14 @@
+// Adapted from Seanime Providers (MIT), Copyright (c) 2025 Pal.
+import {reader,pageOptions,asset,pages} from "../../../lib/manga-common.js";
+import {signedPath} from "./request-key.js";
+const ORIGIN="https://mangafire.to",HOSTS=["mangafire.to", "static.mfcdn.nl", "k99.mfcdn1.xyz"];
+function identity(value){if(typeof value!=="string"||!/^[a-z0-9_-]{1,200}$/i.test(value))throw Error("Invalid MangaFire identity.");return value;}
+export function activate({host}) {
+ const read=reader(host,ORIGIN),api=(path,pairs=[])=>read(signedPath('/api'+path,pairs),true);
+ async function searchPage(query,options={}){const {page,limit}=pageOptions(options),q=String(query).trim().slice(0,500);if(!q)return{items:[],hasMore:false};const data=await api('/titles',[['keyword',q],['content_rating[]','safe'],['content_rating[]','suggestive'],['content_rating[]','erotica'],['order[relevance]','desc'],['page',String(page)],['limit',String(limit)]]);if(!Array.isArray(data.items)||data.items.length>400)throw Error("Invalid MangaFire search results.");const last=data.meta?.lastPage;if(!Number.isInteger(last)||last<0)throw Error("MangaFire search pagination is missing.");return{items:data.items.map(row=>({id:identity(row.hid),title:String(row.title).slice(0,500),cover:asset(row.poster?.large,ORIGIN,HOSTS,ORIGIN+'/')})),hasMore:page<last};}
+ return{searchPage,async search(q,o={}){return(await searchPage(q,{...o,page:1})).items;},
+  async getChapters(value){const book=identity(value),data=await api('/titles/'+book),languages=data.data?.languages,found=new Map();if(!Array.isArray(languages)||languages.length>40)throw Error("Invalid MangaFire title languages.");for(const language of [...new Set(languages)]){if(typeof language!=='string'||!/^[a-z-]{2,12}$/.test(language))throw Error("Invalid MangaFire language.");let total=1;for(let page=1;page<=total;page++){const result=await api(`/titles/${book}/chapters`,[['language',language],['sort','number'],['order','asc'],['page',String(page)],['limit','200']]);total=result.meta?.lastPage;if(!Array.isArray(result.items)||!Number.isInteger(total)||total<0||total>100)throw Error("Invalid MangaFire chapter pagination.");let added=0;for(const row of result.items){const id=identity(String(row.id));if(!found.has(id)){found.set(id,{id,title:typeof row.name==='string'&&row.name.trim()&&!row.name.startsWith('(1r0n)')?row.name.slice(0,500):`Chapter ${row.number}`,number:String(row.number??'Special'),language:language==='es-la'?'es-419':language,scanlator:typeof row.type==='string'?row.type:undefined});added++;}}if(found.size>10000||page>1&&!added)throw Error("MangaFire pagination repeated or exceeded its limit.");}}
+   return[...found.values()].sort((a,b)=>Number(a.number)-Number(b.number)).map((row,index)=>({...row,index}));},
+  async getPages(value){const data=await api('/chapters/'+identity(value));return pages(data.data?.pages?.map(p=>p.url),ORIGIN,HOSTS,ORIGIN+'/');},
+ };
+}

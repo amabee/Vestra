@@ -1,0 +1,30 @@
+{
+  "id": "vestra-mangabuddy",
+  "name": "MangaBuddy (MangaK)",
+  "version": "1.0.1",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "manga-source",
+  "kinds": [],
+  "permissions": [
+    "network"
+  ],
+  "hosts": [
+    "mangak.io",
+    "api.mangak.io",
+    "rx.resmk.org",
+    "rx.qvzra.org",
+    "rx.qvzrb.org",
+    "rx.qvzrc.org",
+    "rx.qvzrd.org",
+    "rx.qvzre.org",
+    "rx.qvzrf.org",
+    "rx.qvzrg.org",
+    "rx.qvzrh.org",
+    "rx.qvzri.org",
+    "rx.qvzrk.org"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://mangak.io",
+  "description": "Native English manga search and reading via MangaK. Includes paged search and stable title identities."
+}

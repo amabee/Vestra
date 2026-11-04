@@ -1,0 +1,20 @@
+{
+  "id": "vestra-animegg",
+  "name": "AnimeGG",
+  "version": "1.0.0",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": [
+    "anime"
+  ],
+  "permissions": [
+    "network"
+  ],
+  "hosts": [
+    "www.animegg.org"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://www.animegg.org",
+  "description": "Native English AnimeGG source with separate subtitle/dub mirrors and all available video qualities."
+}
