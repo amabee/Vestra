@@ -115,6 +115,22 @@ describe("isChallengeResponse", () => {
 });
 
 describe("brokeredFetch challenge handling", () => {
+  it("supplies redirect hosts only from the grant, never an untrusted guest option", async () => {
+    let allowed: readonly string[] | undefined;
+    const transport: GuardedTransport = {
+      request: async (input) => {
+        allowed = input.allowedRedirectHosts;
+        return { status: 200, headers: {}, body: "ok" };
+      },
+    };
+    const request = {
+      url: "https://example.com/",
+      allowedRedirectHosts: ["attacker.example"],
+    };
+    await createBrokeredFetch(grant, transport)!(request);
+    expect(allowed).toEqual(grant.allowedHosts);
+    expect(allowed).not.toBe(grant.allowedHosts);
+  });
   it("requires a separate cookie grant and keeps it scoped to approved HTTPS hosts", async () => {
     const calls: Record<string, string>[] = [];
     const transport: GuardedTransport = {
