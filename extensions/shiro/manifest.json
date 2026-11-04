@@ -1,7 +1,7 @@
 {
   "id": "vestra-shiro",
   "name": "Shiro",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "sdkVersion": "1.7.0",
   "main": "index.js",
   "role": "stream-source",
@@ -19,5 +19,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://anv.to",
-  "description": "Native Shiro source with independent sub/dub mirrors, public catalogue metadata and source-issued anonymous watch cookies."
+  "description": "Native Shiro source with independent sub/dub mirrors, public catalogue metadata and source-issued anonymous watch cookies.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/shiro/icon.ico"
 }

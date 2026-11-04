@@ -1,7 +1,7 @@
 {
   "id": "vestra-hentaiera",
   "name": "HentaiEra (18+)",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "manga-source",
@@ -16,5 +16,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://hentaiera.com",
-  "description": "Native manga search, chapters and reader for HentaiEra, with paged search."
+  "description": "Native manga search, chapters and reader for HentaiEra, with paged search.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/hentaiera/icon.ico"
 }

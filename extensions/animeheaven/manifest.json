@@ -1,7 +1,7 @@
 {
   "id": "vestra-animeheaven",
   "name": "AnimeHeaven",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "sdkVersion": "1.7.0",
   "main": "index.js",
   "role": "stream-source",
@@ -19,5 +19,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://animeheaven.me",
-  "description": "Native English AnimeHeaven source. Uses the public episode selector cookie, source-owned episode IDs and the actual video player."
+  "description": "Native English AnimeHeaven source. Uses the public episode selector cookie, source-owned episode IDs and the actual video player.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/animeheaven/icon.png"
 }

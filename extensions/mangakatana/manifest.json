@@ -1,7 +1,7 @@
 {
   "id": "vestra-mangakatana",
   "name": "MangaKatana",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "manga-source",
@@ -15,5 +15,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://mangakatana.com",
-  "description": "Native English manga search, available chapters and reader with source referers and exact image host grants."
+  "description": "Native English manga search, available chapters and reader with source referers and exact image host grants.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/mangakatana/icon.png"
 }

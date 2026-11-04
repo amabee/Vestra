@@ -87,7 +87,9 @@ New profiles use Foundry. Updated Nova builds resolve the former official Vestra
 
 In Extensions, **Check for updates** checks installed SDK extensions and compatibility sources. Review updates before applying them; newly requested permissions start unchecked and additional hosts are highlighted. Reviewed code is pinned in memory, enabled/disabled status is retained, and activation or storage failures attempt to restore the previous runtime. Existing bundled installs are matched by their shipped manifest path before checking Foundry; arbitrary local folders have no automatic remote origin.
 
-The reviewed offline catalogue includes all 17 native anime ports and 23 native manga sources from Foundry, alongside the existing movie/TV sources. Anime listings use the Anime filter and manga listings use Manga. Installing a source still requires permission review; bundling never installs it automatically.
+The reviewed offline catalogue includes all 17 native anime ports and 25 native manga sources from Foundry, alongside the existing movie/TV sources. Anime listings use the Anime filter and manga listings use Manga. Installing a source still requires permission review; bundling never installs it automatically.
+
+MangaDex and WeebCentral provide additional English readers. Source logos are included in the reviewed snapshot. MangaFire’s current Latna Saga CDN hosts require review when updating the extension; the reader accepts raster pages through the worker’s 8 MiB limit.
 
 SDK 1.7 adds a separate `network:cookies` permission for source-issued anonymous cookies and follows redirects only within exact approved HTTPS hosts. Browser/account cookie jars remain unavailable. Timed-out host requests release their sandbox handles when unloaded. These changes require a Nova build newer than v0.2.7.
 

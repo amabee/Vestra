@@ -1,7 +1,7 @@
 {
   "id": "vestra-shonen",
   "name": "Shonen",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "stream-source",
@@ -17,5 +17,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://shonen.to",
-  "description": "Native Shonen anime source with stable episode identities, multiple renditions and subtitle tracks, using the public source API."
+  "description": "Native Shonen anime source with stable episode identities, multiple renditions and subtitle tracks, using the public source API.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/shonen/icon.png"
 }

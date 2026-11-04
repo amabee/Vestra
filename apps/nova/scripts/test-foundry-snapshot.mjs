@@ -44,7 +44,7 @@ test("the real offline bundle matches its Foundry revision and immutable registr
   const registry = JSON.parse(
     await readFile(join(root, "extensions/registry.json"), "utf8"),
   );
-  assert.equal(registry.length, 46);
+  assert.equal(registry.length, 48);
   for (const entry of registry) {
     const manifest = new URL(entry.manifestURI);
     assert.equal(manifest.hostname, "raw.githubusercontent.com");

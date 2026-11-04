@@ -1,7 +1,7 @@
 {
   "id": "vestra-mangaball",
   "name": "MangaBall",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "manga-source",
@@ -16,5 +16,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://mangaball.com",
-  "description": "Native multilingual MangaBall using the current public API, complete translations and actual search pagination."
+  "description": "Native multilingual MangaBall using the current public API, complete translations and actual search pagination.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/mangaball/icon.png"
 }

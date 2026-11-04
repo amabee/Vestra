@@ -1,7 +1,7 @@
 {
   "id": "vestra-lelmanga",
   "name": "LelManga (French)",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "manga-source",
@@ -18,5 +18,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://www.lelmanga.com",
-  "description": "Native French LelManga manga search, source chapter numbering and reader images."
+  "description": "Native French LelManga manga search, source chapter numbering and reader images.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/lelmanga/icon.png"
 }

@@ -1,7 +1,7 @@
 {
   "id": "vestra-mynimeku",
   "name": "MyNimeKu (Anime)",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "stream-source",
@@ -17,5 +17,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://www.mynimeku.com",
-  "description": "Native Indonesian MyNimeKu anime source using a current public search nonce, real episode numbers and separate playable mirrors."
+  "description": "Native Indonesian MyNimeKu anime source using a current public search nonce, real episode numbers and separate playable mirrors.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/mynimeku/icon.jpg"
 }

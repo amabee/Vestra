@@ -1,7 +1,7 @@
 {
   "id": "vestra-animegg",
   "name": "AnimeGG",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "stream-source",
@@ -16,5 +16,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://www.animegg.org",
-  "description": "Native English AnimeGG source with separate subtitle/dub mirrors and all available video qualities."
+  "description": "Native English AnimeGG source with separate subtitle/dub mirrors and all available video qualities.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/animegg/icon.png"
 }

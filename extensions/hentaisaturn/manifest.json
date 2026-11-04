@@ -1,7 +1,7 @@
 {
   "id": "vestra-hentaisaturn",
   "name": "HentaiSaturn (18+)",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "stream-source",
@@ -18,5 +18,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://www.hentaisaturn.tv",
-  "description": "Native Italian adult anime source with source-owned episode identities and public playlist metadata decoding."
+  "description": "Native Italian adult anime source with source-owned episode identities and public playlist metadata decoding.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/hentaisaturn/icon.png"
 }

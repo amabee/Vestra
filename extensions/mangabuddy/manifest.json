@@ -1,7 +1,7 @@
 {
   "id": "vestra-mangabuddy",
   "name": "MangaBuddy (MangaK)",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "manga-source",
@@ -26,5 +26,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://mangak.io",
-  "description": "Native English manga search and reading via MangaK. Includes paged search and stable title identities."
+  "description": "Native English manga search and reading via MangaK. Includes paged search and stable title identities.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/mangabuddy/icon.png"
 }

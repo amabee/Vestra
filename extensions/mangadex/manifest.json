@@ -1,0 +1,21 @@
+{
+  "id": "vestra-mangadex",
+  "name": "MangaDex",
+  "version": "1.0.0",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "manga-source",
+  "kinds": [],
+  "permissions": [
+    "network"
+  ],
+  "hosts": [
+    "api.mangadex.org",
+    "uploads.mangadex.org",
+    "cmdxd98sb0x3yprd.mangadex.network"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://mangadex.org",
+  "description": "Native MangaDex public API source with paged title search, English chapter editions and ordered reader pages.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/mangadex/icon.png"
+}

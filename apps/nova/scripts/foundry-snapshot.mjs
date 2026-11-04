@@ -18,7 +18,7 @@ export const root = resolve(
 export const repository = "amabee/Foundry";
 const lockName = "extensions.snapshot.json";
 const allowedPath =
-  /^extensions\/(?:README\.md|registry\.json|LICENSE(?:\.md)?|[a-z0-9-]+\/(?:README\.md|LICENSE(?:\.md)?|manifest\.json|index\.js|src\/[a-z0-9-]+\.js))$/;
+  /^extensions\/(?:README\.md|registry\.json|LICENSE(?:\.md)?|[a-z0-9-]+\/(?:README\.md|LICENSE(?:\.md)?|manifest\.json|index\.js|icon\.(?:png|jpg|jpeg|webp|gif|ico)|src\/[a-z0-9-]+\.js))$/;
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
 export function validateLock(lock) {

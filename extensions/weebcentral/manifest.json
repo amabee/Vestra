@@ -1,0 +1,24 @@
+{
+  "id": "vestra-weebcentral",
+  "name": "WeebCentral",
+  "version": "1.0.0",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "manga-source",
+  "kinds": [],
+  "permissions": [
+    "network",
+    "network:session"
+  ],
+  "hosts": [
+    "weebcentral.com",
+    "temp.compsci88.com",
+    "scans-hot.planeptune.us",
+    "hot.planeptune.us",
+    "official.lowee.us"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://weebcentral.com",
+  "description": "Native English WeebCentral source with paged search, complete chapter lists and ordered full-size reader images.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/weebcentral/icon.png"
+}

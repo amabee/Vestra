@@ -1,7 +1,7 @@
 {
   "id": "vestra-ravenscans",
   "name": "RavenScans",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "manga-source",
@@ -17,5 +17,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://ravenscans.org",
-  "description": "Native English RavenScans source with source search pages, stable chapter identities and reader-region images."
+  "description": "Native English RavenScans source with source search pages, stable chapter identities and reader-region images.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/ravenscans/icon.png"
 }

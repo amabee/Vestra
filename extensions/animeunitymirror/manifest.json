@@ -1,7 +1,7 @@
 {
   "id": "vestra-animeunitymirror",
   "name": "AnimeUnity Mirror",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "stream-source",
@@ -17,5 +17,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://animeunity.io",
-  "description": "Native Italian AnimeUnity mirror on its current origin, with exact episode labels and data-only embedded URL decoding."
+  "description": "Native Italian AnimeUnity mirror on its current origin, with exact episode labels and data-only embedded URL decoding.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/animeunitymirror/icon.webp"
 }

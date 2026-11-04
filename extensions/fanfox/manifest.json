@@ -1,7 +1,7 @@
 {
   "id": "vestra-fanfox",
   "name": "FanFox",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "manga-source",
@@ -16,5 +16,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://m.fanfox.net",
-  "description": "Native English FanFox manga search, chapter lists and reader with reviewed image hosts."
+  "description": "Native English FanFox manga search, chapter lists and reader with reviewed image hosts.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/fanfox/icon.png"
 }

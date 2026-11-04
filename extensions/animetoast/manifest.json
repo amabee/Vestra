@@ -1,7 +1,7 @@
 {
   "id": "vestra-animetoast",
   "name": "AnimeToast",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "stream-source",
@@ -18,5 +18,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://www.animetoast.cc",
-  "description": "Experimental native German AnimeToast source with labelled episode inventory and MP4Upload extraction. Current reviewed titles no longer expose that mirror."
+  "description": "Experimental native German AnimeToast source with labelled episode inventory and MP4Upload extraction. Current reviewed titles no longer expose that mirror.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/animetoast/icon.png"
 }
