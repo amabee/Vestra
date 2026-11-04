@@ -1,32 +1,21 @@
-import { useEffect } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router";
 import { ArrowDownToLine, RefreshCw, RotateCw } from "lucide-react";
 import { bridge } from "@/lib/bridge";
 import { SectionRule } from "@/components/layout/page";
 import { ReleaseNotes } from "./release-notes";
+import {
+  useAppUpdates,
+  useUpdateCommand,
+  showUpdatePrompt,
+} from "./use-app-updates";
 
-const key = ["app-updates"];
-function useAppUpdates() {
-  const client = useQueryClient();
-  useEffect(
-    () => bridge.updates.onChanged((state) => client.setQueryData(key, state)),
-    [client],
-  );
-  return useQuery({
-    queryKey: key,
-    queryFn: bridge.updates.state,
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-    retry: false,
-  });
-}
 export function UpdateIndicator() {
   const { data } = useAppUpdates();
   if (!data || !["available", "downloaded"].includes(data.phase)) return null;
   return (
-    <Link
-      to="/settings#app-updates"
+    <button
+      onClick={showUpdatePrompt}
+      aria-haspopup="dialog"
+      aria-label="Open app update details"
       className="meta text-primary hover:underline"
       aria-live="polite"
     >
@@ -34,18 +23,13 @@ export function UpdateIndicator() {
         ? "Update ready to install"
         : "Update available"}{" "}
       · {data.version}
-    </Link>
+    </button>
   );
 }
 export function AppUpdatesPanel() {
-  const client = useQueryClient();
   const query = useAppUpdates();
   const state = query.data;
-  const command = useMutation({
-    mutationFn: (action: "check" | "download" | "install") =>
-      bridge.updates[action](),
-    onSuccess: (state) => client.setQueryData(key, state),
-  });
+  const command = useUpdateCommand();
   const busy =
     command.isPending ||
     (!!state &&

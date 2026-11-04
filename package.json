@@ -93,7 +93,8 @@
     "test:manga:pagination": "node apps/nova/scripts/test-manga-pagination.mjs",
     "test:anilist:sync": "node apps/nova/scripts/test-anilist-sync.mjs",
     "test:reliability": "node apps/nova/scripts/test-playback-reliability.mjs",
-    "test:reliability:ui": "node apps/nova/scripts/test-playback-reliability-ui.mjs"
+    "test:reliability:ui": "node apps/nova/scripts/test-playback-reliability-ui.mjs",
+    "test:updater:prompt": "node apps/nova/scripts/test-update-prompt-ui.mjs"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",
