@@ -1,7 +1,7 @@
 {
   "id": "vestra-asurascans",
   "name": "AsuraScans",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "manga-source",
@@ -15,5 +15,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://asurascans.com",
-  "description": "Native English AsuraScans manga search, chapters and reader. Parses Astro metadata without running remote scripts."
+  "description": "Native English AsuraScans manga search, chapters and reader. Parses Astro metadata without running remote scripts.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/asurascans/icon.webp"
 }

@@ -51,6 +51,8 @@ const SOURCES = [
   "shiro",
   "aniworld",
   "animetvplus",
+  "mangadex",
+  "weebcentral",
 ] as const;
 const experimental = new Set<string>([
   "vidlink",
@@ -64,6 +66,8 @@ const experimental = new Set<string>([
   "animetoast",
   "donghuastream",
   "animetvplus",
+  "mangadex",
+  "weebcentral",
 ]);
 
 /** Fixed shipped folders only; renderer-supplied paths are never resolved here. */

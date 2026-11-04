@@ -1,7 +1,7 @@
 {
   "id": "vestra-kuramanga",
   "name": "KuraManga",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "manga-source",
@@ -15,5 +15,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://kuramanga.com",
-  "description": "Native English KuraManga source with API search pagination, stable source identities and reader-only chapter images."
+  "description": "Native English KuraManga source with API search pagination, stable source identities and reader-only chapter images.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/kuramanga/icon.ico"
 }

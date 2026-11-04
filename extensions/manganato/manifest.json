@@ -1,7 +1,7 @@
 {
   "id": "vestra-manganato",
   "name": "MangaBats (Manganato)",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "manga-source",
@@ -15,5 +15,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://www.mangabats.com",
-  "description": "Native English MangaBats source. Fetches every chapter page and parses reader arrays as data."
+  "description": "Native English MangaBats source. Fetches every chapter page and parses reader arrays as data.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/manganato/icon.png"
 }

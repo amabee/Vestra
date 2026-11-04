@@ -1,7 +1,7 @@
 {
   "id": "vestra-anitube",
   "name": "AniTube",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "stream-source",
@@ -19,5 +19,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://www.anitube.zip",
-  "description": "Native Portuguese AniTube anime source with separate player mirrors and bounded data-only unpacking."
+  "description": "Native Portuguese AniTube anime source with separate player mirrors and bounded data-only unpacking.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/anitube/icon.png"
 }

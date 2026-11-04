@@ -1,3 +1,4 @@
+import { mangaImagePayloadSchema } from "./manga-image-payload";
 import { mangaImageHeaders } from "./manga-image-request";
 import { ChapterCompletions } from "./chapter-completions";
 import { createHash, randomUUID } from "node:crypto";
@@ -600,41 +601,25 @@ export class MangaService {
           throw new Error("Manga source changed. Reopen the library.");
         if (cached) return cached;
       }
-      const value = z
-        .object({
-          mimeType: z.enum([
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-            "image/gif",
-            "image/avif",
-          ]),
-          data: z
-            .string()
-            .max(2796204)
-            .regex(/^[A-Za-z0-9+/]*={0,2}$/),
-        })
-        .parse(
-          await provider
-            .image({
-              url: r.url,
-              method: "GET",
-              headers: r.headers,
-            })
-            .catch((error: unknown) => {
-              const name = catalogue
-                ? "AniList"
-                : (this.providers.get(r.providerId)?.name ?? r.providerId);
-              const host = new URL(r.url).hostname;
-              const message =
-                error instanceof Error
-                  ? error.message
-                  : "Image request failed.";
-              throw new Error(
-                `${name} image (${host}): ${message}${/HTTP 403/.test(message) ? " The image host refused this request; its source headers or session may need updating." : ""}`,
-              );
-            }),
-        );
+      const value = mangaImagePayloadSchema.parse(
+        await provider
+          .image({
+            url: r.url,
+            method: "GET",
+            headers: r.headers,
+          })
+          .catch((error: unknown) => {
+            const name = catalogue
+              ? "AniList"
+              : (this.providers.get(r.providerId)?.name ?? r.providerId);
+            const host = new URL(r.url).hostname;
+            const message =
+              error instanceof Error ? error.message : "Image request failed.";
+            throw new Error(
+              `${name} image (${host}): ${message}${/HTTP 403/.test(message) ? " The image host refused this request; its source headers or session may need updating." : ""}`,
+            );
+          }),
+      );
       if (!valid())
         throw new Error("Manga source changed. Reopen the chapter.");
       const data = `data:${value.mimeType};base64,${value.data}`;

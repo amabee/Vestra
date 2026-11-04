@@ -1,7 +1,7 @@
 {
   "id": "vestra-animetvplus",
   "name": "AniTVPlus",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "sdkVersion": "1.7.0",
   "main": "index.js",
   "role": "stream-source",
@@ -23,5 +23,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://animetvplus.xyz",
-  "description": "Native AniTVPlus source with source season mapping, HLS resolution and bundle-relative subtitle metadata."
+  "description": "Native AniTVPlus source with source season mapping, HLS resolution and bundle-relative subtitle metadata.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/animetvplus/icon.png"
 }

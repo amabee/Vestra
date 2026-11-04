@@ -1,7 +1,7 @@
 {
   "id": "vestra-atsumaru",
   "name": "Atsumaru",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "manga-source",
@@ -15,5 +15,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://atsu.moe",
-  "description": "Native English Atsumaru manga source with server-side paged search and source chapter/page identities."
+  "description": "Native English Atsumaru manga source with server-side paged search and source chapter/page identities.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/atsumaru/icon.ico"
 }

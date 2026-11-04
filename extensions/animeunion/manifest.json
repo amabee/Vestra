@@ -1,7 +1,7 @@
 {
   "id": "vestra-animeunion",
   "name": "AnimeUnion",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "stream-source",
@@ -18,5 +18,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://animeunion.tv",
-  "description": "Native Italian AnimeUnion source using the public API and bounded Svelte data decoding, stable IDs and separate sub/dub qualities."
+  "description": "Native Italian AnimeUnion source using the public API and bounded Svelte data decoding, stable IDs and separate sub/dub qualities.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/animeunion/icon.png"
 }

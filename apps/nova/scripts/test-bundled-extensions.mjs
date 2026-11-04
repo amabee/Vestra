@@ -37,8 +37,8 @@ try {
   const sourceRoot = join(root, "extensions");
   const catalogue = await m.listBundled(sourceRoot);
   assert.deepEqual(catalogue.errors, []);
-  assert.equal(catalogue.entries.length, 47);
-  assert.equal(new Set(catalogue.entries.map((e) => e.id)).size, 47);
+  assert.equal(catalogue.entries.length, 49);
+  assert.equal(new Set(catalogue.entries.map((e) => e.id)).size, 49);
   assert(
     catalogue.entries.some(
       (e) => e.id === "vestra-vixsrc" && e.kinds.includes("tv"),
@@ -60,7 +60,7 @@ try {
   assert(anime.every((e) => e.type === "onlinestream-provider"));
   assert.equal(
     catalogue.entries.filter((e) => e.type === "manga-provider").length,
-    23,
+    25,
   );
   for (const name of [
     "vidlink",
@@ -69,6 +69,8 @@ try {
     "animeheaven",
     "shiro",
     "mangabuddy",
+    "mangadex",
+    "weebcentral",
   ]) {
     const e = catalogue.entries.find((e) => e.id === "vestra-" + name);
     assert.equal(e.registryUrl, "vestra:bundled");
@@ -97,7 +99,9 @@ try {
     });
     try {
       const methods = await loaded.listMethods(AbortSignal.timeout(5000));
-      for (const method of name === "mangabuddy"
+      for (const method of ["mangabuddy", "mangadex", "weebcentral"].includes(
+        name,
+      )
         ? ["search", "searchPage", "getChapters", "getPages"]
         : ["search", "getEpisodes", "getStreams"])
         assert(methods.includes(method));
@@ -126,7 +130,7 @@ try {
   // Exercise the same source paths after copying the release resources.
   const packaged = join(scratch, "resources/extensions");
   await cp(sourceRoot, packaged, { recursive: true });
-  assert.equal((await m.listBundled(packaged)).entries.length, 47);
+  assert.equal((await m.listBundled(packaged)).entries.length, 49);
   const manifestPath = join(packaged, "vidlink/manifest.json");
   const bad = JSON.parse(await readFile(manifestPath, "utf8"));
   bad.id = "different";
@@ -136,10 +140,10 @@ try {
     /identity mismatch/,
   );
   const partial = await m.listBundled(packaged);
-  assert.equal(partial.entries.length, 46);
+  assert.equal(partial.entries.length, 48);
   assert.equal(partial.errors.length, 1);
   console.log(
-    "PASS: 47 bundled listings, offline review/install, sandbox exports, experimental warnings, fixed identities, packaged paths and partial failure",
+    "PASS: 49 bundled listings, offline review/install, sandbox exports, experimental warnings, fixed identities, packaged paths and partial failure",
   );
 } finally {
   await rm(scratch, { recursive: true, force: true });

@@ -1,7 +1,7 @@
 {
   "id": "vestra-animesaturnmirror",
   "name": "AnimeSaturn Mirror",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "stream-source",
@@ -18,5 +18,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://animesaturn.ro",
-  "description": "Native Italian AnimeSaturn mirror source with source-owned episode links and bounded, data-only nested player extraction."
+  "description": "Native Italian AnimeSaturn mirror source with source-owned episode links and bounded, data-only nested player extraction.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/animesaturnmirror/icon.png"
 }

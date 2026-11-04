@@ -444,3 +444,29 @@ test("paged searches forward page options and do not truncate returned titles at
   assert.equal(calls[1].page, 2);
   await assert.rejects(s.searchPage("paged", "Fixture", 0));
 });
+
+test("reader accepts large pages through 8 MiB and rejects oversized padded payloads", async () => {
+  const s = new MangaService(new NodeDriver(join(scratch, "large-pages")));
+  let payload = Buffer.alloc(3 * 1024 * 1024).toString("base64");
+  register(s, "large", client, () => ({
+    mimeType: "image/png",
+    data: payload,
+  }));
+  await s.search("large", "x");
+  await s.chapters("large", "book");
+  const [page] = await s.pages("large", "book", "chapter");
+  assert.equal(
+    (await s.image(page.handle)).length,
+    payload.length + "data:image/png;base64,".length,
+  );
+  payload = Buffer.alloc(8 * 1024 * 1024).toString("base64");
+  assert.equal(
+    (await s.image(page.handle)).length,
+    payload.length + "data:image/png;base64,".length,
+  );
+  // One extra byte can have the same base64 length; check decoded size too.
+  payload = Buffer.alloc(8 * 1024 * 1024 + 1).toString("base64");
+  await assert.rejects(() => s.image(page.handle), /8 MiB/);
+  payload = "AAA";
+  await assert.rejects(() => s.image(page.handle));
+});

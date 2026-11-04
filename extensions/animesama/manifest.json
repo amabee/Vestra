@@ -1,7 +1,7 @@
 {
   "id": "vestra-animesama",
   "name": "AnimeSama (French Manga)",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "manga-source",
@@ -15,5 +15,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://anime-sama.to",
-  "description": "Native French AnimeSama manga source. Scan panels retain separate editions, stable chapter IDs and fresh page counts."
+  "description": "Native French AnimeSama manga source. Scan panels retain separate editions, stable chapter IDs and fresh page counts.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/animesama/icon.png"
 }

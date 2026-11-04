@@ -1,7 +1,7 @@
 {
   "id": "vestra-nontonanime",
   "name": "NontonAnime",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "stream-source",
@@ -20,5 +20,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://www.nontonanimeid.my.id",
-  "description": "Native Indonesian NontonAnime source updated for its current Blogger catalogue, real episode inventory and separate video mirrors."
+  "description": "Native Indonesian NontonAnime source updated for its current Blogger catalogue, real episode inventory and separate video mirrors.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/nontonanime/icon.png"
 }

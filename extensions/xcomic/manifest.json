@@ -1,7 +1,7 @@
 {
   "id": "vestra-xcomic",
   "name": "xComic",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "manga-source",
@@ -33,5 +33,6 @@
   ],
   "author": "Vestra",
   "homepage": "https://xcomic.me",
-  "description": "Native xComic English manga source with source-aware chapter selection and data-only Qwik/Next reader parsing."
+  "description": "Native xComic English manga source with source-aware chapter selection and data-only Qwik/Next reader parsing.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/xcomic/icon.ico"
 }

@@ -1,7 +1,7 @@
 {
   "id": "vestra-mangafreak",
   "name": "MangaFreak",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "manga-source",
@@ -16,5 +16,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://ww3.mangafreak.me",
-  "description": "Native English MangaFreak search, source chapter lists and direct reader images without an external image proxy."
+  "description": "Native English MangaFreak search, source chapter lists and direct reader images without an external image proxy.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/mangafreak/icon.jpeg"
 }

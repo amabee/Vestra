@@ -1,7 +1,7 @@
 {
   "id": "vestra-donghuastream",
   "name": "DonghuaStream",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "stream-source",
@@ -20,5 +20,6 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://donghuastream.org",
-  "description": "Native DonghuaStream anime source with real episode numbers and separate Dailymotion/Rumble player extraction."
+  "description": "Native DonghuaStream anime source with real episode numbers and separate Dailymotion/Rumble player extraction.",
+  "icon": "https://raw.githubusercontent.com/amabee/Foundry/main/extensions/donghuastream/icon.jpeg"
 }
