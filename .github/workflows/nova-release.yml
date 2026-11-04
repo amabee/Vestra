@@ -95,6 +95,7 @@ jobs:
       - name: Smoke-test packaged worker and compiler
         run: node apps/nova/scripts/test-packaged-worker.mjs --resources apps/nova/release/win-unpacked/resources
       - run: node apps/nova/scripts/test-packaged-security.mjs
+      - run: pnpm test:foundry:packaged
       - run: pnpm test:updater:ipc
       - name: Validate installer, hashes, blockmap and embedded feed
         shell: pwsh

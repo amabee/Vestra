@@ -94,7 +94,8 @@
     "test:anilist:sync": "node apps/nova/scripts/test-anilist-sync.mjs",
     "test:reliability": "node apps/nova/scripts/test-playback-reliability.mjs",
     "test:reliability:ui": "node apps/nova/scripts/test-playback-reliability-ui.mjs",
-    "test:updater:prompt": "node apps/nova/scripts/test-update-prompt-ui.mjs"
+    "test:updater:prompt": "node apps/nova/scripts/test-update-prompt-ui.mjs",
+    "test:foundry:packaged": "node apps/nova/scripts/test-packaged-foundry.mjs && node apps/nova/scripts/test-bundled-extensions.mjs --resources apps/nova/release/win-unpacked/resources"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",
