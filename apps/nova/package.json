@@ -1,8 +1,8 @@
 {
   "name": "@vestra/nova",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "private": true,
-  "description": "Vestra Nova â€” the Vestra desktop application (Electron).",
+  "description": "Vestra Nova \u00e2\u20ac\u201d the Vestra desktop application (Electron).",
   "main": "dist-electron/main.js",
   "scripts": {
     "build:renderer": "vite build --config renderer/vite.config.ts",
@@ -94,13 +94,7 @@
         "from": "../../extensions",
         "to": "extensions",
         "filter": [
-          "moviebox/**",
-          "kisskh/**",
-          "internet-archive/**",
-          "vixsrc/**",
-          "streamflix/**",
-          "vidlink/**",
-          "desiflix/**"
+          "**/*"
         ]
       },
       {
@@ -114,6 +108,10 @@
       {
         "from": "build/icon.png",
         "to": "icon.png"
+      },
+      {
+        "from": "../../extensions.snapshot.json",
+        "to": "extensions.snapshot.json"
       }
     ],
     "electronLanguages": [

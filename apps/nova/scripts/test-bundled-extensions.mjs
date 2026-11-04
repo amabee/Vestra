@@ -34,7 +34,11 @@ try {
     ],
   });
   const m = createRequire(import.meta.url)(join(scratch, "test.cjs"));
-  const sourceRoot = join(root, "extensions");
+  const resourceOption = process.argv.indexOf("--resources");
+  const sourceRoot =
+    resourceOption >= 0
+      ? join(resolve(process.argv[resourceOption + 1]), "extensions")
+      : join(root, "extensions");
   const catalogue = await m.listBundled(sourceRoot);
   assert.deepEqual(catalogue.errors, []);
   assert.equal(catalogue.entries.length, 49);
