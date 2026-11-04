@@ -1,0 +1,19 @@
+{
+  "id": "vestra-mangaworldadult",
+  "name": "MangaWorldAdult (Italian, 18+)",
+  "version": "1.0.1",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "manga-source",
+  "kinds": [],
+  "permissions": [
+    "network"
+  ],
+  "hosts": [
+    "www.mangaworldadult.net",
+    "cdn.mangaworld.mx"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://www.mangaworldadult.net",
+  "description": "Native Italian adult manga source with source search and chapter regions. Catalogue matching is handled by Vestra, without extra AniList requests from the extension."
+}

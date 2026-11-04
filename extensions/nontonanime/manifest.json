@@ -1,0 +1,24 @@
+{
+  "id": "vestra-nontonanime",
+  "name": "NontonAnime",
+  "version": "1.0.0",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": [
+    "anime"
+  ],
+  "permissions": [
+    "network",
+    "network:session"
+  ],
+  "hosts": [
+    "www.nontonanimeid.my.id",
+    "www.blogger.com",
+    "gogoanime-gdplayer.blogspot.com",
+    "urlmp41.blogspot.com"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://www.nontonanimeid.my.id",
+  "description": "Native Indonesian NontonAnime source updated for its current Blogger catalogue, real episode inventory and separate video mirrors."
+}

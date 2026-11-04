@@ -1,0 +1,21 @@
+{
+  "id": "vestra-hentaiworld",
+  "name": "HentaiWorld (18+)",
+  "version": "1.0.0",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": [
+    "anime"
+  ],
+  "permissions": [
+    "network",
+    "network:session"
+  ],
+  "hosts": [
+    "www.hentaiworld.me"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://www.hentaiworld.me",
+  "description": "Native Italian adult anime source with complete search matches, real episode numbers and data-only player extraction."
+}

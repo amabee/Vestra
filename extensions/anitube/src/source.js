@@ -1,0 +1,9 @@
+// Adapted from Seanime Providers (MIT), Copyright (c) 2025 Pal.
+import {request,sourcePath,titles,episodes,links,elements,hasClass,text} from '../../../lib/anime-common.js';
+import {frames,extractPlayer} from '../../../lib/anime-embed.js';
+const ORIGIN='https://www.anitube.zip',PATH=/^\/(?:[a-z0-9_-]+\/){0,3}[a-z0-9_-]+\/?$/i;
+export function activate({host}){const read=request(host,ORIGIN);return{
+ async search(query,options={}){const q=String(query).trim().slice(0,500);if(!q)return[];const html=await read('/?s='+encodeURIComponent(q)),rows=[];for(const card of elements(html,'div',a=>hasClass(a,'aniItem'))){const a=links(card.body)[0];if(!a)continue;const path=sourcePath(a.href,ORIGIN,PATH);rows.push({id:path,title:a.title||a.text,url:ORIGIN+path});}return titles(rows,options.limit);},
+ async getEpisodes(value){const book=sourcePath(value,ORIGIN,PATH),html=await read(book),rows=[];for(const block of elements(html,'div',a=>hasClass(a,'pagAniListaContainer')))for(const a of links(block.body)){const number=/Epis[oó]dio\s*(\d+(?:\.\d+)?)/i.exec(a.text);if(!number)continue;const path=sourcePath(a.href,ORIGIN,PATH);rows.push({id:path,number:Number(number[1]),title:a.text,url:ORIGIN+path});}return episodes(rows,book);},
+ async getStreams(value,options={}){const path=sourcePath(value,ORIGIN,PATH),html=await read(path),results=[],errors=[];for(const [id,server]of [['blog2','Blog 2'],['blog1','Blog 1']]){if(options.excludeServers?.includes(server))continue;const frame=frames(elements(html,'div',a=>a.id===id)[0]?.body??'')[0];if(!frame)continue;try{results.push(await extractPlayer(frame,read,{origin:ORIGIN,hosts:['www.anitube.zip','api.anivideo.net','www.blogger.com'],server}));}catch(error){errors.push(String(error.message??error));}}if(!results.length)throw Error(errors[0]??'AniTube has no supported player for this episode.');return results;},
+};}

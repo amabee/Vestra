@@ -1,0 +1,24 @@
+{
+  "id": "vestra-donghuastream",
+  "name": "DonghuaStream",
+  "version": "1.0.0",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": [
+    "anime"
+  ],
+  "permissions": [
+    "network",
+    "network:session"
+  ],
+  "hosts": [
+    "donghuastream.org",
+    "geo.dailymotion.com",
+    "www.dailymotion.com",
+    "rumble.com"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://donghuastream.org",
+  "description": "Native DonghuaStream anime source with real episode numbers and separate Dailymotion/Rumble player extraction."
+}

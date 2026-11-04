@@ -1,0 +1,20 @@
+{
+  "id": "vestra-fanfox",
+  "name": "FanFox",
+  "version": "1.0.1",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "manga-source",
+  "kinds": [],
+  "permissions": [
+    "network"
+  ],
+  "hosts": [
+    "m.fanfox.net",
+    "fmcdn.mfcdn.net",
+    "zjcdn.mangafox.me"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://m.fanfox.net",
+  "description": "Native English FanFox manga search, chapter lists and reader with reviewed image hosts."
+}

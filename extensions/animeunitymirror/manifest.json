@@ -1,0 +1,21 @@
+{
+  "id": "vestra-animeunitymirror",
+  "name": "AnimeUnity Mirror",
+  "version": "1.0.0",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": [
+    "anime"
+  ],
+  "permissions": [
+    "network",
+    "network:session"
+  ],
+  "hosts": [
+    "animeunity.io"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://animeunity.io",
+  "description": "Native Italian AnimeUnity mirror on its current origin, with exact episode labels and data-only embedded URL decoding."
+}

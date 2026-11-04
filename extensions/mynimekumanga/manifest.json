@@ -1,0 +1,19 @@
+{
+  "id": "vestra-mynimekumanga",
+  "name": "MyNimeKu (Indonesian Manga)",
+  "version": "1.0.1",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "manga-source",
+  "kinds": [],
+  "permissions": [
+    "network"
+  ],
+  "hosts": [
+    "www.mynimeku.com",
+    "image.mydriveku.my.id"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://www.mynimeku.com",
+  "description": "Native Indonesian MyNimeKu manga source using the site's public live-search configuration and reader metadata."
+}

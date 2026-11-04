@@ -1,0 +1,20 @@
+{
+  "id": "vestra-komiku",
+  "name": "Komiku (Indonesian)",
+  "version": "1.0.1",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "manga-source",
+  "kinds": [],
+  "permissions": [
+    "network"
+  ],
+  "hosts": [
+    "komiku.org",
+    "api.komiku.org",
+    "img.komiku.org"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://komiku.org",
+  "description": "Native Indonesian Komiku manga source with its separate search API and reader image grants."
+}

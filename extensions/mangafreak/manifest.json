@@ -1,0 +1,20 @@
+{
+  "id": "vestra-mangafreak",
+  "name": "MangaFreak",
+  "version": "1.0.1",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "manga-source",
+  "kinds": [],
+  "permissions": [
+    "network"
+  ],
+  "hosts": [
+    "ww3.mangafreak.me",
+    "images.mangafreak.me",
+    "images2.mangafreak.me"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://ww3.mangafreak.me",
+  "description": "Native English MangaFreak search, source chapter lists and direct reader images without an external image proxy."
+}

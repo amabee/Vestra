@@ -1,0 +1,22 @@
+{
+  "id": "vestra-animesaturnmirror",
+  "name": "AnimeSaturn Mirror",
+  "version": "1.0.0",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": [
+    "anime"
+  ],
+  "permissions": [
+    "network",
+    "network:session"
+  ],
+  "hosts": [
+    "animesaturn.ro",
+    "cdn2.megaplay.su"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://animesaturn.ro",
+  "description": "Native Italian AnimeSaturn mirror source with source-owned episode links and bounded, data-only nested player extraction."
+}

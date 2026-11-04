@@ -1,0 +1,21 @@
+{
+  "id": "vestra-mynimeku",
+  "name": "MyNimeKu (Anime)",
+  "version": "1.0.0",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": [
+    "anime"
+  ],
+  "permissions": [
+    "network",
+    "network:session"
+  ],
+  "hosts": [
+    "www.mynimeku.com"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://www.mynimeku.com",
+  "description": "Native Indonesian MyNimeKu anime source using a current public search nonce, real episode numbers and separate playable mirrors."
+}

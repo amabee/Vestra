@@ -1,0 +1,23 @@
+{
+  "id": "vestra-anitube",
+  "name": "AniTube",
+  "version": "1.0.0",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": [
+    "anime"
+  ],
+  "permissions": [
+    "network",
+    "network:session"
+  ],
+  "hosts": [
+    "www.anitube.zip",
+    "api.anivideo.net",
+    "www.blogger.com"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://www.anitube.zip",
+  "description": "Native Portuguese AniTube anime source with separate player mirrors and bounded data-only unpacking."
+}

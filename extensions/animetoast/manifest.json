@@ -1,0 +1,22 @@
+{
+  "id": "vestra-animetoast",
+  "name": "AnimeToast",
+  "version": "1.0.0",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": [
+    "anime"
+  ],
+  "permissions": [
+    "network",
+    "network:session"
+  ],
+  "hosts": [
+    "www.animetoast.cc",
+    "www.mp4upload.com"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://www.animetoast.cc",
+  "description": "Experimental native German AnimeToast source with labelled episode inventory and MP4Upload extraction. Current reviewed titles no longer expose that mirror."
+}

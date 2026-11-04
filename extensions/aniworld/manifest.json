@@ -1,0 +1,23 @@
+{
+  "id": "vestra-aniworld",
+  "name": "AniWorld",
+  "version": "1.0.0",
+  "sdkVersion": "1.7.0",
+  "main": "index.js",
+  "role": "stream-source",
+  "kinds": [
+    "anime"
+  ],
+  "permissions": [
+    "network",
+    "network:session"
+  ],
+  "hosts": [
+    "aniworld.to",
+    "vidmoly.net",
+    "vidmoly.biz"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://aniworld.to",
+  "description": "Native German AniWorld source preserving seasons, film entries and separate language mirrors."
+}

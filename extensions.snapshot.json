@@ -1,11 +1,219 @@
 {
   "schema": 1,
   "repository": "amabee/Foundry",
-  "revision": "1d5301e20822139bfc19e97e4ef6a9290da25482",
+  "revision": "ecf193e551a2d66733898f5bc71310e913901c02",
   "files": [
     {
       "path": "extensions/README.md",
       "sha256": "51cce45bc588f1887f93ea6a53a3ff6912deb3bfd51617cac227aab75613aa72"
+    },
+    {
+      "path": "extensions/animeav1/README.md",
+      "sha256": "64e60ae7faa0a47b04b0648d129a0b7738264cbab30dc6c0e96f261492efa849"
+    },
+    {
+      "path": "extensions/animeav1/index.js",
+      "sha256": "c4004d79c5cc5510466a429d0ad58ea6fbc1b3564f254cf886b21a4d193398f7"
+    },
+    {
+      "path": "extensions/animeav1/manifest.json",
+      "sha256": "034f838a4655d0af5cda42545f27d4443e67f5a9859df1d0dc053f162876bc8e"
+    },
+    {
+      "path": "extensions/animeav1/src/source.js",
+      "sha256": "6f4795834891b7c17084182daa8ce4383b89e3547d98e8ff748628a2099bb767"
+    },
+    {
+      "path": "extensions/animegg/README.md",
+      "sha256": "8c378631d1815c9f66cb82bb05b9ece1404c2ec5686c5d9be30b2b2253517b12"
+    },
+    {
+      "path": "extensions/animegg/index.js",
+      "sha256": "11b85d7e98ddca12cde6048db751b944eb2da323bc5fd0d852f3f532d93e4dce"
+    },
+    {
+      "path": "extensions/animegg/manifest.json",
+      "sha256": "50050122dadface9d7798a44bf99db4ad0bfccaa59b95972b8c8e03a40ebef24"
+    },
+    {
+      "path": "extensions/animegg/src/source.js",
+      "sha256": "4e0e5d1d07e343f379d77e7bb20124bc6bea1bd9fc7458a596d409e38f66e297"
+    },
+    {
+      "path": "extensions/animeheaven/README.md",
+      "sha256": "c83eb722ef3d4fea456f51efeecd49cddbe27c76f8670fb96d5bdd39212c76c0"
+    },
+    {
+      "path": "extensions/animeheaven/index.js",
+      "sha256": "480bb98cb74ab525484c7294f4d08ac5cf89611e512415216af33554f2def3bd"
+    },
+    {
+      "path": "extensions/animeheaven/manifest.json",
+      "sha256": "b7e9a1bd1b73fb26f6f3c5cf333ed80029076172e5bf78bd04fedee91c891007"
+    },
+    {
+      "path": "extensions/animeheaven/src/source.js",
+      "sha256": "0d4413666a784981afc5879af34cdea66db9b183f73c5b30dcd0b829f755ed80"
+    },
+    {
+      "path": "extensions/animesama/README.md",
+      "sha256": "4a9e821bd66ec4f8164fa60699d61fede5a55816fe3e861c6a7940dac0c40089"
+    },
+    {
+      "path": "extensions/animesama/index.js",
+      "sha256": "39bde0d3e6eadc23fe4bdeda32c67febe0b2228cbe302bafe7002bc67eafe28d"
+    },
+    {
+      "path": "extensions/animesama/manifest.json",
+      "sha256": "7feae3067062ed31f18f969c6204658da709272104e8430c4a58f25b1f909bdf"
+    },
+    {
+      "path": "extensions/animesama/src/source.js",
+      "sha256": "74567ebaef04f8278a91ca212451de08f463121bf3960bc292b3e26ecddf2a0f"
+    },
+    {
+      "path": "extensions/animesaturnmirror/README.md",
+      "sha256": "f2bd2fda67b001d979d5edeef8c0dd55a36e7042b399f36b79031053a945cacc"
+    },
+    {
+      "path": "extensions/animesaturnmirror/index.js",
+      "sha256": "9f70ea10cf4f90ef1e953a836969caa324748e25e51851197feddab4a5a1936e"
+    },
+    {
+      "path": "extensions/animesaturnmirror/manifest.json",
+      "sha256": "9460a420ea0a6bbaf2c6d94193777851aab79fc93d93234d89320002695fb378"
+    },
+    {
+      "path": "extensions/animesaturnmirror/src/source.js",
+      "sha256": "369de21e37c346cfd1b3f67232114ef4f03788c4e30b9c829ffbd1e045789338"
+    },
+    {
+      "path": "extensions/animetoast/README.md",
+      "sha256": "575c6057e6b52845884d0fac7891be1335688f6005850b4d62b4606accc77cfe"
+    },
+    {
+      "path": "extensions/animetoast/index.js",
+      "sha256": "d68153d4e42841211e92b130ccf6dc1d2291a0d686fdd4e99e637240696995e3"
+    },
+    {
+      "path": "extensions/animetoast/manifest.json",
+      "sha256": "fb78edb5d21a53e87b0a866ee02bb12f36e6d5e5c3eb67cc78653f855ba45160"
+    },
+    {
+      "path": "extensions/animetoast/src/source.js",
+      "sha256": "3c0658fa9579e3e9c67106ef5c941ef7ac7a64831023d4877756973991833fe9"
+    },
+    {
+      "path": "extensions/animetvplus/README.md",
+      "sha256": "db8f13ff8bb600456e3013ad3d389b96ff7db1682c5336a4e506bc413f955087"
+    },
+    {
+      "path": "extensions/animetvplus/index.js",
+      "sha256": "c5ee51ffaa77c76d35995bf7da01a54cf10551d32b00fa600f96b7e407aca8cf"
+    },
+    {
+      "path": "extensions/animetvplus/manifest.json",
+      "sha256": "853ecbc47aa60b62175cd4ff00289f376c2fa69b92e52989b6f7157ce1132991"
+    },
+    {
+      "path": "extensions/animetvplus/src/source.js",
+      "sha256": "fb352f049b32f4b818234aa6464e668deb5a35e54b3cfb9318448165e40b11a8"
+    },
+    {
+      "path": "extensions/animeunion/README.md",
+      "sha256": "06ea7e1e3677a4272292fb6041c32685b2fbfbc516a6d3af0804c10fd546c15c"
+    },
+    {
+      "path": "extensions/animeunion/index.js",
+      "sha256": "cc3e2848ec29cbe4ba4906f49be52778296cb29665a42d0fb176e0936709b7ee"
+    },
+    {
+      "path": "extensions/animeunion/manifest.json",
+      "sha256": "31c138bff44e837c40e8265d650e85f0825b2fe102f2a67dceccfa2452ee0888"
+    },
+    {
+      "path": "extensions/animeunion/src/source.js",
+      "sha256": "df3df523873ab3d2885acf5223d21963c2ac702805215968d959611207934b71"
+    },
+    {
+      "path": "extensions/animeunitymirror/README.md",
+      "sha256": "7a6037464caabc3075c7318118cc55cce2183976ffdfb31e23913f025c69a5d5"
+    },
+    {
+      "path": "extensions/animeunitymirror/index.js",
+      "sha256": "6f779a4aab71d396dcc5d24371793144d9cb258d7256b832fb29b69aec8baf15"
+    },
+    {
+      "path": "extensions/animeunitymirror/manifest.json",
+      "sha256": "c95776b397853911b584faa6923dfb7f56b7b7251fb44daaa3d588f5e0c7d289"
+    },
+    {
+      "path": "extensions/animeunitymirror/src/source.js",
+      "sha256": "da69d0f76c79bc99dc215006d3d9a72ce7258b22b7b259b7fe59f5c9701ab619"
+    },
+    {
+      "path": "extensions/anitube/README.md",
+      "sha256": "8a4c9e18d763232a11121f1bcd29b6fe1ba93bec6b5c3ab9f2c1bf587fa4169a"
+    },
+    {
+      "path": "extensions/anitube/index.js",
+      "sha256": "17ebd58fe82787f2592f1c4985699557d675c7f49973b497584fc085c9ca2a0f"
+    },
+    {
+      "path": "extensions/anitube/manifest.json",
+      "sha256": "5b9d3719744046a5809ac10075ba0039920385206fdde5eeab0805e5decbf3b9"
+    },
+    {
+      "path": "extensions/anitube/src/source.js",
+      "sha256": "ede2ff839e3783ed1fbddbdb0dcb1ad9ff6966265037d57fd357ef2a74459260"
+    },
+    {
+      "path": "extensions/aniworld/README.md",
+      "sha256": "9a2ebe26cef992d87ee13c7f4b8f3ea1ae3173aa9ade6d24bbe17c716b3c39b0"
+    },
+    {
+      "path": "extensions/aniworld/index.js",
+      "sha256": "b4bc7610612d0fe26c433a4a889090f7e79ee7ca408538e4ebf1fd761d7ea86c"
+    },
+    {
+      "path": "extensions/aniworld/manifest.json",
+      "sha256": "1a1fdd94439c0d4d05915ed45807734bb94d14d2181efba77b64b4f80fb9fb50"
+    },
+    {
+      "path": "extensions/aniworld/src/source.js",
+      "sha256": "4759ffe9b2f343f3670b35e54bc178c15aa94349d2cbf5d78d8171b40d537f78"
+    },
+    {
+      "path": "extensions/asurascans/README.md",
+      "sha256": "69b6dfca65e8c8f03c73a1956168d739238deb2f6801f0ab94255c7f8ddd7e4e"
+    },
+    {
+      "path": "extensions/asurascans/index.js",
+      "sha256": "7a8f861d787ba6b95fb21cf89a7ed3b3f0edff82398031664029029d184b4870"
+    },
+    {
+      "path": "extensions/asurascans/manifest.json",
+      "sha256": "bb05345297bfeb061fbfd8e1ba145dd92c5677926081358be5432ab0c84b358e"
+    },
+    {
+      "path": "extensions/asurascans/src/source.js",
+      "sha256": "976628ebb4b64629cf2e7a5c799da543b2b4da8ce43c6ea78c2d6613edaf4df2"
+    },
+    {
+      "path": "extensions/atsumaru/README.md",
+      "sha256": "e10e2dcf97ee28280ef317f33e42c10fb7cdad7c3245ea701eb12fa18350eb59"
+    },
+    {
+      "path": "extensions/atsumaru/index.js",
+      "sha256": "89befe7a2a2496bd81ca60d788284b852b10388d274546c605ca67296bcd3b27"
+    },
+    {
+      "path": "extensions/atsumaru/manifest.json",
+      "sha256": "91a1e802d144e25489b7e007b6bb09394a7208c131d14b4179f65e45df2632d0"
+    },
+    {
+      "path": "extensions/atsumaru/src/source.js",
+      "sha256": "88d7b233d3f0df0f5becd8bc0cf555d672da23107db9f7acdf25668f91da4052"
     },
     {
       "path": "extensions/desiflix/README.md",
@@ -18,6 +226,102 @@
     {
       "path": "extensions/desiflix/manifest.json",
       "sha256": "29c28112f649708cc3b407891e4cc22aa8a43297ac2c2fc0aa0e130ecf286d5c"
+    },
+    {
+      "path": "extensions/donghuastream/README.md",
+      "sha256": "cca75bd9ef933f46f77299dba2f7c62d59e1c40c9e9d28dd7a5abd81542fd11b"
+    },
+    {
+      "path": "extensions/donghuastream/index.js",
+      "sha256": "0078f6560a32a73631dfb7d5fd37e99b4e9b5f3bdd567ae9cfaad01180411616"
+    },
+    {
+      "path": "extensions/donghuastream/manifest.json",
+      "sha256": "f69de2c8cbde7e4c8d5c16bcc1ddbc8fbb005aeae25b67faab5693e0957065b8"
+    },
+    {
+      "path": "extensions/donghuastream/src/source.js",
+      "sha256": "e2184bb094803b8df92afa1c76d0bc964ebb4f1d373f3aac9306c17d78fe2cff"
+    },
+    {
+      "path": "extensions/fanfox/README.md",
+      "sha256": "508344e73fcb7f773ec032a6dda09003489441ea4247be79f7b3c654a5455cc8"
+    },
+    {
+      "path": "extensions/fanfox/index.js",
+      "sha256": "c30ff294d8749be41895f8e33a42376608f03ba88ed04962055d0d17cf03962f"
+    },
+    {
+      "path": "extensions/fanfox/manifest.json",
+      "sha256": "8adf59637ccf9be64691030241bc5508bcb17b745a58990d02855e24658bf424"
+    },
+    {
+      "path": "extensions/fanfox/src/source.js",
+      "sha256": "de7e5bee8f01a1f0b1e55234078f9d0c97bbc6dbf8bc97ab9bdc7549e9218acb"
+    },
+    {
+      "path": "extensions/hentai2read/README.md",
+      "sha256": "631432d4dba8717341d45653af2fdf9611d29a1a18b4eec91fd2c2370b9059c9"
+    },
+    {
+      "path": "extensions/hentai2read/index.js",
+      "sha256": "084caeb4f044006d6ec550e3f979696da15b5c2348b23e0e36c08ec7fac18182"
+    },
+    {
+      "path": "extensions/hentai2read/manifest.json",
+      "sha256": "d16accfacaf8e2c8b8fc83b6d4e0dda075f357c6eefae47843f407f26a5654dd"
+    },
+    {
+      "path": "extensions/hentai2read/src/source.js",
+      "sha256": "eb41f187597fd3557639643eb7fa9eb683e6227206dcd680626e0d83164d5930"
+    },
+    {
+      "path": "extensions/hentaiera/README.md",
+      "sha256": "78f2a1d61564838e522444c965bec18298e853df60875645959b8eebd5f54d8d"
+    },
+    {
+      "path": "extensions/hentaiera/index.js",
+      "sha256": "924d8a90604be561b16d88ae98a9225c1ad0de54fb45ed8b6707b89991ac2df2"
+    },
+    {
+      "path": "extensions/hentaiera/manifest.json",
+      "sha256": "532abb810d4c69b24500828fd5abd2c6e0a9534c21f1935bf9f60141fd67c93c"
+    },
+    {
+      "path": "extensions/hentaiera/src/source.js",
+      "sha256": "27e95d7674dc484bd6b2d1a980b66d93876cd8defe92f43fd6ff61c8831e5672"
+    },
+    {
+      "path": "extensions/hentaisaturn/README.md",
+      "sha256": "1f54cc7ae5a64089f6d9f313f4958161c0887f4cc4ce73e7b068589b6b5246c9"
+    },
+    {
+      "path": "extensions/hentaisaturn/index.js",
+      "sha256": "04507c75eea62ffef9a9bc17c390f824ee817f3f07d9a09b4b3baa8cec0b2e0a"
+    },
+    {
+      "path": "extensions/hentaisaturn/manifest.json",
+      "sha256": "d16f26811e977243c7fff1beaebc0902bf3059ef333a0a4c8ca902a6d728535e"
+    },
+    {
+      "path": "extensions/hentaisaturn/src/source.js",
+      "sha256": "a88d90b095bdce11065f69434fa97dda80f780ee44c2e7555de5de09be09e6fa"
+    },
+    {
+      "path": "extensions/hentaiworld/README.md",
+      "sha256": "0577520aaa0f93361285633d9d054e7a1ed55d0b553449e03d2762df61ec0edc"
+    },
+    {
+      "path": "extensions/hentaiworld/index.js",
+      "sha256": "1e366d4fd42d487f669017774d9a5f6804731366363e1717dbe86ca3d4a52c89"
+    },
+    {
+      "path": "extensions/hentaiworld/manifest.json",
+      "sha256": "fbbeaf03338f36e10029147e4bf3bdddb96c36341fe2b89669eacc4a9e0dd76f"
+    },
+    {
+      "path": "extensions/hentaiworld/src/source.js",
+      "sha256": "6f8ea3639456cc80f5e99b54d50ebd15790f01234a2cd26fad3086e1dfbf1f31"
     },
     {
       "path": "extensions/internet-archive/README.md",
@@ -52,6 +356,218 @@
       "sha256": "2bb76395d3087f553b84f273c4ed63b32e0054c34cfa1aa160bceba471cf4a51"
     },
     {
+      "path": "extensions/komiku/README.md",
+      "sha256": "68c5b0114f44aa3b714768ec3b2c72e7381c7f86622a77a47c40c149fb6da348"
+    },
+    {
+      "path": "extensions/komiku/index.js",
+      "sha256": "3440e8dd966e951419847a3e18594b4a9836e4b72f06e5240541dd9d2e1ebeb4"
+    },
+    {
+      "path": "extensions/komiku/manifest.json",
+      "sha256": "e0cd5fe6e21c26c0a53f0046eaa34c7e2f63248f22066dbe53aeb364307d12df"
+    },
+    {
+      "path": "extensions/komiku/src/source.js",
+      "sha256": "696fb6288f06854565c09136c4f4fafb2fce442f4547f5f3bd785c83c25fbba8"
+    },
+    {
+      "path": "extensions/kuramanga/README.md",
+      "sha256": "94f2856588acc35f90d4f1f4d59b535e7167a601a29f23e39fe84f1e737fa388"
+    },
+    {
+      "path": "extensions/kuramanga/index.js",
+      "sha256": "ea05a2beaa391e9ac57ac43ad5bd666bc0313cb602e56655a0a4fe3c63027e39"
+    },
+    {
+      "path": "extensions/kuramanga/manifest.json",
+      "sha256": "cefc220add98b3c914cb929a47212e6cdbaf4215654819c295371ea649de1312"
+    },
+    {
+      "path": "extensions/kuramanga/src/source.js",
+      "sha256": "22005123e191b13511be79cf3b609515ac84daad4de3b4a3460785d6b34b96e1"
+    },
+    {
+      "path": "extensions/lelmanga/README.md",
+      "sha256": "62bd7437142b35340a080215cb2aaf71efee80101a4e792c9e6f442dd100a733"
+    },
+    {
+      "path": "extensions/lelmanga/index.js",
+      "sha256": "fbfe7d2ecce894ba8b5d04cb18f57750e2f8bcb0858ee8d9618ebcaf82880576"
+    },
+    {
+      "path": "extensions/lelmanga/manifest.json",
+      "sha256": "f3ce37fefdfa753a42b54fdc025029ee59adf510bac6da43597a689ca874f5a3"
+    },
+    {
+      "path": "extensions/lelmanga/src/source.js",
+      "sha256": "4d4abe4a85355c60651c5e5885bc6c814bc0fbfd0d0b80c3adb488c4511e0d0b"
+    },
+    {
+      "path": "extensions/mangaball/README.md",
+      "sha256": "2acd0929b06c63424079b3aa4e2a34762022112d29306c3c318e40b34d829446"
+    },
+    {
+      "path": "extensions/mangaball/index.js",
+      "sha256": "dd9cef2c0f032c58a7b46d17cd3342bdd57d89986c8792f2923fe190611114a1"
+    },
+    {
+      "path": "extensions/mangaball/manifest.json",
+      "sha256": "b3262550eb29c1204ee86dd39867313923092630f9b5777d9451ac19a1ed3fe7"
+    },
+    {
+      "path": "extensions/mangaball/src/source.js",
+      "sha256": "d3863e2100858a5fc060588dd0645b988a0d516e4f4eb236621f49e17f130c1e"
+    },
+    {
+      "path": "extensions/mangabuddy/README.md",
+      "sha256": "1ef9219d41e5bbe282e1eddb1374e9aedc3e8d940c1636339a78688a7f35830b"
+    },
+    {
+      "path": "extensions/mangabuddy/index.js",
+      "sha256": "d601db47dbd4968803ba7c4da6b33eb587f7d4d9019590bf8e95e6bfd726a572"
+    },
+    {
+      "path": "extensions/mangabuddy/manifest.json",
+      "sha256": "e3a96e815b09eb1771575b4b52e110f5b4ef02eb0cb1863e58d073c67fdcee5c"
+    },
+    {
+      "path": "extensions/mangabuddy/src/source.js",
+      "sha256": "463997b69a5380045e2b873d9f706e3dfa2b0c167e442492ca7beba1bb3fcb37"
+    },
+    {
+      "path": "extensions/mangadot/README.md",
+      "sha256": "a7d30ea3eec0c06f4ae804972f006624f3217766414ba3ea97cea971f402a1f5"
+    },
+    {
+      "path": "extensions/mangadot/index.js",
+      "sha256": "d7007ae315ab662e8d3ffe665e6bc31e1d143e6d02714e8c028146eb02fe1d79"
+    },
+    {
+      "path": "extensions/mangadot/manifest.json",
+      "sha256": "e80d23b05f6b68b15c94d9c0a45e285dd4c63e340d5abf8e10eb42293f5f4a9a"
+    },
+    {
+      "path": "extensions/mangadot/src/source.js",
+      "sha256": "a82186f4e625f90e2de1f0fc223feeda0e9905a2f05f5bda7139ea5a1d79ee08"
+    },
+    {
+      "path": "extensions/mangafire/README.md",
+      "sha256": "de12a9d848d5638c0b31fc45b26a9cb1fd6bb913a18eddd567bb2f9e716abcd0"
+    },
+    {
+      "path": "extensions/mangafire/index.js",
+      "sha256": "be84d3293fc8902d2d0fe5aa942ded690d7064a5a2c110a2a6a3c26be32645fa"
+    },
+    {
+      "path": "extensions/mangafire/manifest.json",
+      "sha256": "bb017b3f89dd1d3ae84f6a5a6e6b0931afb885326ff2d3d6d96168287469b056"
+    },
+    {
+      "path": "extensions/mangafire/src/request-key.js",
+      "sha256": "905a46223beaee1c0ad8ed4ab8495d70786da1f1a274fe7e69b56947aafc8c18"
+    },
+    {
+      "path": "extensions/mangafire/src/source.js",
+      "sha256": "3900a8247cdcd55b77c4a15a2beec39761668eb0a022f85b387fc231c5ee183b"
+    },
+    {
+      "path": "extensions/mangafreak/README.md",
+      "sha256": "bc4ac9daf9861d1b9893f92ff11772b50fc5341218a521debb02e96de2760324"
+    },
+    {
+      "path": "extensions/mangafreak/index.js",
+      "sha256": "7223f2817229857b9903c35f286339f80cb017fa6b8b45e096f3c0e5195786b1"
+    },
+    {
+      "path": "extensions/mangafreak/manifest.json",
+      "sha256": "2060b67a1f5a6bcb6cdd6f6a5727566bd1147d0909b89748f2d8b327a09db818"
+    },
+    {
+      "path": "extensions/mangafreak/src/source.js",
+      "sha256": "5e973f3725395fe68df47f48aea4189450f7584a4484d92d33b5070d8a522a42"
+    },
+    {
+      "path": "extensions/mangahub/README.md",
+      "sha256": "d736258742f26086fe870c0bc4f6f5623747d52503dbd5aa5b1b9e72ab8c27b6"
+    },
+    {
+      "path": "extensions/mangahub/index.js",
+      "sha256": "7f071419404fdc21e474bf06d8a6cdfc420126000855f7a3580515909376ea30"
+    },
+    {
+      "path": "extensions/mangahub/manifest.json",
+      "sha256": "7b56a0baf315841d2c93f8d37a228e6b14d851d2779ddab4bcae99730d4c9b90"
+    },
+    {
+      "path": "extensions/mangahub/src/source.js",
+      "sha256": "2f6a5c76a5f1f1e2dee57b5f3c1fc5b2406396df0305351312e4a3519eac7051"
+    },
+    {
+      "path": "extensions/mangakatana/README.md",
+      "sha256": "c1c09ad2f7bfeb8d320582ce259fb17f101721710b4749a65087e838393e594b"
+    },
+    {
+      "path": "extensions/mangakatana/index.js",
+      "sha256": "9e44bb230fe02c3bb02ce55dde68e0c45aac2ff768b6885ae2a908ec3c540e8c"
+    },
+    {
+      "path": "extensions/mangakatana/manifest.json",
+      "sha256": "e516309aec5c8b0ea56f77f0d8ccfff8d309fedec26a7f488c0ea85bcf544747"
+    },
+    {
+      "path": "extensions/mangakatana/src/source.js",
+      "sha256": "0e539663e80cfe9da9119f5fd4d6a11c6178921f3826d167ba46ca0091497920"
+    },
+    {
+      "path": "extensions/manganato/README.md",
+      "sha256": "27bc6ea05b1b5700dc4932deb8de11bb9dbdc8aeffa9d306bf2c0756d37bb2e4"
+    },
+    {
+      "path": "extensions/manganato/index.js",
+      "sha256": "0dccaf2708dfffd7f6f1aafaa38294448b91a06fb1de5d6e86018600d92d086a"
+    },
+    {
+      "path": "extensions/manganato/manifest.json",
+      "sha256": "b9dc82a3e96a27d43249f467c39921f14dae176995e5cf40679e72274d3dfcbe"
+    },
+    {
+      "path": "extensions/manganato/src/source.js",
+      "sha256": "6d059ac656b74e6a749e6cf6ed67453939d3c522f0eb336d0dbb5e604e8f39eb"
+    },
+    {
+      "path": "extensions/mangastash/README.md",
+      "sha256": "35a5e71780f8188c654f0f88b576ca1f1d69b671d860ae588214023171dd845b"
+    },
+    {
+      "path": "extensions/mangastash/index.js",
+      "sha256": "dc453155b7a238e685b03b828a5dd91206e4fdcdf21e70f1d43d33d60093fdde"
+    },
+    {
+      "path": "extensions/mangastash/manifest.json",
+      "sha256": "0dfb18e80639c6e4482d973037b7d39a39360046f57d8403e5b3a20a33fade33"
+    },
+    {
+      "path": "extensions/mangastash/src/source.js",
+      "sha256": "1453973e636a9afeb629a39515102fb19427fccef47b1a2fad134491b67f81fd"
+    },
+    {
+      "path": "extensions/mangaworldadult/README.md",
+      "sha256": "c5b18957e468661d57f1480dae6b2996f0e56feaf55d6bcb54a5bba164cd5fbf"
+    },
+    {
+      "path": "extensions/mangaworldadult/index.js",
+      "sha256": "a32b6bc0c1a4910c54e194e35f278f7caa04c05283a422dd11eeb0996a382bc1"
+    },
+    {
+      "path": "extensions/mangaworldadult/manifest.json",
+      "sha256": "03869593aeec39445c636b2691e813f41a4405ac776f2b6f4d9a3bed83228fdb"
+    },
+    {
+      "path": "extensions/mangaworldadult/src/source.js",
+      "sha256": "453de0af6c3d23b45fdf458e6e1d7d59a8c91057f60d6133634398591869080c"
+    },
+    {
       "path": "extensions/moviebox/README.md",
       "sha256": "802d3381bce0566a7a2168d472c724c00d099b6ed603ebb67402b4eb62803892"
     },
@@ -64,8 +580,104 @@
       "sha256": "29de105ad6151c243e82e7b89f10ca4de5ae79473f4959259330c588306128cd"
     },
     {
+      "path": "extensions/mynimeku/README.md",
+      "sha256": "6b382c2d4146522d29151a16a8e690f476e40cb03b92694bc595e78cf26836cf"
+    },
+    {
+      "path": "extensions/mynimeku/index.js",
+      "sha256": "677c23d53f79eae68ce723f3ec1f69e61592768724a03efa6df7159821959e0c"
+    },
+    {
+      "path": "extensions/mynimeku/manifest.json",
+      "sha256": "8805025406d38195cc319078c332e98c634ea14bd14a5e4c070034a4a0603724"
+    },
+    {
+      "path": "extensions/mynimeku/src/source.js",
+      "sha256": "dcb2186105d0d4d1862be98b5ce8a3cc7a3b21d9e2865c51332947b631e80b94"
+    },
+    {
+      "path": "extensions/mynimekumanga/README.md",
+      "sha256": "641042d1756bd733a8998d3012194ad75db7fb8aea5dc11d10ca9a3ed1363d14"
+    },
+    {
+      "path": "extensions/mynimekumanga/index.js",
+      "sha256": "5ee996296a45cd2f13078f7b1aa6394a899b5262e728a4549449d0857129ef3c"
+    },
+    {
+      "path": "extensions/mynimekumanga/manifest.json",
+      "sha256": "2a90b66ba510b916c95295c621345411f0fa13df7c5131fb84fbab36a8fac617"
+    },
+    {
+      "path": "extensions/mynimekumanga/src/source.js",
+      "sha256": "308122c3f7e802a8dbdc5e194a4b8e8fedd08d29305c75e5683d9df0498f9819"
+    },
+    {
+      "path": "extensions/nontonanime/README.md",
+      "sha256": "07a8440d84b03be9eeb981716f9e870bb532abca297558d37557009c9c9e9a95"
+    },
+    {
+      "path": "extensions/nontonanime/index.js",
+      "sha256": "6393c79613f1691be99f4da0945bb7961e613d0636d3a9dcc8c8c1647c5bcab6"
+    },
+    {
+      "path": "extensions/nontonanime/manifest.json",
+      "sha256": "43d412b2474ed3670f694bfc9883d596b188567959edd5998b1f84f31ed6b3e3"
+    },
+    {
+      "path": "extensions/nontonanime/src/source.js",
+      "sha256": "3b000fe6fec6fe218d0444c8054d2006d9f5341714a5733b3a5f8db4661803d4"
+    },
+    {
+      "path": "extensions/ravenscans/README.md",
+      "sha256": "ae5bb84e76f2c71a51406ab19f1cff0f41cb25b22586870ab76540f286e0adee"
+    },
+    {
+      "path": "extensions/ravenscans/index.js",
+      "sha256": "9a75a059b675d3aaecad1c34ea2b1bedf09f903b37fe3c20a444a1cdeeb0f67e"
+    },
+    {
+      "path": "extensions/ravenscans/manifest.json",
+      "sha256": "bb7de83a0e208366b6d4f7fbb663d8fa6b53111d22560d7d00a9cc845f5fd210"
+    },
+    {
+      "path": "extensions/ravenscans/src/source.js",
+      "sha256": "26c002c59f671c051ebb1d29d7846a0ed1a9335457aad1a8c836c41112de3bf7"
+    },
+    {
       "path": "extensions/registry.json",
-      "sha256": "d883f8ef60b8533a50897181330d692e2d47b12927af2c1fe605c8c5dd319487"
+      "sha256": "470d40e116cd006fb43ba6ceb952b7ad9640eeb1dbdc706ff273bb715cab38f3"
+    },
+    {
+      "path": "extensions/shiro/README.md",
+      "sha256": "56c4d545641f28c73facb7323a3ca7438cf5f8ce5c64a2c70bc0da60e3453d2d"
+    },
+    {
+      "path": "extensions/shiro/index.js",
+      "sha256": "a83922941253ddc78160dbc38aa7193224afbf4cc85f2e97516132595a583f78"
+    },
+    {
+      "path": "extensions/shiro/manifest.json",
+      "sha256": "f57d094ef3a7132bc0766d3bba4e925ae6b3df0ff846aed02fd51d1f218688b5"
+    },
+    {
+      "path": "extensions/shiro/src/source.js",
+      "sha256": "ba373827b8b7efa4c1a0035062482e23ae57160c7bf4d73385d46fd419212f0a"
+    },
+    {
+      "path": "extensions/shonen/README.md",
+      "sha256": "3fb971c83638a84e946a7f945532a72bd10c7de986e04acce3e11ad82bb872bb"
+    },
+    {
+      "path": "extensions/shonen/index.js",
+      "sha256": "c62089e67c8a5cb4545c3fa5f8255b4f19664051068452d8ef16c1c7530270f3"
+    },
+    {
+      "path": "extensions/shonen/manifest.json",
+      "sha256": "1096062ca1db799721171750d5306b97e2900dad94ee070783912a5418aa060f"
+    },
+    {
+      "path": "extensions/shonen/src/source.js",
+      "sha256": "8b2381d77b83fc217b71d0fad2007d6b771f4994c75fab9fee343a27f336bd36"
     },
     {
       "path": "extensions/streamflix/README.md",
@@ -78,6 +690,22 @@
     {
       "path": "extensions/streamflix/manifest.json",
       "sha256": "055afda6c70acc2bc8babc94539f9867eddf47420b58787b732b3c1e57d0d307"
+    },
+    {
+      "path": "extensions/taiyo/README.md",
+      "sha256": "7738617f387684aa875693e2578c36529288fa5e4dee25ac8ae6ecb89794527a"
+    },
+    {
+      "path": "extensions/taiyo/index.js",
+      "sha256": "88862915bb9794cb880c09812117b92c54d9d464ede2d384192e945f4f6835ce"
+    },
+    {
+      "path": "extensions/taiyo/manifest.json",
+      "sha256": "2e837d1f09a1dcb534187b3b856c00e86dc254cb29cfdb7fa8e3952fb4a0a96e"
+    },
+    {
+      "path": "extensions/taiyo/src/source.js",
+      "sha256": "eb6f6c498bed7aafd8eca7dfde13388fab5a08cd119cc6b4212bce1bfb9157dd"
     },
     {
       "path": "extensions/vidlink/README.md",
@@ -102,6 +730,22 @@
     {
       "path": "extensions/vixsrc/manifest.json",
       "sha256": "87f328573e74145b64a9c56662260cd4759c5fa9714aac266ff4da3ecadfe13c"
+    },
+    {
+      "path": "extensions/xcomic/README.md",
+      "sha256": "55f82d54df006a98fb2afcd7651b5b2444c8566faf3a1b8e76a910a612d5d6d6"
+    },
+    {
+      "path": "extensions/xcomic/index.js",
+      "sha256": "610f3c973b90d3d6263a6969cd93f2fa8ddacdbff6b8aa7c7fa6a6f866b909b8"
+    },
+    {
+      "path": "extensions/xcomic/manifest.json",
+      "sha256": "a9afbd50c30773c739b910252791679f29fd32fd523920abb22b81f34681337f"
+    },
+    {
+      "path": "extensions/xcomic/src/source.js",
+      "sha256": "abaaa4cf1ffe02e6c10911529ba9e7a69d01910883c55c570a48f8f5f1abc2ce"
     }
   ]
 }

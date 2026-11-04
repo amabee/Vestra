@@ -1,0 +1,18 @@
+{
+  "id": "vestra-mangastash",
+  "name": "MangaStash",
+  "version": "1.0.1",
+  "sdkVersion": "1.6.0",
+  "main": "index.js",
+  "role": "manga-source",
+  "kinds": [],
+  "permissions": [
+    "network"
+  ],
+  "hosts": [
+    "mangastash.org"
+  ],
+  "author": "Vestra contributors",
+  "homepage": "https://mangastash.org",
+  "description": "Native English MangaStash source with source result rows, stable chapter IDs and ordered reader pages."
+}
