@@ -263,3 +263,37 @@ describe("the host boundary", () => {
     expect(seen[0]).toEqual({ url: "https://openlibrary.org/x" });
   }, 30_000);
 });
+
+
+describe("unsettled host call cleanup", () => {
+  it("unloads a timed-out fetch and ignores its late completion without poisoning other isolates", async () => {
+    let complete!: (value: { status: number; headers: Record<string, string>; body: string }) => void;
+    const waiting = new Promise<{ status: number; headers: Record<string, string>; body: string }>(resolve => { complete = resolve; });
+    const runtime = createQuickJSRuntime();
+    const loaded = await runtime.load({
+      extensionId: "slow-host",
+      source: `export function activate({host}) { return { probe: async () => { await host.fetch({url:"https://example.com"}); return "late"; } }; }`,
+      bridge: bridge({fetch: () => waiting}),
+      limits: {memoryBytes: 32 * 1024 * 1024, timeoutMs: 30, maxInstructions: 1_000_000},
+    });
+    await expect(loaded.call("probe", [], AbortSignal.timeout(5000))).rejects.toThrow(/deadline/);
+    loaded.dispose();
+    complete({status: 200, headers: {}, body: "late"});
+    await new Promise(resolve => setImmediate(resolve));
+    expect(await probe(`export function activate() { return {probe: () => "healthy"}; }`)).toBe("healthy");
+    runtime.disposeAll();
+  }, 30_000);
+
+  it("unloads an unresolved guest promise after cancellation", async () => {
+    const runtime = createQuickJSRuntime();
+    const loaded = await runtime.load({
+      extensionId: "cancel-pending",
+      source: `export function activate() { return {probe: () => new Promise(() => {})}; }`,
+      bridge: bridge(),
+    });
+    await expect(loaded.call("probe", [], AbortSignal.timeout(30))).rejects.toBeInstanceOf(ExtensionExecutionError);
+    loaded.dispose();
+    expect(await probe(`export function activate() { return {probe: () => "healthy"}; }`)).toBe("healthy");
+    runtime.disposeAll();
+  }, 30_000);
+});
