@@ -1,7 +1,7 @@
 {
   "id": "vestra-asurascans",
   "name": "AsuraScans",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "sdkVersion": "1.6.0",
   "main": "index.js",
   "role": "manga-source",

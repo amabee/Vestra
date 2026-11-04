@@ -156,6 +156,17 @@ function activate({ host }) {
     },
     async getChapters(id) {
       const path = sourceId(id, ORIGIN, BOOK), html = await read(path);
+      if (html.includes("ChapterListReact")) {
+        const data = props(html, "ChapterListReact"), rows = array(data.chapters).flatMap((row) => {
+          const number = value(row.number);
+          if (typeof number !== "number" || !Number.isFinite(number) || number < 0) return [];
+          const id2 = path + "/chapter/" + number;
+          if (!CHAPTER.test(id2)) return [];
+          const until = Date.parse(value(row.early_access_until)), premium = value(row.is_premium) === true, locked = premium && (!Number.isFinite(until) || until > Date.now()), label = locked ? Number.isFinite(until) ? " \xB7 Early access" : " \xB7 Premium" : "", name = text(value(row.title));
+          return [{ id: id2, url: ORIGIN + id2, title: "Chapter " + number + (name ? " \xB7 " + name : "") + label }];
+        });
+        return chapters(rows, "en");
+      }
       return chapters(links(html).flatMap((link) => {
         const p = url(link.href, ORIGIN);
         return p?.host === "asurascans.com" && p.path.startsWith(path + "/chapter/") && CHAPTER.test(p.path) ? [{ id: p.path, title: link.text || `Chapter ${p.path.split("/").pop()}` }] : [];
@@ -163,7 +174,10 @@ function activate({ host }) {
     },
     async getPages(id) {
       const path = sourceId(id, ORIGIN, CHAPTER), html = await read(path), data = props(html, "ChapterReader");
-      return pages(array(data.pages).map((row) => value(row.url)), ORIGIN, HOSTS, ORIGIN + path);
+      if (value(data.isLocked) === true) throw Error("AsuraScans has locked this chapter for early access. Choose an unlocked chapter or try again after it becomes public.");
+      const rows = array(data.pages);
+      if (!rows.length) throw Error("AsuraScans has not published images for this chapter yet. Choose another chapter or try again later.");
+      return pages(rows.map((row) => value(row.url)), ORIGIN, HOSTS, ORIGIN + path);
     }
   };
 }
