@@ -15,5 +15,5 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://www.mangabats.com",
-  "description": "Native English port of Seanime's Manganato provider, which currently uses MangaBats. Fetches every chapter page and parses reader arrays as data."
+  "description": "Native English MangaBats source. Fetches every chapter page and parses reader arrays as data."
 }

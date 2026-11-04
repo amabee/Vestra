@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "repository": "amabee/Foundry",
-  "revision": "ecf193e551a2d66733898f5bc71310e913901c02",
+  "revision": "2a6c89c93b62e2dc8434bd45632fd29864352ab5",
   "files": [
     {
       "path": "extensions/README.md",
@@ -429,7 +429,7 @@
     },
     {
       "path": "extensions/mangabuddy/manifest.json",
-      "sha256": "e3a96e815b09eb1771575b4b52e110f5b4ef02eb0cb1863e58d073c67fdcee5c"
+      "sha256": "6191de558393cc6935a0b794b3a0de737c3b642e97ca661ea0834fdf0fc00837"
     },
     {
       "path": "extensions/mangabuddy/src/source.js",
@@ -497,7 +497,7 @@
     },
     {
       "path": "extensions/mangahub/manifest.json",
-      "sha256": "7b56a0baf315841d2c93f8d37a228e6b14d851d2779ddab4bcae99730d4c9b90"
+      "sha256": "acc69ad80dc6a178d05d8154eb418e7f345bbd92cd39173ac908cbf503bde0b1"
     },
     {
       "path": "extensions/mangahub/src/source.js",
@@ -529,7 +529,7 @@
     },
     {
       "path": "extensions/manganato/manifest.json",
-      "sha256": "b9dc82a3e96a27d43249f467c39921f14dae176995e5cf40679e72274d3dfcbe"
+      "sha256": "4c5bc885dc267562fcc77f21ff7dd5e71d8a04f1194334fd60dc3aa694af5ea6"
     },
     {
       "path": "extensions/manganato/src/source.js",
@@ -645,7 +645,7 @@
     },
     {
       "path": "extensions/registry.json",
-      "sha256": "470d40e116cd006fb43ba6ceb952b7ad9640eeb1dbdc706ff273bb715cab38f3"
+      "sha256": "35949b198e654e8be2719694b0782efdf86d0b19551df54fea30d689d560301e"
     },
     {
       "path": "extensions/shiro/README.md",

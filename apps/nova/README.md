@@ -87,6 +87,10 @@ New profiles use Foundry. Updated Nova builds resolve the former official Vestra
 
 In Extensions, **Check for updates** checks installed SDK extensions and compatibility sources. Review updates before applying them; newly requested permissions start unchecked and additional hosts are highlighted. Reviewed code is pinned in memory, enabled/disabled status is retained, and activation or storage failures attempt to restore the previous runtime. Existing bundled installs are matched by their shipped manifest path before checking Foundry; arbitrary local folders have no automatic remote origin.
 
+The reviewed offline catalogue includes all 17 native anime ports and 23 native manga sources from Foundry, alongside the existing movie/TV sources. Anime listings use the Anime filter and manga listings use Manga. Installing a source still requires permission review; bundling never installs it automatically.
+
+SDK 1.7 adds a separate `network:cookies` permission for source-issued anonymous cookies and follows redirects only within exact approved HTTPS hosts. Browser/account cookie jars remain unavailable. Timed-out host requests release their sandbox handles when unloaded. These changes require a Nova build newer than v0.2.7.
+
 Native HentaiEra and experimental Hentai2Read adapters are maintained in Foundry. SDK 1.6 adds optional `searchPage(query, { page, limit })` returning `{ items, hasMore }`; older `search` arrays remain supported. Nova detects repeated pages from legacy providers so infinite scrolling does not repeatedly append the first page.
 
 Registry URLs may point to an array, an `extensions`/`entries` array wrapper, or one extension manifest. Seanime JavaScript/TypeScript anime and manga manifests can embed their script in `payload` or link it through `payloadURI`. Host access still requires review. Unsupported types and languages remain visible with an explanation; listing an extension does not establish upstream compatibility or availability.
@@ -103,7 +107,7 @@ pnpm test:foundry
 
 Edit and build extension sources in Foundry, then update the snapshot after reviewing the upstream commit. Sync/update commands refuse to overwrite local snapshot edits; verification rejects changed, missing or extra files and unsafe paths. Packaging works from the verified local snapshot without downloading a moving branch.
 
-StreamFlix remains excluded from Foundry's published registry and blocked in Nova's bundled install path. Vidlink remains experimental. Offline contract checks do not establish current upstream streaming availability.
+StreamFlix remains excluded from Foundry's published registry and blocked in Nova's bundled install path. Vidlink, AnimeGG, AnimeToast, DonghuaStream and AniTVPlus remain experimental; additional manga sources also have upstream restrictions recorded in Foundry. Offline contract checks do not establish current upstream streaming availability.
 
 ## Security boundaries
 

@@ -26,5 +26,5 @@
   ],
   "author": "Vestra contributors",
   "homepage": "https://mangak.io",
-  "description": "Native English manga search and reading via MangaK, the current backend of Seanime's MangaBuddy provider. Includes paged search and stable title identities."
+  "description": "Native English manga search and reading via MangaK. Includes paged search and stable title identities."
 }
