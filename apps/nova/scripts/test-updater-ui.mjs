@@ -55,7 +55,7 @@ try {
   await wait("document.body.textContent.includes('Updates unavailable for this run')");assert.equal(await run("[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Check for updates')).disabled"),true);
   await run("fixture.push({phase:'idle',message:null})");await wait("document.body.textContent.includes('Ready to check')");
   await run("[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Check for updates')).click()");await wait("document.body.textContent.includes('Version 1.0.0 is available')");assert.equal(await run('fixture.downloads'),0);assert.equal(await run("document.querySelectorAll('img').length"),0);
-  assert.equal(await run("document.querySelector('a[href*=settings]').textContent.includes('1.0.0')"),true);
+  assert.equal(await run("document.querySelector('[aria-haspopup=dialog]').textContent.includes('1.0.0')"),true);
   await run(${JSON.stringify(`fixture.push({releaseNotes:${JSON.stringify(formattedNotes)}})`)});await wait("document.querySelector('details h2')?.textContent==='Settings, made for Vestra'");
   assert.equal(await run("document.querySelectorAll('details ul li').length"),2);assert.equal(await run("document.querySelector('details li').textContent"),'Interface & Appearance');assert.equal(await run("document.querySelector('details strong').textContent"),'Encrypted backups');
   await run("document.querySelector('details a').click()");await wait("fixture.lastExternal==='https://github.com/amabee/Vestra/releases/tag/v0.2.0'");assert.equal(await run('window.fixtureAttack===undefined'),true);

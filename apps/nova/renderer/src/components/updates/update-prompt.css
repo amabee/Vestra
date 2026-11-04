@@ -1,0 +1,247 @@
+.nova-update-dialog {
+  width: min(42rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: 0;
+  margin: auto;
+  border: 1px solid
+    color-mix(in oklch, var(--color-base-content) 15%, transparent);
+  border-radius: 1.4rem;
+  background: var(--color-base-100);
+  color: var(--color-base-content);
+  box-shadow: 0 24px 100px #0006;
+  overflow: auto;
+}
+.nova-update-dialog::backdrop {
+  background: #100d0bb3;
+  backdrop-filter: blur(7px);
+}
+.nova-update-card {
+  position: relative;
+  overflow: clip;
+}
+.nova-update-close {
+  position: absolute;
+  z-index: 2;
+  right: 1rem;
+  top: 1rem;
+}
+.nova-update-hero {
+  display: grid;
+  grid-template-columns: 9.5rem 1fr;
+  align-items: center;
+  gap: 1.7rem;
+  padding: 2.8rem 2.2rem 2rem;
+  background: radial-gradient(
+    ellipse at 5% 0%,
+    color-mix(in oklch, var(--color-primary) 13%, transparent),
+    transparent 75%
+  );
+}
+.nova-update-eyebrow {
+  display: block;
+  margin-bottom: 0.8rem;
+  font: 0.65rem var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--color-primary);
+}
+.nova-update-hero h2 {
+  margin: 0;
+  font: 2.7rem/0.98 var(--font-serif);
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+.nova-update-hero p {
+  margin: 0.85rem 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  opacity: 0.7;
+}
+.nova-update-version {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  font: 0.7rem var(--font-mono);
+}
+.nova-update-version > span {
+  opacity: 0.55;
+}
+.nova-update-version strong {
+  color: var(--color-primary);
+  border: 1px solid color-mix(in oklch, var(--color-primary) 30%, transparent);
+  border-radius: 99px;
+  padding: 0.3rem 0.6rem;
+}
+.nova-update-mascot {
+  position: relative;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  transform: rotate(-5deg);
+  transition: transform 0.2s;
+}
+.nova-update-mascot:hover {
+  transform: rotate(2deg) translateY(-3px);
+}
+.nova-update-mascot img {
+  display: block;
+  position: relative;
+  width: 100%;
+  filter: drop-shadow(0 10px 12px #0002);
+}
+.nova-update-mascot:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 8px;
+  border-radius: 1rem;
+}
+.nova-update-orbit {
+  position: absolute;
+  top: -1.3rem;
+  right: 0;
+  color: var(--color-accent);
+  font-size: 2rem;
+}
+.nova-update-cheer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.65rem;
+  font-size: 0.6rem;
+  color: var(--color-primary);
+}
+.nova-update-notes {
+  margin: 0 2.2rem;
+  border-top: 1px solid
+    color-mix(in oklch, var(--color-base-content) 12%, transparent);
+  padding: 1.2rem 0;
+  max-height: min(30dvh, 16rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.nova-update-notes > h3 {
+  margin: 0;
+  font: 0.7rem var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.nova-update-notes > p,
+.nova-update-notes [aria-label="Release notes"] {
+  font-size: 0.82rem;
+  line-height: 1.65;
+}
+.nova-update-bottom {
+  padding: 1.2rem 2.2rem 1.5rem;
+  background: color-mix(in oklch, var(--color-base-200) 60%, transparent);
+  border-top: 1px solid
+    color-mix(in oklch, var(--color-base-content) 9%, transparent);
+}
+.nova-update-hint {
+  margin: 0 0 1rem;
+  font-size: 0.75rem;
+  opacity: 0.65;
+}
+.nova-update-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+.nova-update-actions .btn {
+  font-size: 0.8rem;
+}
+.nova-update-actions .btn-ghost,
+.nova-update-close {
+  color: var(--color-base-content);
+}
+.nova-update-download {
+  margin-bottom: 1rem;
+}
+.nova-update-download > div {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  margin-bottom: 0.55rem;
+}
+.nova-update-download p {
+  font: 0.65rem var(--font-mono);
+  opacity: 0.6;
+  margin-top: 0.4rem;
+}
+.nova-update-error {
+  font-size: 0.8rem;
+  color: var(--color-error);
+  margin: 0 0 0.8rem;
+}
+.nova-update-confetti {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+}
+.nova-update-confetti i {
+  position: absolute;
+  top: -1rem;
+  left: var(--x);
+  width: 0.35rem;
+  height: 0.7rem;
+  border-radius: 1px;
+  background: var(--confetti-color);
+  opacity: 0;
+  animation: nova-update-fall 2.6s var(--delay) ease-out both;
+}
+.nova-update-confetti i:nth-child(3n) {
+  border-radius: 50%;
+  height: 0.35rem;
+}
+@keyframes nova-update-fall {
+  0% {
+    opacity: 0;
+    transform: translateY(-1rem) rotate(0deg);
+  }
+  8% {
+    opacity: 0.9;
+  }
+  80% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--drift), 34rem) rotate(var(--turn));
+  }
+}
+@media (max-width: 520px) {
+  .nova-update-hero {
+    grid-template-columns: 5.5rem 1fr;
+    padding: 2.7rem 1.2rem 1.5rem;
+    gap: 1rem;
+  }
+  .nova-update-hero h2 {
+    font-size: 2rem;
+  }
+  .nova-update-eyebrow {
+    font-size: 0.55rem;
+    letter-spacing: 0.08em;
+  }
+  .nova-update-cheer {
+    font-size: 0.5rem;
+  }
+  .nova-update-notes {
+    margin-inline: 1.2rem;
+  }
+  .nova-update-bottom {
+    padding: 1.2rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nova-update-confetti {
+    display: none;
+  }
+  .nova-update-mascot,
+  .nova-update-mascot:hover {
+    transform: none;
+    transition: none;
+  }
+}

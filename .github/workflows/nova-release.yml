@@ -82,6 +82,7 @@ jobs:
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      - run: pnpm test:updater:prompt
       - run: pnpm test:settings:ui
       - run: pnpm test:settings:integrations:ui
       - run: node apps/nova/scripts/test-anilist-sync-ui.mjs

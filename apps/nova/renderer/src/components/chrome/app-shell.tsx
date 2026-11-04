@@ -1,6 +1,7 @@
 import { AppearanceController } from "./appearance";
 import { useSettings, keys } from "@/lib/queries";
 import { bridge } from "@/lib/bridge";
+import { UpdatePrompt } from "@/components/updates/update-prompt";
 import { UpdateIndicator } from "@/components/updates/app-updates";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search } from "lucide-react";
@@ -80,6 +81,7 @@ export function AppShell() {
 
       {settings?.app.showStatusBar !== false && <StatusBar />}
       <PlayerOverlay />
+      <UpdatePrompt />
     </div>
   );
 }
