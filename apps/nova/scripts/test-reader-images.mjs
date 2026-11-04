@@ -250,3 +250,19 @@ test("real image sidecars retain the guarded HTTPS destination policy", async ()
     pool.stop();
   }
 });
+
+// Exercise framing without spawning a process or trusting a real CDN.
+test("large image replies have a bounded allowance while metadata retains its limit", () => {
+  function bridge(limit) {
+    const worker=Object.create(CSharpProviderWorker.prototype);
+    let value, failure;
+    Object.assign(worker,{buffer:"",pending:{id:"fixture",cleanup(){},resolve(v){value=v;},reject() {},maxResponseChars:limit}});
+    worker.stop=(error)=>{failure=error;};
+    return {worker,value:()=>value,failure:()=>failure};
+  }
+  const line=JSON.stringify({id:"fixture",ok:true,value:{data:"A".repeat(5*1024*1024)}})+"\n";
+  const image=bridge(12_582_912); image.worker.receive(line);
+  assert.equal(image.value().data.length,5*1024*1024); assert.equal(image.failure(),undefined);
+  const metadata=bridge(4_194_304); metadata.worker.receive(line); assert.match(metadata.failure().message,/protocol limit/);
+  const oversized=bridge(12_582_912); oversized.worker.receive("A".repeat(12_582_913));assert.match(oversized.failure().message,/protocol limit/);
+});

@@ -196,7 +196,8 @@ internal static class ProviderWorker
             await transport.FetchBinaryAsync(
                 request,
                 new HashSet<string>(StringComparer.OrdinalIgnoreCase) { uri.IdnHost },
-                deadline.Token
+                deadline.Token,
+                MangaImage.MaxBytes
             )
         );
     }

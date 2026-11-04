@@ -46,7 +46,9 @@ export function isBlockedIPv4(address: string): boolean {
   if (a === 172 && b >= 16 && b <= 31) return true; // private
   if (a === 192 && b === 168) return true; // private
   if (a === 100 && b >= 64 && b <= 127) return true; // carrier-grade NAT
-  if (a === 192 && b === 0) return true; // IETF protocol assignments
+  // IANA reserves 192.0.0.0/24, not all of 192.0.0.0/16. Public CDNs
+  // (including WordPress at 192.0.77.x) use the rest of that /16.
+  if (a === 192 && b === 0 && octets[2] === 0) return true;
   if (a === 192 && b === 0 && octets[2] === 2) return true;
   if (a === 198 && b === 51 && octets[2] === 100) return true;
   if (a === 203 && b === 0 && octets[2] === 113) return true;

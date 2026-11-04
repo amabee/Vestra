@@ -39,8 +39,9 @@ public sealed class ProviderHttpTransport : IProviderTransport, IDisposable
         }
         return new FetchResponse(r.Status,r.Url,r.Headers,encoding.GetString(r.Body),r.StatusText);
     }
-    public async Task<BinaryFetchResponse> FetchBinaryAsync(FetchRequest request, IReadOnlySet<string> hosts, CancellationToken cancellationToken)
+    public async Task<BinaryFetchResponse> FetchBinaryAsync(FetchRequest request, IReadOnlySet<string> hosts, CancellationToken cancellationToken, int maxBytes = 2 * 1024 * 1024)
     {
+        if (maxBytes is < 1 or > MangaImage.MaxBytes) throw new ArgumentOutOfRangeException(nameof(maxBytes));
         var method = request.Method.ToUpperInvariant();
         if (method is not ("GET" or "HEAD" or "POST")) throw new ArgumentException("Only GET, HEAD and POST are supported.");
         var headers = request.Headers ?? [];
@@ -77,15 +78,14 @@ public sealed class ProviderHttpTransport : IProviderTransport, IDisposable
                 uri = next;
                 continue;
             }
-            const int maxBytes = 2 * 1024 * 1024;
-            if (response.Content.Headers.ContentLength > maxBytes) throw new InvalidOperationException("Response exceeds 2 MiB.");
+            if (response.Content.Headers.ContentLength > maxBytes) throw new InvalidOperationException($"Response exceeds {maxBytes} bytes.");
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
             using var data = new MemoryStream();
             var buffer = new byte[8192];
             int count;
             while ((count = await stream.ReadAsync(buffer, cancellationToken)) > 0)
             {
-                if (data.Length + count > maxBytes) throw new InvalidOperationException("Response exceeds 2 MiB.");
+                if (data.Length + count > maxBytes) throw new InvalidOperationException($"Response exceeds {maxBytes} bytes.");
                 data.Write(buffer, 0, count);
             }
             var responseHeaders = response.Headers.Concat(response.Content.Headers)
@@ -116,7 +116,8 @@ public sealed class ProviderHttpTransport : IProviderTransport, IDisposable
         return b[0] is not (0 or 10 or 127) && b[0] < 224 &&
             !(b[0] == 100 && b[1] is >= 64 and <= 127) &&
             !(b[0] == 169 && b[1] == 254) && !(b[0] == 172 && b[1] is >= 16 and <= 31) &&
-            !(b[0] == 192 && (b[1] == 168 || b[1] == 0 || b[1] == 2)) &&
+            // IETF protocol assignments and TEST-NET-1 are /24s, not /16s.
+            !(b[0] == 192 && (b[1] == 168 || b[1] == 0 && b[2] is 0 or 2)) &&
             !(b[0] == 198 && (b[1] is 18 or 19 || b[1] == 51 && b[2] == 100)) &&
             !(b[0] == 203 && b[1] == 0 && b[2] == 113);
     }
