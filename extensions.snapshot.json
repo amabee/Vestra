@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "repository": "amabee/Foundry",
-  "revision": "68e4b56c6cd25d330a713193fe483e92a09648d0",
+  "revision": "e5fa9e35d4e99753929f0f96d1a1fa25df5df26f",
   "files": [
     {
       "path": "extensions/README.md",
@@ -581,11 +581,11 @@
     },
     {
       "path": "extensions/mangafire/index.js",
-      "sha256": "be84d3293fc8902d2d0fe5aa942ded690d7064a5a2c110a2a6a3c26be32645fa"
+      "sha256": "639e131da98d519b041efcad4ab90532fd9df9536382f5674c052e3ce7d87494"
     },
     {
       "path": "extensions/mangafire/manifest.json",
-      "sha256": "aa05bb435be8931a0cd1267c8e9fbd0999e4448fe33f8d13896d6acf33cdac97"
+      "sha256": "23469a4c274a58adc62c4e9e0d5e2bb7cc29a5d20e9bd5cb12d497d9205f5ff4"
     },
     {
       "path": "extensions/mangafire/src/request-key.js",
@@ -593,7 +593,7 @@
     },
     {
       "path": "extensions/mangafire/src/source.js",
-      "sha256": "3900a8247cdcd55b77c4a15a2beec39761668eb0a022f85b387fc231c5ee183b"
+      "sha256": "ba4477809afd40280dae6093d90f1b895588cbcac39c102af5cdd5d573e239b5"
     },
     {
       "path": "extensions/mangafreak/README.md",
@@ -809,7 +809,7 @@
     },
     {
       "path": "extensions/registry.json",
-      "sha256": "45ff66394fbae91d26e916edbbbb1378d3aac16d4b50834c3cbc78a2136a555f"
+      "sha256": "6e9a04b90cc2df61116a07aec559f0d676b0330e28c8fab911b06a47e3028ce7"
     },
     {
       "path": "extensions/shiro/README.md",

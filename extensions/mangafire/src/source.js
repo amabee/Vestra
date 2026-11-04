@@ -1,7 +1,7 @@
 // Adapted from Seanime Providers (MIT), Copyright (c) 2025 Pal.
 import {reader,pageOptions,asset,pages} from "../../../lib/manga-common.js";
 import {signedPath} from "./request-key.js";
-const ORIGIN="https://mangafire.to",HOSTS=["mangafire.to", "static.mfcdn.nl", "k99.mfcdn1.xyz"];
+const ORIGIN="https://mangafire.to",HOSTS=["mangafire.to", "static.mfcdn.nl", "k99.mfcdn1.xyz", "l1n.mfcdn2.xyz", "q73.mfcdn1.xyz", "l1n.mfcdn3.xyz"];
 function identity(value){if(typeof value!=="string"||!/^[a-z0-9_-]{1,200}$/i.test(value))throw Error("Invalid MangaFire identity.");return value;}
 export function activate({host}) {
  const read=reader(host,ORIGIN),api=(path,pairs=[])=>read(signedPath('/api'+path,pairs),true);

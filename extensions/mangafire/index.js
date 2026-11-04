@@ -144,7 +144,7 @@ function signedPath(path, pairs = []) {
 
 // extensions/mangafire/src/source.js
 var ORIGIN = "https://mangafire.to";
-var HOSTS = ["mangafire.to", "static.mfcdn.nl", "k99.mfcdn1.xyz"];
+var HOSTS = ["mangafire.to", "static.mfcdn.nl", "k99.mfcdn1.xyz", "l1n.mfcdn2.xyz", "q73.mfcdn1.xyz", "l1n.mfcdn3.xyz"];
 function identity(value) {
   if (typeof value !== "string" || !/^[a-z0-9_-]{1,200}$/i.test(value)) throw Error("Invalid MangaFire identity.");
   return value;
