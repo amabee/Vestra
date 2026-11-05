@@ -20,6 +20,8 @@ async function runner(config) {
   try {
     const { handleIpc, secureWindow } = require("./security.cjs");
     let pauses = 0;
+    for (const action of ["list", "dismiss", "restore"])
+      handleIpc("continue-shelf:" + action, () => ({}));
     handleIpc("extensions:updates", () => []);
     handleIpc("app:version", () => "fixture");
     handleIpc("anilist-account:status", () => ({ connected: false }));
@@ -60,6 +62,10 @@ async function runner(config) {
       ),
       [],
     );
+    assert.deepEqual(
+      await main.webContents.executeJavaScript("vestra.continueShelf.list()"),
+      {},
+    );
     const rogue = create(config.preload);
     await rogue.loadFile(page);
     assert.equal(
@@ -80,9 +86,20 @@ async function runner(config) {
       ),
       true,
     );
+    for (const action of ["list", "dismiss", "restore"])
+      assert.equal(
+        await rogue.webContents.executeJavaScript(
+          "vestra.continueShelf." + action + "({}).then(()=>false,()=>true)",
+        ),
+        true,
+      );
     const player = create(config.playerPreload);
     secureWindow(player, "player", pathToFileURL(page).href);
     await player.loadFile(page);
+    assert.equal(
+      await player.webContents.executeJavaScript("typeof vestra.continueShelf"),
+      "undefined",
+    );
     assert.equal(
       await player.webContents.executeJavaScript("typeof vestra.extensions"),
       "undefined",

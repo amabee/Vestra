@@ -1,3 +1,7 @@
+import {
+  continueDismissalsSchema,
+  type ContinueTarget,
+} from "../../../shared/continue-shelf";
 import type {
   ExtensionUpdateReview,
   ExtensionUpdateSummary,
@@ -213,6 +217,11 @@ interface RawBridge {
     list: () => Promise<unknown>;
     add: (input: unknown) => Promise<unknown>;
     remove: (ref: unknown) => Promise<unknown>;
+  };
+  continueShelf: {
+    list: () => Promise<unknown>;
+    dismiss: (target: unknown) => Promise<unknown>;
+    restore: (target: unknown) => Promise<unknown>;
   };
   progress: {
     all: () => Promise<unknown>;
@@ -882,6 +891,14 @@ export const bridge = {
       (await raw().watchlist.remove(ref)) as WatchlistEntry[],
   },
 
+  continueShelf: {
+    list: async () =>
+      continueDismissalsSchema.parse(await raw().continueShelf.list()),
+    dismiss: async (target: ContinueTarget) =>
+      continueDismissalsSchema.parse(await raw().continueShelf.dismiss(target)),
+    restore: async (target: ContinueTarget) =>
+      continueDismissalsSchema.parse(await raw().continueShelf.restore(target)),
+  },
   progress: {
     all: async (): Promise<Record<string, WatchProgress>> =>
       (await raw().progress.all()) as Record<string, WatchProgress>,

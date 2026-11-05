@@ -1,3 +1,8 @@
+import {
+  useContinueShelf,
+  ContinueShelfNotice,
+  RemoveFromContinueButton,
+} from "@/lib/use-continue-shelf";
 import { MangaSearchResults } from "./manga-search-results";
 import {
   preferredMangaSource,
@@ -136,6 +141,7 @@ function MangaShelf({
     null,
   );
   const cache = useQueryClient();
+  const continueShelf = useContinueShelf();
   const chooseSource = () => {
     setChoosingSource(true);
     void cache.invalidateQueries({ queryKey: ["manga", "sources"] });
@@ -308,6 +314,13 @@ function MangaShelf({
         sourceName: sources[index]!.name,
       })),
     )
+    .filter(
+      (entry) =>
+        !continueShelf.hidden(
+          { kind: "manga", source: entry.source, book: entry.book.id },
+          Date.parse(entry.progress.updatedAt),
+        ),
+    )
     .sort(
       (a, b) =>
         Number(new Date(b.progress.updatedAt)) -
@@ -323,7 +336,9 @@ function MangaShelf({
       truncated: recentQueries.some((result) => result.data?.truncated),
     },
     isPending:
-      recentQueries.some((result) => result.isPending) && !recentEntries.length,
+      continueShelf.isPending ||
+      (recentQueries.some((result) => result.isPending) &&
+        !recentEntries.length),
     isFetching: recentQueries.some((result) => result.isFetching),
     error: recentQueries.find((result) => result.error)?.error,
     refetch: () => Promise.all(recentQueries.map((result) => result.refetch())),
@@ -665,6 +680,7 @@ function MangaShelf({
       ) : (
         <>
           <section aria-label="Continue reading">
+            <ContinueShelfNotice shelf={continueShelf} />
             <div className="mb-5 flex items-baseline justify-between gap-4">
               <h2 className="flex items-center gap-2 text-lg font-semibold">
                 <Clock3 className="size-4 text-base-content/40" />
@@ -698,6 +714,14 @@ function MangaShelf({
                     sourceName={entry.sourceName}
                     book={entry.book}
                     progress={entry.progress}
+                    onRemoveContinue={() =>
+                      continueShelf.remove.mutate({
+                        kind: "manga",
+                        source: entry.source,
+                        book: entry.book.id,
+                      })
+                    }
+                    removingContinue={continueShelf.remove.isPending}
                     images={images}
                     provider={entry.source}
                     lookups={lookups}
@@ -714,8 +738,8 @@ function MangaShelf({
             ) : (
               !recent.error && (
                 <p className="rounded-xl border border-dashed border-base-content/10 px-4 py-5 text-sm text-base-content/45">
-                  No recent reading yet. Explore below, or search all your
-                  sources above.
+                  No titles to continue right now. Explore below, or search all
+                  your sources above.
                 </p>
               )
             )}
@@ -754,6 +778,8 @@ function MangaCard({
   disabled,
   onOpen,
   bookmarkControl,
+  onRemoveContinue,
+  removingContinue,
 }: {
   book: MangaBook;
   progress?: ReadingProgress;
@@ -764,6 +790,8 @@ function MangaCard({
   disabled?: boolean;
   onOpen: () => void;
   bookmarkControl?: ReactNode;
+  onRemoveContinue?: () => void;
+  removingContinue?: boolean;
 }) {
   const [issue, setIssue] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -813,6 +841,13 @@ function MangaCard({
           </p>
         )}
       </button>
+      {onRemoveContinue && (
+        <RemoveFromContinueButton
+          title={book.title}
+          onClick={onRemoveContinue}
+          disabled={removingContinue}
+        />
+      )}
       <MangaUnreadBadge provider={provider} bookId={book.id} />
       {bookmarkControl}
       {issue && (

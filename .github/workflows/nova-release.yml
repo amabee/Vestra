@@ -43,6 +43,7 @@ jobs:
       - run: pnpm test:settings:expansion
       - run: pnpm test:settings:integrations
       - run: pnpm test:anilist:login
+      - run: pnpm test:continue
       - run: pnpm test:anilist:sync
       - run: pnpm test:updater:ui
       - run: pnpm test:extensions:install
@@ -91,6 +92,8 @@ jobs:
       - run: pnpm test:startup
       - run: pnpm test:startup:ui
       - run: pnpm test:screen:ui
+      - run: pnpm test:anime:hub:ui
+      - run: pnpm test:anime:ui
       - run: node apps/nova/scripts/test-reader-ui.mjs
       - name: Smoke-test packaged worker and compiler
         run: node apps/nova/scripts/test-packaged-worker.mjs --resources apps/nova/release/win-unpacked/resources

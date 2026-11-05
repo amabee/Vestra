@@ -1,3 +1,4 @@
+import { RemoveFromContinueButton } from "@/lib/use-continue-shelf";
 import { AnimeUnwatchedBadge } from "./completion-badges";
 import { useSettings } from "@/lib/queries";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -77,6 +78,8 @@ export function AnimeHubCard({
   disabled,
   busy,
   working,
+  onRemoveContinue,
+  removingContinue,
 }: {
   title: AnimeCatalogueTitle;
   provider: string;
@@ -90,6 +93,8 @@ export function AnimeHubCard({
   disabled?: boolean;
   busy?: boolean;
   working?: boolean;
+  onRemoveContinue?: () => void;
+  removingContinue?: boolean;
 }) {
   const { item } = title;
   const { data: settings } = useSettings();
@@ -185,6 +190,13 @@ export function AnimeHubCard({
           </button>
         )}
       </div>
+      {onRemoveContinue && (
+        <RemoveFromContinueButton
+          title={item.title}
+          onClick={onRemoveContinue}
+          disabled={removingContinue}
+        />
+      )}
     </article>
   );
 }

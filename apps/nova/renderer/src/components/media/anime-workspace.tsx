@@ -1,3 +1,8 @@
+import {
+  useContinueShelf,
+  ContinueShelfNotice,
+  RemoveFromContinueButton,
+} from "@/lib/use-continue-shelf";
 import { AnimeSourceBrowse } from "./anime-source-browse";
 import { animeMessage } from "./anime-message";
 import {
@@ -108,6 +113,7 @@ export function AnimeWorkspace() {
   });
   const watchlist = useWatchlist();
   const progress = useProgress();
+  const continueShelf = useContinueShelf();
   const history = useHistory();
   const lists = useQuery({
     queryKey: playlistKey,
@@ -145,7 +151,27 @@ export function AnimeWorkspace() {
         !value.completed &&
         value.percent >= 0.01,
     );
-  const cards = (rows: MediaItem[]) => (
+  const continueItems = [
+    ...new Map(
+      (history.data ?? [])
+        .filter(
+          (row) => row.snapshot.kind === "anime" && hasProgress(row.snapshot),
+        )
+        .map((row) => [mediaKey(row.snapshot), row.snapshot]),
+    ).values(),
+  ].filter(
+    (item) =>
+      !continueShelf.hidden(
+        { kind: "anime", ref: { ...item, kind: "anime" } },
+        Math.max(
+          0,
+          ...Object.values(progress.data ?? {})
+            .filter((row) => mediaKey(row.ref) === mediaKey(item))
+            .map((row) => row.updatedAt),
+        ),
+      ),
+  );
+  const cards = (rows: MediaItem[], continuation = false) => (
     <div className="anime-card-grid">
       {rows.map((item) => {
         const playbackProvider = provider;
@@ -156,6 +182,16 @@ export function AnimeWorkspace() {
           <AnimeTile
             key={mediaKey(item)}
             item={item}
+            onRemoveContinue={
+              continuation
+                ? () =>
+                    continueShelf.remove.mutate({
+                      kind: "anime",
+                      ref: { ...item, kind: "anime" },
+                    })
+                : undefined
+            }
+            removingContinue={continueShelf.remove.isPending}
             provider={playbackProvider}
             resume={hasProgress(item)}
             saved={saved}
@@ -320,30 +356,15 @@ export function AnimeWorkspace() {
       )}
       {view === "discover" && (
         <>
-          {!query &&
-            history.data?.some(
-              (row) =>
-                row.snapshot.kind === "anime" && hasProgress(row.snapshot),
-            ) && (
-              <section className="anime-hub-section">
-                <div className="anime-hub-section-title">
-                  <h2>Pick up where you left off</h2>
-                </div>
-                {cards(
-                  [
-                    ...new Map(
-                      history.data
-                        .filter(
-                          (row) =>
-                            row.snapshot.kind === "anime" &&
-                            hasProgress(row.snapshot),
-                        )
-                        .map((row) => [mediaKey(row.snapshot), row.snapshot]),
-                    ).values(),
-                  ].slice(0, 6),
-                )}
-              </section>
-            )}
+          {!query && <ContinueShelfNotice shelf={continueShelf} />}
+          {!query && !continueShelf.isPending && continueItems.length > 0 && (
+            <section className="anime-hub-section">
+              <div className="anime-hub-section-title">
+                <h2>Pick up where you left off</h2>
+              </div>
+              {cards(continueItems.slice(0, 6), true)}
+            </section>
+          )}
           <section className="anime-hub-section">
             <div className="anime-hub-section-title">
               <h2>
@@ -609,6 +630,8 @@ function AnimeTile({
   onPlay,
   onLater,
   onSave,
+  onRemoveContinue,
+  removingContinue,
 }: {
   item: MediaItem;
   provider: string;
@@ -620,6 +643,8 @@ function AnimeTile({
   onPlay: () => void;
   onLater: () => void;
   onSave: () => void;
+  onRemoveContinue?: () => void;
+  removingContinue?: boolean;
 }) {
   const href = `/media/${item.source}/${item.kind}/${encodeURIComponent(item.sourceId)}?${new URLSearchParams({ source: provider })}`;
   return (
@@ -667,6 +692,13 @@ function AnimeTile({
           <ListPlus size={17} />
         </button>
       </div>
+      {onRemoveContinue && (
+        <RemoveFromContinueButton
+          title={item.title}
+          onClick={onRemoveContinue}
+          disabled={removingContinue}
+        />
+      )}
     </article>
   );
 }

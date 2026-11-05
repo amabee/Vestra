@@ -9,6 +9,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
+    "test:continue": "vitest run apps/nova/electron/continue-shelf.test.ts",
     "test:startup": "node apps/nova/scripts/test-startup.mjs",
     "test:startup:ui": "node apps/nova/scripts/test-startup-ui.mjs",
     "build:app": "dotnet build apps/server/Vestra.Server.csproj -c Release --nologo && pnpm --filter @vestra/nova build",

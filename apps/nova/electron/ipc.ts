@@ -1,3 +1,5 @@
+import { getContinueShelf } from "./continue-shelf";
+import { continueTargetSchema } from "../shared/continue-shelf";
 import {
   ExtensionUpdater,
   serializeExtensionChange,
@@ -494,6 +496,15 @@ export function registerDataIpc(): void {
    * Progress and history
    * --------------------------------------------------------------------- */
 
+  const continueShelf = getContinueShelf(getDriver());
+  handle("continue-shelf:list", () => continueShelf.list());
+  handle("continue-shelf:dismiss", (target: unknown) =>
+    continueShelf.change(continueTargetSchema.parse(target), true),
+  );
+  handle("continue-shelf:restore", (target: unknown) =>
+    continueShelf.change(continueTargetSchema.parse(target), false),
+  );
+
   handle("progress:all", () => getAllProgress(getDriver()));
 
   handle("progress:save", async (raw: unknown) => {
@@ -506,6 +517,12 @@ export function registerDataIpc(): void {
       ...input,
       markWatchedAt: settings.playback.markWatchedAt,
     });
+    if (saved.ref.kind === "anime")
+      await continueShelf
+        .change({ kind: "anime", ref: { ...saved.ref, kind: "anime" } }, false)
+        .catch((error) =>
+          console.warn("[continue] Could not restore a resumed title:", error),
+        );
     void emitAniList((sync) => sync.progress(saved));
     return saved;
   });
