@@ -111,7 +111,7 @@ try {
   await writeFile(
     join(scratch, "index.html"),
     `<!doctype html><html data-theme="vestra-dark"><head><style>${css}</style></head><body style="margin:0;height:100vh"><div id="root"></div><script>
-    window.readerFixture = { calls: [], saves: [], fail: true, exited:false, bridge: { settings:{get:async()=>{if(readerFixture.settingsFail)throw Error("Fixture settings unavailable");return structuredClone(window.readerFixture.defaults);}}, manga: {
+    window.readerFixture = { calls: [], saves: [], fail: true, exited:false, bridge: {continueShelf:{list:async()=>structuredClone(readerFixture.dismissed??{}),dismiss:async target=>{if(readerFixture.dismissFailure)throw Error('Fixture dismissal failed');readerFixture.dismissed??={};readerFixture.dismissed[JSON.stringify(target.kind==='anime'?['anime',target.ref.source+':anime:'+target.ref.sourceId]:['manga',target.source,target.book])]=Date.now();return structuredClone(readerFixture.dismissed);},restore:async target=>{delete readerFixture.dismissed[JSON.stringify(target.kind==='anime'?['anime',target.ref.source+':anime:'+target.ref.sourceId]:['manga',target.source,target.book])];return structuredClone(readerFixture.dismissed);}}, settings:{get:async()=>{if(readerFixture.settingsFail)throw Error("Fixture settings unavailable");return structuredClone(window.readerFixture.defaults);}}, manga: {
       bookmarks: async () => window.readerFixture.saved??[],
       bookmark: async (kind,source,id,saved) => {const f=window.readerFixture;f.saved??=[];f.saved=f.saved.filter(entry=>!(entry.kind===kind&&entry.source===source&&entry.book.id===id));if(saved)f.saved.push({kind,source,book:{id,title:kind==='catalogue'?(id==='102'?'Popular Korean Tale':'Popular Adventure'):'A Quiet Journey',cover:kind==='catalogue'?'catalogue-'+id:'fixture-cover-0'},savedAt:'2026-10-30T00:00:00Z'});},
       book: async (_p,id,title) => ({id,title:title||'A Quiet Journey',cover:'fixture-cover-0'}),
@@ -255,6 +255,13 @@ try {
         await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Retry cover for After the Rain").click()');
         await until('[...document.querySelectorAll("img")].some(e=>e.alt==="Cover of After the Rain" && e.complete && e.naturalWidth>0)');
         assert.equal(await run('!!document.querySelector("[data-reader-title]")'),false);
+        await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Remove A Quiet Journey from Continue").click()');
+        await until('[...document.querySelectorAll("button")].filter(e=>e.getAttribute("aria-label")==="Continue reading A Quiet Journey").length===1');
+        assert.equal(await run('Object.keys(readerFixture.dismissed).length'),1);
+        await run('[...document.querySelectorAll("button")].find(e=>e.textContent.trim()==="Undo").click()');
+        await until('[...document.querySelectorAll("button")].filter(e=>e.getAttribute("aria-label")==="Continue reading A Quiet Journey").length===2');
+        assert.equal(await run('Object.keys(readerFixture.dismissed).length'),0);
+        console.log('PASS manga dismissal is scoped to the source edition and Undo restores it');
         console.log('PASS legacy shelf covers backfill automatically and failed covers retry without opening the reader');
         await run('[...document.querySelectorAll("button")].find(e=>e.getAttribute("aria-label")==="Continue reading A Quiet Journey").click()');
         await until('document.querySelector("[data-reader-title]")?.textContent==="A Quiet Journey"');

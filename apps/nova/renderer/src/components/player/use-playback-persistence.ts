@@ -90,6 +90,7 @@ export function usePlaybackPersistence(input: {
             snapshot.checkedList = true;
           }
         } finally {
+          void cache.invalidateQueries({ queryKey: ["continue-shelf"] });
           void cache.invalidateQueries({ queryKey: keys.progress });
           void cache.invalidateQueries({ queryKey: keys.history });
         }

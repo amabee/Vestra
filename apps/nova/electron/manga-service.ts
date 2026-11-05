@@ -1,3 +1,4 @@
+import { getContinueShelf } from "./continue-shelf";
 import { mangaImagePayloadSchema } from "./manga-image-payload";
 import { mangaImageHeaders } from "./manga-image-request";
 import { ChapterCompletions } from "./chapter-completions";
@@ -675,6 +676,11 @@ export class MangaService {
     const cover = this.artwork.get(this.key(p, b));
     const result = this.writes.then(async () => {
       await repository.save(b, chapterId, page, count, title, cover);
+      await getContinueShelf(this.driver)
+        .change({ kind: "manga", source: p, book: b }, false)
+        .catch((error) =>
+          console.warn("[continue] Could not restore a resumed manga:", error),
+        );
       if (page === count - 1) await this.completions.complete(p, b, chapterId);
       const label = this.chaptersByBook
         .get(this.key(p, b))

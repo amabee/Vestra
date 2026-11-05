@@ -96,13 +96,19 @@ test("search/chapter/page handles preserve headers, hide URLs and reject arbitra
 test("progress survives C# worker/service restart, validates bounds and isolates providers", async () => {
   const path = join(scratch, "progress");
   const backend = session(join(scratch, "csharp-restart"));
-  const s = new MangaService(new NodeDriver(path));
+  const driver = new NodeDriver(path);
+  const s = new MangaService(driver);
   register(s, "manga", backend);
   await s.search("manga", "x");
   await s.chapters("manga", "book");
   await s.pages("manga", "book", "chapter");
   await assert.rejects(s.save("manga", "book", "chapter", 2), /Invalid/);
+  const dismissalKey = JSON.stringify(["manga", "manga", "book"]);
+  await driver.write("continue-shelf-dismissals-v1", {
+    [dismissalKey]: Date.now(),
+  });
   await s.save("manga", "book", "chapter", 0);
+  assert.deepEqual(await driver.read("continue-shelf-dismissals-v1"), {});
   assert.equal((await s.unread("manga", "book")).unread, 1);
   await s.save("manga", "book", "chapter", 1);
   assert.equal((await s.unread("manga", "book")).unread, 0);

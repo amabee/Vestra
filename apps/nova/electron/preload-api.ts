@@ -292,6 +292,11 @@ export const api = {
     remove: (ref: unknown): Promise<unknown> => invoke("watchlist:remove", ref),
   },
 
+  continueShelf: {
+    list: () => invoke("continue-shelf:list"),
+    dismiss: (target: unknown) => invoke("continue-shelf:dismiss", target),
+    restore: (target: unknown) => invoke("continue-shelf:restore", target),
+  },
   progress: {
     all: (): Promise<unknown> => invoke("progress:all"),
     save: (progress: unknown): Promise<unknown> =>

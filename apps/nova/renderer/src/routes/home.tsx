@@ -1,3 +1,7 @@
+import {
+  useContinueShelf,
+  ContinueShelfNotice,
+} from "@/lib/use-continue-shelf";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
@@ -23,6 +27,7 @@ import { playlistKey } from "@/components/media/playlist-picker";
 
 export function HomeRoute() {
   const { data: settings } = useSettings();
+  const continueShelf = useContinueShelf();
   const hub = useAnimeHub(),
     controls = useAnimeHubActions(hub.provider);
   const watchlist = useWatchlist(),
@@ -82,6 +87,13 @@ export function HomeRoute() {
       ),
     [watchlist.data, history.data, lists.data, progress.data, recovery.data],
   );
+  const continueWatching = model.continueWatching.filter(
+    (row) =>
+      !continueShelf.hidden(
+        { kind: "anime", ref: { ...row.item, kind: "anime" } },
+        row.progress?.updatedAt ?? 0,
+      ),
+  );
   const cards = (
     rows: {
       item: MediaItem;
@@ -127,6 +139,16 @@ export function HomeRoute() {
             controls.actions.isPending &&
             mediaKey(controls.actions.variables.item) === mediaKey(row.item)
           }
+          onRemoveContinue={
+            resume
+              ? () =>
+                  continueShelf.remove.mutate({
+                    kind: "anime",
+                    ref: { ...row.item, kind: "anime" },
+                  })
+              : undefined
+          }
+          removingContinue={continueShelf.remove.isPending}
           onPlaylist={() => controls.setSaving(row.item)}
           working={controls.status.isPending}
           onStatus={(status) =>
@@ -148,8 +170,8 @@ export function HomeRoute() {
               ? settings.appearance.bannerImage
                 ? `vestra-media://appearance/bannerImage?v=${encodeURIComponent(settings.appearance.bannerImage)}`
                 : null
-              : (model.continueWatching.find((r) => r.item.isAdult !== true)
-                  ?.item.images.backdrop ??
+              : (continueWatching.find((r) => r.item.isAdult !== true)?.item
+                  .images.backdrop ??
                 model.groups
                   .flatMap((g) => g.items)
                   .find(
@@ -182,14 +204,17 @@ export function HomeRoute() {
           {(controls.actions.error || controls.status.error)?.message}
         </p>
       )}
+      <ContinueShelfNotice shelf={continueShelf} />
       <AnimeCarousel
         id="continue"
         title="Continue watching"
         loading={
-          loading || (!failure && missingIds.length > 0 && recovery.isPending)
+          continueShelf.isPending ||
+          loading ||
+          (!failure && missingIds.length > 0 && recovery.isPending)
         }
         empty={
-          !loading && !model.continueWatching.length ? (
+          !loading && !continueWatching.length ? (
             <div className="hub-empty">
               <h3>Ready when you are</h3>
               <p>
@@ -202,7 +227,7 @@ export function HomeRoute() {
           ) : undefined
         }
       >
-        {cards(model.continueWatching, true)}
+        {cards(continueWatching, true)}
       </AnimeCarousel>
       {model.groups.map(
         (group) =>
